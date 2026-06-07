@@ -60,12 +60,17 @@ void buildGridTables() {
 struct HeldNote {
     bool physical = false;   // finger still on the key
     bool sustained = false;  // released but held by sustain/latch
+    bool drone = false;      // jam-row latch: rings until tapped again
     int8_t string = -1;
     int8_t col = -1;
     bool chromAtPress = false;  // captured at press: shift never repitches
     float pitch = 0.f;
 };
 HeldNote gNotes[56];
+
+inline bool sounding(const HeldNote& n) {
+    return n.string >= 0 && (n.physical || n.sustained || n.drone);
+}
 
 // per-lane press-order stack for hammer-on / pull-off (string mode)
 uint8_t gLaneStack[4][16];
@@ -88,7 +93,9 @@ bool gRepeatCoarse = false;
 inline bool held(uint64_t mask, int cd) { return (mask >> cd) & 1ULL; }
 
 float pitchFor(const HeldNote& n) {
-    return dsp::gridToMidi(store::get().layout, n.string, n.col, n.chromAtPress);
+    // drones sit an octave under the lead — bass-pad territory
+    return dsp::gridToMidi(store::get().layout, n.string, n.col, n.chromAtPress) -
+           (n.drone ? 12.f : 0.f);
 }
 
 // ---- lane stack helpers ---------------------------------------------------
@@ -112,11 +119,36 @@ void lanePush(int lane, uint8_t cd) {
 }
 
 // ---- note on/off -----------------------------------------------------------
+void sendOff(int cd);
+
 void notePress(int cd, bool shiftHeld) {
     auto& cfgr = store::get();
     HeldNote& n = gNotes[cd];
+
+    // jam rows: tap to latch a drone, tap again to let it fade
+    if (gGridString[cd] < cfgr.jamRows) {
+        if (n.drone && n.string >= 0) {  // second tap: release the drone
+            sendOff(cd);
+            n.drone = false;
+            return;
+        }
+        n.physical = true;
+        n.sustained = false;
+        n.drone = true;
+        n.string = gGridString[cd];
+        n.col = gGridCol[cd];
+        n.chromAtPress = shiftHeld || !cfgr.layout.scaleLock;
+        n.pitch = pitchFor(n);
+        dsp::NoteEvent ev =
+            dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd, 0xFF, false, n.pitch);
+        ev.drone = true;  // exempt from the cap and from chord-slide stealing
+        audio::pushEvent(ev);
+        return;
+    }
+
     n.physical = true;
     n.sustained = false;
+    n.drone = false;
     n.string = gGridString[cd];
     n.col = gGridCol[cd];
     n.chromAtPress = shiftHeld || !cfgr.layout.scaleLock;
@@ -136,6 +168,7 @@ void sendOff(int cd) {
     audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd));
     gNotes[cd].physical = false;
     gNotes[cd].sustained = false;
+    gNotes[cd].drone = false;
     gNotes[cd].string = -1;
 }
 
@@ -144,6 +177,7 @@ void noteRelease(int cd) {
     HeldNote& n = gNotes[cd];
     if (n.string < 0) return;
     n.physical = false;
+    if (n.drone) return;  // drones ignore the finger leaving — tap-to-stop
 
     if (gSustainHeld || gHoldLatch) {
         n.sustained = true;
@@ -183,7 +217,7 @@ void flushSustained() {
 void clearAllNotes() {
     audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
     for (auto& n : gNotes) {
-        n.physical = n.sustained = false;
+        n.physical = n.sustained = n.drone = false;
         n.string = -1;
     }
     for (int l = 0; l < 4; ++l) gLaneDepth[l] = 0;
@@ -200,7 +234,7 @@ void panic() {
 void retuneHeldNotes() {
     for (int cd = 0; cd < 56; ++cd) {
         HeldNote& n = gNotes[cd];
-        if (n.string < 0 || (!n.physical && !n.sustained)) continue;
+        if (!sounding(n)) continue;
         n.pitch = pitchFor(n);
         audio::pushEvent(
             dsp::NoteEvent::make(dsp::NoteEvent::Retarget, (uint8_t)cd, (uint8_t)n.string,
@@ -222,7 +256,7 @@ void octaveShift(int dir) {
         // instant: re-strike held notes at the new octave
         for (int cd = 0; cd < 56; ++cd) {
             HeldNote& n = gNotes[cd];
-            if (n.string < 0 || (!n.physical && !n.sustained)) continue;
+            if (!sounding(n)) continue;
             n.pitch = pitchFor(n);
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd));
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd,
@@ -340,10 +374,29 @@ Actions poll(uint32_t nowMs) {
 
         if (gGridString[cd] >= 0) {
             if (gQuickEdit) {
-                // top row selects the quick-edit slot
                 if (gGridString[cd] == 3) {
+                    // top row selects the quick-edit parameter
                     gQuickParam = gGridCol[cd];
                     hudQuickValue(gQuickParam);
+                } else if (gGridString[cd] == 2) {
+                    // q..p row = the ten sounds; +shift saves over the slot
+                    const int slot = gGridCol[cd];
+                    char v[20];
+                    if (shiftHeld) {
+                        if (store::savePatch(slot)) {
+                            snprintf(v, sizeof v, "saved -> %s", store::patchName(slot));
+                            hud::show("SOUND", v, -1.f);
+                        } else {
+                            hud::showError("SOUND", "save failed");
+                        }
+                    } else {
+                        clearAllNotes();  // a new instrument starts clean
+                        store::applyPatch(slot);
+                        audio::setParams(store::get().synth);
+                        snprintf(v, sizeof v, "%s%s", store::patchName(slot),
+                                 store::patchHasOverride(slot) ? "*" : "");
+                        hud::show("SOUND", v, (slot + 1) / 10.f);
+                    }
                 }
                 continue;  // grid is muted while editing
             }
@@ -471,7 +524,7 @@ Actions poll(uint32_t nowMs) {
 bool noteHeld(int string, int col) {
     for (int cd = 0; cd < 56; ++cd) {
         const HeldNote& n = gNotes[cd];
-        if ((n.physical || n.sustained) && n.string == string && n.col == col) return true;
+        if (sounding(n) && n.string == string && n.col == col) return true;
     }
     return false;
 }

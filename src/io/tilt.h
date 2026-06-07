@@ -9,5 +9,6 @@ namespace tilt {
 void begin();
 bool available();
 void poll();      // call once per UI frame
-float value();    // smoothed -1..+1
+float value();    // smoothed, center-calibrated, -1..+1
+float raw();      // uncalibrated smoothed reading (for center capture)
 }  // namespace tilt

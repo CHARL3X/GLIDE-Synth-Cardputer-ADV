@@ -37,20 +37,21 @@ void applyTilt() {
     auto& s = c.synth;
     if (c.tiltOn && c.tiltRoute != store::TiltRoute::Off && tilt::available()) {
         tilt::poll();
-        const float v = tilt::value();
+        const float v = tilt::value();  // center-calibrated -1..+1
+        const float d = c.tiltDepth;    // per-patch personality depth
         switch (c.tiltRoute) {
-            case store::TiltRoute::Cutoff:
-                s.cutoffModOct = v * 1.5f;
+            case store::TiltRoute::Cutoff:  // the wah
+                s.cutoffModOct = v * 2.f * d;
                 s.vibratoCents = 0.f;
                 s.volMod = 1.f;
                 break;
-            case store::TiltRoute::Vibrato:
-                s.vibratoCents = (v > 0.f ? v : 0.f) * 60.f;
+            case store::TiltRoute::Vibrato:  // lean forward to sing
+                s.vibratoCents = (v > 0.f ? v : 0.f) * 80.f * d;
                 s.cutoffModOct = 0.f;
                 s.volMod = 1.f;
                 break;
-            case store::TiltRoute::Volume:
-                s.volMod = 0.55f + 0.45f * (v * 0.5f + 0.5f);
+            case store::TiltRoute::Volume:  // the swell pedal
+                s.volMod = 1.f - d * 0.9f * (0.5f - v * 0.5f);
                 s.cutoffModOct = 0.f;
                 s.vibratoCents = 0.f;
                 break;
@@ -73,23 +74,26 @@ void drawStatus(M5Canvas& c) {
     if (keys::quickEditActive()) {
         c.fillRect(0, 0, cfg::kScreenW, kStatusH, theme::kAmberDim);
         c.setTextColor(theme::kBg, theme::kAmberDim);
-        c.drawString("-- EDIT --  1-0 select  [ ] adjust", 4, 2);  // 35ch = 210px
+        c.drawString("-- EDIT -- 1-0 param q-p sound [ ] adj", 4, 2);  // 38ch=228px
         return;
     }
 
     c.fillRect(0, 0, cfg::kScreenW, kStatusH, theme::kPanel);
-    c.setTextColor(theme::kAmber, theme::kPanel);
-    c.drawString("GLIDE", 4, 2);
-    c.drawString("GLIDE", 5, 2);  // faux bold
-
     char buf[32];
+    // the active sound owns the wordmark spot; * = user-saved over factory
+    snprintf(buf, sizeof buf, "%s%s", store::patchName(cf.currentPatch),
+             store::patchHasOverride(cf.currentPatch) ? "*" : "");
+    c.setTextColor(theme::kAmber, theme::kPanel);
+    c.drawString(buf, 4, 2);
+    c.drawString(buf, 5, 2);  // faux bold
+
     c.setTextColor(theme::kIdle, theme::kPanel);
     snprintf(buf, sizeof buf, "%s %s%s", dsp::kNoteNames[cf.layout.rootSemis],
              dsp::kScales[cf.layout.scaleIdx].shortName, cf.layout.scaleLock ? "" : "*");
-    c.drawString(buf, 44, 2);
+    c.drawString(buf, 56, 2);
 
     snprintf(buf, sizeof buf, "OCT%d", cf.layout.octave);
-    c.drawString(buf, 100, 2);  // ends at 124: clears HOLD (right edge 134-158)
+    c.drawString(buf, 108, 2);  // ends 132: clears HOLD (right edge 134-158)
 
     // annunciators, right side
     int x = cfg::kScreenW - 4;
@@ -247,7 +251,7 @@ void drawIntro(M5Canvas& c) {
     c.drawString("play  : letter + number keys", x + 8, y + 20);
     c.drawString("slide : new key on the same row", x + 8, y + 31);
     c.drawString("[ ]   : bend    shift : chromatic", x + 8, y + 42);
-    c.drawString("fn    : edit    tab   : settings", x + 8, y + 53);
+    c.drawString("fn+q-p: sounds  fn+1-0: edit", x + 8, y + 53);
     c.setTextColor(theme::kGreen, theme::kPanel);
     c.drawString("press any note key to play", x + 8, y + 72);
 }

@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include "dsp/patches.h"
 #include "dsp/pitch.h"
 #include "dsp/synth.h"
 
@@ -141,6 +143,52 @@ int main() {
         CHECK(pk > 0.01f && pk < 1.3f, "waveform renders in range");
         s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
         peakOf(s, 40);
+    }
+
+    // ---- drones: the layering jam ------------------------------------------
+    // A latched drone must survive the lead's voice-cap stealing and let go
+    // with a drawn-out tail.
+    p = SynthParams();
+    p.voiceCount = 2;
+    p.releaseS = 0.05f;
+    s.setParams(p);
+    NoteEvent dr = NoteEvent::make(NoteEvent::On, 40, 0xFF, false, 45.f);
+    dr.drone = true;
+    s.handleEvent(dr);
+    s.handleEvent(NoteEvent::make(NoteEvent::On, 41, 0xFF, false, 69.f));
+    s.handleEvent(NoteEvent::make(NoteEvent::On, 42, 0xFF, false, 72.f));
+    s.handleEvent(NoteEvent::make(NoteEvent::On, 43, 0xFF, false, 76.f));  // cap steal
+    peakOf(s, 100);  // let the stolen voice finish its glide to the target
+    CHECK(s.heldVoices() == 3, "drone exempt from the lead voice cap (2 lead + 1 drone)");
+    CHECK(fabsf(s.leadPitchMidi() - 76.f) < 0.2f, "steal hit a lead voice, not the drone");
+    s.handleEvent(NoteEvent::make(NoteEvent::Off, 40, 0xFF, false, 0.f));
+    peakOf(s, 25);  // 100 ms: lead release (50 ms) done, drone tail (4x+0.4s) still alive
+    s.handleEvent(NoteEvent::make(NoteEvent::Off, 41, 0xFF, false, 0.f));
+    s.handleEvent(NoteEvent::make(NoteEvent::Off, 42, 0xFF, false, 0.f));
+    s.handleEvent(NoteEvent::make(NoteEvent::Off, 43, 0xFF, false, 0.f));
+    peakOf(s, 25);
+    CHECK(s.activeVoices() >= 1, "drone release is drawn out");
+    s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+    peakOf(s, 40);
+
+    // ---- factory sound bank: every patch is alive and sane ----------------
+    // Exercises the new engine paths: sub-osc (BASS), noise (GHOST/PERC),
+    // filter envelope (PLUCK/ACID/PERC), drive (ACID), auto-vib (WHISTLE).
+    const Patch* bank = factoryPatches();
+    for (int i = 0; i < kPatchCount; ++i) {
+        CHECK(bank[i].name[0] != '\0', "patch has a name");
+        CHECK(bank[i].tiltDepth >= 0.f && bank[i].tiltDepth <= 1.f, "tilt depth in range");
+        for (int j = 0; j < i; ++j)
+            CHECK(strcmp(bank[i].name, bank[j].name) != 0, "patch names unique");
+
+        s.setParams(bank[i].synth);
+        s.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(100 + i), 0, false, 69.f));
+        // slide it too — every sound must survive a glide
+        s.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(120 + i), 0, true, 72.f));
+        const float pk = peakOf(s, 60);  // 240 ms covers slow PAD/GHOST attacks
+        CHECK(pk > 0.005f && pk < 1.4f, "patch renders audible and bounded");
+        s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+        peakOf(s, 80);  // drain long releases before the next patch
     }
 
     if (failures == 0) {

@@ -36,7 +36,7 @@ Voice* Synth::nearestHeld(float pitch) {
     Voice* best = nullptr;
     float bestDist = 1e9f;
     for (auto& v : voices_) {
-        if (!v.held()) continue;
+        if (!v.held() || v.isDrone()) continue;  // never steal the backing
         const float d = fabsf(v.currentPitch() - pitch);
         if (d < bestDist) {
             bestDist = d;
@@ -90,6 +90,7 @@ void Synth::noteOn(const NoteEvent& ev) {
     if (Voice* v = findActiveById(ev.id)) {
         v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
         v->retrigger();
+        fenvStage_ = FEnv::Attack;  // a re-strike snaps the filter again
         leadIdx_ = (int8_t)(v - voices_);
         return;
     }
@@ -106,8 +107,13 @@ void Synth::noteOn(const NoteEvent& ev) {
     // Voice cap reached -> nearest-pitch steal WITH glide: this is how a
     // chord shape slides in free allocation (press the new shape, each new
     // note grabs its nearest sounding neighbor and glides there).
+    // Drones live outside the cap entirely: the backing layer neither
+    // counts against the lead's polyphony nor gets robbed by it.
     const uint8_t cap = p_.voiceCount < 1 ? 1 : (p_.voiceCount > kMaxVoices ? kMaxVoices : p_.voiceCount);
-    if (heldVoices() >= cap) {
+    int heldLead = 0;
+    for (const auto& v : voices_)
+        if (v.held() && !v.isDrone()) ++heldLead;
+    if (!ev.drone && heldLead >= cap) {
         if (Voice* v = nearestHeld(ev.pitchMidi)) {
             v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
             leadIdx_ = (int8_t)(v - voices_);
@@ -124,7 +130,9 @@ void Synth::noteOn(const NoteEvent& ev) {
     }
     Voice* v = alloc();
     v->noteOn(ev.id, ev.lane, ev.pitchMidi, from, doGlide, ++seq_);
-    leadIdx_ = (int8_t)(v - voices_);
+    v->setDrone(ev.drone);
+    fenvStage_ = FEnv::Attack;  // fresh attack retriggers the filter envelope
+    if (!ev.drone) leadIdx_ = (int8_t)(v - voices_);  // readout tracks the solo hand
 }
 
 void Synth::handleEvent(const NoteEvent& ev) {
@@ -133,7 +141,10 @@ void Synth::handleEvent(const NoteEvent& ev) {
             noteOn(ev);
             break;
         case NoteEvent::Off:
-            if (Voice* v = findActiveById(ev.id)) v->noteOff(p_.releaseS);
+            if (Voice* v = findActiveById(ev.id))
+                // drones let go with a drawn-out tail — the backing fades,
+                // it never stops dead under a solo
+                v->noteOff(v->isDrone() ? p_.releaseS * 4.f + 0.4f : p_.releaseS);
             break;
         case NoteEvent::Retarget:
             if (Voice* v = findActiveById(ev.id)) {
@@ -150,16 +161,36 @@ void Synth::handleEvent(const NoteEvent& ev) {
 void Synth::render(float* out, int n) {
     memset(out, 0, sizeof(float) * n);
 
-    // vibrato LFO, evaluated per block (250 Hz update of a 5.5 Hz LFO)
+    // vibrato LFO, evaluated per block (250 Hz update of a 5.5 Hz LFO);
+    // patch vibrato (autoVibCents) and tilt vibrato sum
     lfoPhase_ += kTwoPi * kVibratoHz * n / sr_;
     if (lfoPhase_ > kTwoPi) lfoPhase_ -= kTwoPi;
-    const float cents = p_.bendCents + p_.vibratoCents * sinf(lfoPhase_);
+    const float cents =
+        p_.bendCents + (p_.vibratoCents + p_.autoVibCents) * sinf(lfoPhase_);
 
     for (auto& v : voices_)
         if (v.active()) v.render(out, n, p_, cents);
 
-    // smoothed cutoff with tilt modulation in octaves
-    float cutTarget = p_.cutoffHz * exp2f(p_.cutoffModOct);
+    // paraphonic filter envelope, advanced at block rate (4 ms)
+    const float blockDur = n / sr_;
+    if (fenvStage_ == FEnv::Attack) {
+        const float aS = p_.fenvAtkS < 0.001f ? 0.001f : p_.fenvAtkS;
+        fenv_ += blockDur / aS;
+        if (fenv_ >= 1.f) {
+            fenv_ = 1.f;
+            fenvStage_ = FEnv::Decay;
+        }
+    } else if (fenvStage_ == FEnv::Decay) {
+        const float dS = p_.fenvDecS < 0.01f ? 0.01f : p_.fenvDecS;
+        fenv_ -= blockDur / dS;
+        if (fenv_ <= 0.f) {
+            fenv_ = 0.f;
+            fenvStage_ = FEnv::Idle;
+        }
+    }
+
+    // smoothed cutoff: base * tilt octaves * filter-env octaves
+    float cutTarget = p_.cutoffHz * exp2f(p_.cutoffModOct + p_.fenvOct * fenv_);
     if (cutTarget < 60.f) cutTarget = 60.f;
     if (cutTarget > 14000.f) cutTarget = 14000.f;
     cutoffSm_ += (cutTarget - cutoffSm_) * 0.2f;
@@ -174,8 +205,11 @@ void Synth::render(float* out, int n) {
     const float dv = (v1 - volSm_) / n;
     volSm_ = v1;
 
+    // drive: push harder into the filter+clipper, compensate loudness after
+    const float drive = p_.drive < 1.f ? 1.f : (p_.drive > 8.f ? 8.f : p_.drive);
+    const float makeup = 1.f / (0.55f + 0.45f * drive);
     for (int i = 0; i < n; ++i) {
-        out[i] = out_.process(svf_.process(out[i])) * vol;
+        out[i] = out_.process(svf_.process(out[i] * drive)) * makeup * vol;
         vol += dv;
     }
 

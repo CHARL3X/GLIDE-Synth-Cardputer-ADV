@@ -15,6 +15,20 @@ enum class GlideMode : uint8_t {
     Count
 };
 
+// Tilt is an assignable effects modulator — never pitch bend (rejected on
+// tape: "fuck, I gotta lean it over again"). Lives in dsp so patches can
+// carry a tilt personality and stay portable.
+enum class TiltRoute : uint8_t { Off, Cutoff, Vibrato, Volume, Count };
+
+inline const char* tiltRouteName(TiltRoute r) {
+    switch (r) {
+        case TiltRoute::Cutoff:  return "cutoff";
+        case TiltRoute::Vibrato: return "vibrato";
+        case TiltRoute::Volume:  return "volume";
+        default:                 return "off";
+    }
+}
+
 inline const char* waveformName(Waveform w) {
     switch (w) {
         case Waveform::Sine:     return "sine";
@@ -43,6 +57,17 @@ struct SynthParams {
     float detuneCents = 12.f; // fat-saw spread
     uint8_t voiceCount = 6;   // held-voice cap (1..kMaxVoices)
 
+    // ---- patch character (defaults = neutral: the original GLIDE tone) --
+    float fenvAtkS = 0.003f;  // filter envelope attack
+    float fenvDecS = 0.20f;   // filter envelope decay
+    float fenvOct  = 0.f;     // filter env depth in octaves (0 = off);
+                              // paraphonic: retriggers on fresh attacks only,
+                              // never on legato hand-offs — slides stay smooth
+    float subLevel = 0.f;     // square sub-osc one octave down, 0..1
+    float noiseLevel = 0.f;   // per-voice white noise, env-gated, 0..1
+    float drive = 1.f;        // pre-filter gain into the soft clipper, 1..8
+    float autoVibCents = 0.f; // built-in vibrato depth (tilt adds on top)
+
     // live modulation, pre-summed by the UI thread each frame
     float bendCents    = 0.f;  // bend keys, ramped by UI
     float vibratoCents = 0.f;  // tilt->vibrato depth (0 = off)
@@ -61,6 +86,9 @@ struct NoteEvent {
     uint8_t id     = 0;     // physical key code — identity for Off/Retarget
     uint8_t lane   = 0xFF;  // grid row ("string") 0..3, 0xFF = no lane
     bool    legato = false; // On: hand the lane's sounding voice this id+pitch
+    bool    drone  = false; // jam-row note: latched backing layer — exempt
+                            // from the voice cap and from nearest-pitch
+                            // stealing, released with a drawn-out tail
     float   pitchMidi = 60.f;  // fractional MIDI note number
 
     // C++11-safe construction helper (NoteEvent has default member

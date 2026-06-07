@@ -41,6 +41,10 @@ it's already a tiny fretboard. So GLIDE treats it like one:
  `     exit                 fn (hold)    quick-edit layer
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt octave -/+ (left thumb)        alt sustain (left thumb)
+
+ fn + q..p         : switch between the ten sounds, live
+ fn + shift + q..p : save your current tweaks over that slot
+ fn + 1..0         : pick a parameter, [ ] to adjust
 ```
 
 **How you play it:**
@@ -66,11 +70,66 @@ it's already a tiny fretboard. So GLIDE treats it like one:
   *through* glides and bends, so you can see exactly where you are between
   the notes.
 
-**Tilt** (the gyro debate, resolved as agreed): it exists, it costs twenty
-cents, and it is an *optional, assignable* effects modulator — cutoff,
-vibrato, or volume, toggled with `enter`, routed in settings, **off by
-default**. It is never pitch bend. Nobody wants to lean the instrument over
-again.
+## The sounds
+
+Ten instruments on `fn`+`q`..`p`, each with its own tilt personality.
+A `*` in the status bar means you've saved your own version over the slot
+(`fn`+`shift`+letter); *Sound reset* in settings restores factory.
+
+| key | sound | character | tilt does |
+|-----|-------|-----------|-----------|
+| q | **GLIDE** | the signature saw | filter |
+| w | **WHISTLE** | the digital slide whistle itself — sine, always gliding | vibrato |
+| e | **PLUCK** | filter-envelope pluck, slides on overlap | filter |
+| r | **BASS** | square + heavy sub-octave, dark | filter |
+| t | **ACID** | resonant squelch — *lean into it, tilt is the wah* | filter (full) |
+| y | **PAD** | fat detuned wash, slow bloom | filter (gentle) |
+| u | **LEAD** | driven, singing vibrato | vibrato |
+| i | **ORGAN** | square + sub, instant — *tilt is the swell pedal* | volume |
+| o | **GHOST** | breathy sine + noise, everything slow | filter |
+| p | **PERC** | pitched noise chirp, a drum you can slide | filter |
+
+Under the hood these ride five engine additions: a paraphonic **filter
+envelope** (retriggered by fresh attacks, never by legato hand-offs — your
+slides stay smooth), a **sub-oscillator**, env-gated **noise**, **drive**
+into the soft clipper, and built-in **vibrato**. All of it editable live
+(quick-edit + settings) and saveable per slot.
+
+## Tilt
+
+The gyro debate, resolved as agreed — and then promoted, because in
+practice it's fantastic. Tilt is an *assignable* effects modulator, toggled
+with `enter`, **never pitch bend** (nobody wants to lean the instrument
+over again). What's new:
+
+- **Per-sound personality**: every patch ships with its own route and depth
+  — ACID tilts into a full wah, ORGAN tilts into a swell pedal, WHISTLE and
+  LEAD tilt into vibrato. Saving a slot saves its tilt setup too.
+- **Depth** (settings): how hard the motion drives the effect, 0–100%.
+- **Center calibration** (settings → *Tilt center*): "flat" becomes
+  wherever *you* naturally hold the thing, not wherever gravity says.
+  Adjust the item while holding the instrument in playing position.
+
+## The layering jam (drones)
+
+The brainstorm's "one hand plays the backing, the other solos over it,"
+solved the way continuous-pitch instruments have always solved it — not
+with a second chord interface, but with **drones** (sitar, bagpipes,
+hurdy-gurdy lineage). Settings → *Jam rows*:
+
+- The bottom one or two rows become **tap-to-latch drones**: tap a key and
+  it rings an octave down, hands-free, until you tap it again. Lay down a
+  root, or root+fifth, and solo on the rows above.
+- Drones are protected: they don't count against the lead's voice cap and
+  chord-slide stealing can never grab them. Your backing survives anything
+  your solo hand does.
+- When you release one, it fades with a long drawn-out tail instead of
+  stopping dead under your solo.
+- Octave shifts sweep the drones along with everything else; panic (bksp)
+  clears them.
+
+Off by default — the uniform grid is still the instrument you learn on.
+Jam rows are an arrangement you switch on when it's time to perform.
 
 ## The philosophy, encoded
 
@@ -181,10 +240,16 @@ firmware never touches raw I2S and why the library versions are pinned.
 | bend range / bend time | 1–12 st / 50–1000 ms | 2 st / 250 ms | fn+9 / settings |
 | volume | 0–100% | 70% | fn+0 |
 | root / scale / row interval | C–B / 8 scales / 1–12 st | A / min pent / 4th | settings |
-| glide mode | legato-only / always | legato-only | settings |
+| glide mode | legato-only / always | legato-only | settings (per sound) |
 | allocation | strings (mono rows) / free poly | strings | settings |
+| jam rows (drones) | off / bottom / bottom 2 | off | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| tilt routing | off / cutoff / vibrato / volume | off | settings |
+| sound slots | 10, factory + user overrides | GLIDE | fn+q..p, fn+shift+q..p |
+| filter env (atk/dec/depth) | 1ms–2s / 10ms–2s / 0–3+ oct | per sound | settings*/saved in sound |
+| sub / noise / drive / auto-vib | 0–1 / 0–1 / 1–8 / cents | per sound | saved in sound |
+| tilt routing | off / cutoff / vibrato / volume | per sound | settings, enter toggles |
+| tilt depth | 0–100% | per sound | settings |
+| tilt center | calibrated "flat" | 0 | settings (hold + set) |
 
 ---
 

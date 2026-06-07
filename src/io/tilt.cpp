@@ -3,6 +3,7 @@
 #include <M5Cardputer.h>
 
 #include "../config.h"
+#include "../storage/glide_config.h"
 
 namespace tilt {
 
@@ -31,6 +32,14 @@ void poll() {
 }
 
 float value() {
+    // "flat" is wherever the player calibrated it (settings: Tilt center)
+    float v = gValue - store::get().tiltCenter;
+    if (v > 1.f) v = 1.f;
+    if (v < -1.f) v = -1.f;
+    return v;
+}
+
+float raw() {
     return gValue;
 }
 

@@ -44,6 +44,12 @@ private:
     float volSm_ = 0.f;
     uint32_t seq_ = 0;
     int8_t leadIdx_ = -1;
+
+    // paraphonic filter envelope: retriggered by fresh attacks only —
+    // legato hand-offs and slides never re-snap the filter
+    enum class FEnv : uint8_t { Idle, Attack, Decay };
+    FEnv fenvStage_ = FEnv::Idle;
+    float fenv_ = 0.f;
 };
 
 }  // namespace dsp

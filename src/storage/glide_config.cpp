@@ -17,6 +17,22 @@ template <typename T>
 T clampT(T v, T lo, T hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
+
+// Patch override blob. Version-guarded: SynthParams layout changes make old
+// blobs invalid -> factory fallback, never garbage sound.
+constexpr uint8_t kPatchBlobVersion = 1;
+struct PatchBlob {
+    uint8_t version;
+    uint8_t tiltRoute;
+    float tiltDepth;
+    dsp::SynthParams synth;
+};
+
+void patchKey(int slot, char* out) {
+    out[0] = 'p';
+    out[1] = (char)('0' + slot);
+    out[2] = '\0';
+}
 }  // namespace
 
 GlideConfig& get() {
@@ -54,7 +70,12 @@ void begin() {
     gCfg.octaveGlide = gPrefs.getBool("octgl", d.octaveGlide);
     gCfg.tiltRoute = (TiltRoute)clampT<int>(gPrefs.getUChar("tiltrt", (uint8_t)d.tiltRoute), 0,
                                             (int)TiltRoute::Count - 1);
+    gCfg.tiltDepth = clampT<int>(gPrefs.getInt("tiltdep", (int)(d.tiltDepth * 100)), 0, 100) / 100.f;
+    gCfg.tiltCenter = clampT<int>(gPrefs.getInt("tiltctr", 0), -1000, 1000) / 1000.f;
     gCfg.tiltOn = gPrefs.getBool("tilton", d.tiltOn);
+    gCfg.currentPatch = clampT<int>(gPrefs.getUChar("cpatch", d.currentPatch), 0,
+                                    dsp::kPatchCount - 1);
+    gCfg.jamRows = clampT<int>(gPrefs.getUChar("jamrows", d.jamRows), 0, 2);
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
     gCfg.bootSound = gPrefs.getBool("boot", d.bootSound);
@@ -86,7 +107,11 @@ void persistNow() {
     gPrefs.putBool("strmode", gCfg.stringMode);
     gPrefs.putBool("octgl", gCfg.octaveGlide);
     gPrefs.putUChar("tiltrt", (uint8_t)gCfg.tiltRoute);
+    gPrefs.putInt("tiltdep", (int)(gCfg.tiltDepth * 100));
+    gPrefs.putInt("tiltctr", (int)(gCfg.tiltCenter * 1000));
     gPrefs.putBool("tilton", gCfg.tiltOn);
+    gPrefs.putUChar("cpatch", gCfg.currentPatch);
+    gPrefs.putUChar("jamrows", gCfg.jamRows);
     gPrefs.putUShort("bendms", gCfg.bendMs);
     gPrefs.putUChar("bendrg", gCfg.bendRange);
     gPrefs.putBool("boot", gCfg.bootSound);
@@ -108,6 +133,74 @@ void resetDefaults() {
     gCfg = GlideConfig();
     gCfg.seenIntro = seen;
     persistNow();
+}
+
+// ---- sound slots -----------------------------------------------------------
+
+bool patchHasOverride(int slot) {
+    char key[3];
+    patchKey(slot, key);
+    if (gPrefs.getBytesLength(key) != sizeof(PatchBlob)) return false;
+    PatchBlob b;
+    gPrefs.getBytes(key, &b, sizeof b);
+    return b.version == kPatchBlobVersion;
+}
+
+void applyPatch(int slot) {
+    if (slot < 0 || slot >= dsp::kPatchCount) return;
+    char key[3];
+    patchKey(slot, key);
+    PatchBlob b;
+    if (gPrefs.getBytesLength(key) == sizeof(PatchBlob) &&
+        gPrefs.getBytes(key, &b, sizeof b) == sizeof b && b.version == kPatchBlobVersion) {
+        gCfg.synth = b.synth;
+        gCfg.tiltRoute = (TiltRoute)clampT<int>(b.tiltRoute, 0, (int)TiltRoute::Count - 1);
+        gCfg.tiltDepth = clampT(b.tiltDepth, 0.f, 1.f);
+    } else {
+        const dsp::Patch& p = dsp::factoryPatches()[slot];
+        gCfg.synth = p.synth;
+        gCfg.tiltRoute = p.tiltRoute;
+        gCfg.tiltDepth = p.tiltDepth;
+    }
+    gCfg.synth.bendCents = 0.f;  // live-mod fields never come from a patch
+    gCfg.synth.vibratoCents = 0.f;
+    gCfg.synth.cutoffModOct = 0.f;
+    gCfg.synth.volMod = 1.f;
+    gCfg.currentPatch = (uint8_t)slot;
+    markDirty();
+}
+
+bool savePatch(int slot) {
+    if (slot < 0 || slot >= dsp::kPatchCount) return false;
+    PatchBlob b;
+    b.version = kPatchBlobVersion;
+    b.tiltRoute = (uint8_t)gCfg.tiltRoute;
+    b.tiltDepth = gCfg.tiltDepth;
+    b.synth = gCfg.synth;
+    b.synth.bendCents = 0.f;  // never bake a live bend into a patch
+    b.synth.vibratoCents = 0.f;
+    b.synth.cutoffModOct = 0.f;
+    b.synth.volMod = 1.f;
+    char key[3];
+    patchKey(slot, key);
+    const bool ok = gPrefs.putBytes(key, &b, sizeof b) == sizeof b;
+    if (ok) {
+        gCfg.currentPatch = (uint8_t)slot;
+        markDirty();
+    }
+    return ok;
+}
+
+void clearOverride(int slot) {
+    if (slot < 0 || slot >= dsp::kPatchCount) return;
+    char key[3];
+    patchKey(slot, key);
+    gPrefs.remove(key);
+}
+
+const char* patchName(int slot) {
+    if (slot < 0 || slot >= dsp::kPatchCount) return "?";
+    return dsp::factoryPatches()[slot].name;
 }
 
 }  // namespace store

@@ -22,6 +22,7 @@ void Voice::noteOn(uint8_t id, uint8_t lane, float pitch, float fromPitch, bool 
     id_ = id;
     lane_ = lane;
     seq_ = seq;
+    drone_ = false;  // reused voice: caller re-flags via setDrone
     tgtPitch_ = pitch;
     curPitch_ = doGlide ? fromPitch : pitch;
     startPitch_ = curPitch_;
@@ -106,6 +107,10 @@ void Voice::render(float* out, int n, const SynthParams& p, float centsOffset) {
     float inc = inc0;
     const float gain = fat ? kVoiceGain * kFatGain : kVoiceGain;
 
+    const bool sub = p.subLevel > 0.001f;
+    const bool noise = p.noiseLevel > 0.001f;
+    const float* subTbl = gTables[TblSqrLo];  // sub lives an octave down: always low
+
     for (int i = 0; i < n; ++i) {
         // envelope
         switch (env_) {
@@ -143,6 +148,14 @@ void Voice::render(float* out, int n, const SynthParams& p, float centsOffset) {
             s += tableRead(tbl, ph_[1]) + tableRead(tbl, ph_[2]);
             ph_[1] += (uint32_t)(inc * mUp);
             ph_[2] += (uint32_t)(inc * mDn);
+        }
+        if (sub) {  // square one octave down, glides with the voice
+            s += tableRead(subTbl, ph_[3]) * p.subLevel;
+            ph_[3] += ui >> 1;
+        }
+        if (noise) {  // env-gated white noise (LCG), articulates per note
+            rng_ = rng_ * 1664525u + 1013904223u;
+            s += (float)(int32_t)rng_ * 4.6566129e-10f * p.noiseLevel;
         }
         out[i] += s * lvl_ * gain;
         inc += incStep;

@@ -30,6 +30,8 @@ public:
 
     bool active() const { return env_ != Env::Idle; }
     bool held() const { return active() && env_ != Env::Release; }
+    bool isDrone() const { return drone_; }
+    void setDrone(bool d) { drone_ = d; }
     uint8_t id() const { return id_; }
     uint8_t lane() const { return lane_; }
     void setLane(uint8_t lane) { lane_ = lane; }
@@ -53,7 +55,9 @@ private:
     uint8_t lane_ = 0xFF;
     uint32_t seq_ = 0;
     float curPitch_ = 60.f, tgtPitch_ = 60.f, startPitch_ = 60.f;
-    uint32_t ph_[3] = {0, 0, 0};
+    uint32_t ph_[4] = {0, 0, 0, 0};  // main, fat up, fat down, sub (-1 oct)
+    uint32_t rng_ = 0x9E3779B9u;     // per-voice noise state
+    bool drone_ = false;             // jam-row backing voice
 };
 
 }  // namespace dsp

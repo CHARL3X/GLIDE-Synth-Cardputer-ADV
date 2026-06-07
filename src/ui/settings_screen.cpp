@@ -6,6 +6,7 @@
 #include "../dsp/params.h"
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
+#include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "theme.h"
 
@@ -68,6 +69,15 @@ void fStringMode(char* o, int c) {
 }
 void aStringMode(int) { store::get().stringMode = !store::get().stringMode; }
 
+void fJamRows(char* o, int c) {
+    const uint8_t j = store::get().jamRows;
+    snprintf(o, c, "%s", j == 0 ? "off" : (j == 1 ? "bottom row" : "bottom 2 rows"));
+}
+void aJamRows(int d) {
+    auto& g = store::get();
+    g.jamRows = (uint8_t)clampT((int)g.jamRows + d, 0, 2);
+}
+
 void fOctGlide(char* o, int c) {
     snprintf(o, c, "%s", store::get().octaveGlide ? "sweep (glide)" : "re-strike");
 }
@@ -78,6 +88,32 @@ void aTilt(int d) {
     auto& g = store::get();
     g.tiltRoute = (store::TiltRoute)(((int)g.tiltRoute + d + (int)store::TiltRoute::Count) %
                                      (int)store::TiltRoute::Count);
+}
+
+void fTiltDepth(char* o, int c) { snprintf(o, c, "%d %%", (int)(store::get().tiltDepth * 100)); }
+void aTiltDepth(int d) {
+    auto& g = store::get();
+    g.tiltDepth = clampT(g.tiltDepth + d * 0.05f, 0.f, 1.f);
+}
+
+void fTiltCenter(char* o, int c) {
+    snprintf(o, c, "%+d (set: , /)", (int)(store::get().tiltCenter * 100));
+}
+void aTiltCenter(int) {
+    // capture how you're holding it RIGHT NOW as "flat"
+    tilt::poll();
+    store::get().tiltCenter = tilt::raw();
+}
+
+void fPatchReset(char* o, int c) {
+    const int slot = store::get().currentPatch;
+    snprintf(o, c, "%s%s", store::patchName(slot),
+             store::patchHasOverride(slot) ? "* -> factory" : " (factory)");
+}
+void aPatchReset(int) {
+    const int slot = store::get().currentPatch;
+    store::clearOverride(slot);
+    store::applyPatch(slot);  // reload the factory sound immediately
 }
 
 void fBendMs(char* o, int c) { snprintf(o, c, "%d ms", store::get().bendMs); }
@@ -110,8 +146,12 @@ const Item kItems[] = {
     {"Row interval", fRowInt, aRowInt},
     {"Glide mode", fGlideMode, aGlideMode},
     {"Allocation", fStringMode, aStringMode},
+    {"Jam rows (drones)", fJamRows, aJamRows},
     {"Octave keys", fOctGlide, aOctGlide},
     {"Tilt routing", fTilt, aTilt},
+    {"Tilt depth", fTiltDepth, aTiltDepth},
+    {"Tilt center", fTiltCenter, aTiltCenter},
+    {"Sound reset", fPatchReset, aPatchReset},
     {"Bend time", fBendMs, aBendMs},
     {"Fat detune", fDetune, aDetune},
     {"Resonance", fRes, aRes},
