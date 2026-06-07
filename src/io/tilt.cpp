@@ -1,0 +1,37 @@
+#include "tilt.h"
+
+#include <M5Cardputer.h>
+
+#include "../config.h"
+
+namespace tilt {
+
+namespace {
+bool gAvailable = false;
+float gValue = 0.f;
+}  // namespace
+
+void begin() {
+    gAvailable = M5.Imu.isEnabled();
+}
+
+bool available() {
+    return gAvailable;
+}
+
+void poll() {
+    if (!gAvailable) return;
+    M5.Imu.update();
+    float a[3] = {0.f, 0.f, 0.f};
+    M5.Imu.getAccel(&a[0], &a[1], &a[2]);
+    float v = a[cfg::kTiltAxis] * cfg::kTiltSign;
+    if (v > 1.f) v = 1.f;
+    if (v < -1.f) v = -1.f;
+    gValue += (v - gValue) * cfg::kTiltSmooth;
+}
+
+float value() {
+    return gValue;
+}
+
+}  // namespace tilt

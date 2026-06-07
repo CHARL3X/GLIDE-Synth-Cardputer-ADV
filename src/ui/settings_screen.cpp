@@ -1,0 +1,201 @@
+#include "settings_screen.h"
+
+#include <cstdio>
+
+#include "../config.h"
+#include "../dsp/params.h"
+#include "../dsp/scales.h"
+#include "../io/audio_engine.h"
+#include "../storage/glide_config.h"
+#include "theme.h"
+
+namespace settings {
+
+namespace {
+
+// positional key codes (y*14+x) — same convention as keys.cpp
+constexpr int kUp = 39;     // ;
+constexpr int kDown = 53;   // .
+constexpr int kLeft = 52;   // ,
+constexpr int kRight = 54;  // /
+constexpr int kDecAlt = 25; // [
+constexpr int kIncAlt = 26; // ]
+constexpr int kEnter = 41;
+constexpr int kExit1 = 0;   // `
+constexpr int kExit2 = 14;  // tab
+
+template <typename T>
+T clampT(T v, T lo, T hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+struct Item {
+    const char* name;
+    void (*format)(char* out, int cap);
+    void (*adjust)(int dir);
+};
+
+void fRoot(char* o, int c) { snprintf(o, c, "%s", dsp::kNoteNames[store::get().layout.rootSemis]); }
+void aRoot(int d) {
+    auto& l = store::get().layout;
+    l.rootSemis = (uint8_t)(((int)l.rootSemis + d + 12) % 12);
+}
+
+void fScale(char* o, int c) { snprintf(o, c, "%s", dsp::kScales[store::get().layout.scaleIdx].name); }
+void aScale(int d) {
+    auto& l = store::get().layout;
+    l.scaleIdx = (uint8_t)(((int)l.scaleIdx + d + dsp::kScaleCount) % dsp::kScaleCount);
+}
+
+void fRowInt(char* o, int c) { snprintf(o, c, "%d st", store::get().layout.rowIntervalSemis); }
+void aRowInt(int d) {
+    auto& l = store::get().layout;
+    l.rowIntervalSemis = (uint8_t)clampT((int)l.rowIntervalSemis + d, 1, 12);
+}
+
+void fGlideMode(char* o, int c) {
+    snprintf(o, c, "%s",
+             store::get().synth.glideMode == dsp::GlideMode::LegatoOnly ? "legato only" : "always");
+}
+void aGlideMode(int) {
+    auto& s = store::get().synth;
+    s.glideMode = s.glideMode == dsp::GlideMode::LegatoOnly ? dsp::GlideMode::Always
+                                                            : dsp::GlideMode::LegatoOnly;
+}
+
+void fStringMode(char* o, int c) {
+    snprintf(o, c, "%s", store::get().stringMode ? "strings (mono rows)" : "free poly");
+}
+void aStringMode(int) { store::get().stringMode = !store::get().stringMode; }
+
+void fOctGlide(char* o, int c) {
+    snprintf(o, c, "%s", store::get().octaveGlide ? "sweep (glide)" : "re-strike");
+}
+void aOctGlide(int) { store::get().octaveGlide = !store::get().octaveGlide; }
+
+void fTilt(char* o, int c) { snprintf(o, c, "%s", store::tiltRouteName(store::get().tiltRoute)); }
+void aTilt(int d) {
+    auto& g = store::get();
+    g.tiltRoute = (store::TiltRoute)(((int)g.tiltRoute + d + (int)store::TiltRoute::Count) %
+                                     (int)store::TiltRoute::Count);
+}
+
+void fBendMs(char* o, int c) { snprintf(o, c, "%d ms", store::get().bendMs); }
+void aBendMs(int d) { store::get().bendMs = (uint16_t)clampT((int)store::get().bendMs + d * 50, 50, 1000); }
+
+void fDetune(char* o, int c) { snprintf(o, c, "%d cents", (int)store::get().synth.detuneCents); }
+void aDetune(int d) {
+    auto& s = store::get().synth;
+    s.detuneCents = (float)clampT((int)s.detuneCents + d * 2, 0, 50);
+}
+
+void fRes(char* o, int c) { snprintf(o, c, "%d %%", (int)(store::get().synth.resonance * 100)); }
+void aRes(int d) {
+    auto& s = store::get().synth;
+    s.resonance = clampT(s.resonance + d * 0.05f, 0.f, 0.95f);
+}
+
+void fBoot(char* o, int c) { snprintf(o, c, "%s", store::get().bootSound ? "on" : "off"); }
+void aBoot(int) { store::get().bootSound = !store::get().bootSound; }
+
+void fIntro(char* o, int c) { snprintf(o, c, "%s", store::get().seenIntro ? "hidden" : "will show"); }
+void aIntro(int) { store::get().seenIntro = !store::get().seenIntro; }
+
+void fReset(char* o, int c) { snprintf(o, c, "press , or /"); }
+void aReset(int) { store::resetDefaults(); }
+
+const Item kItems[] = {
+    {"Root key", fRoot, aRoot},
+    {"Scale", fScale, aScale},
+    {"Row interval", fRowInt, aRowInt},
+    {"Glide mode", fGlideMode, aGlideMode},
+    {"Allocation", fStringMode, aStringMode},
+    {"Octave keys", fOctGlide, aOctGlide},
+    {"Tilt routing", fTilt, aTilt},
+    {"Bend time", fBendMs, aBendMs},
+    {"Fat detune", fDetune, aDetune},
+    {"Resonance", fRes, aRes},
+    {"Boot sound", fBoot, aBoot},
+    {"Intro card", fIntro, aIntro},
+    {"Reset defaults", fReset, aReset},
+};
+constexpr int kItemCount = (int)(sizeof(kItems) / sizeof(kItems[0]));
+constexpr int kVisible = 8;
+
+void draw(M5Canvas& c, int sel, int top) {
+    c.fillScreen(theme::kBg);
+    c.fillRect(0, 0, cfg::kScreenW, 14, theme::kPanel);
+    c.setFont(&fonts::Font0);
+    c.setTextDatum(top_left);
+    c.setTextColor(theme::kAmber, theme::kPanel);
+    c.drawString("GLIDE", 4, 3);
+    c.drawString("GLIDE", 5, 3);
+    c.setTextColor(theme::kIdle, theme::kPanel);
+    c.drawString("SETTINGS", 44, 3);
+
+    c.setFont(&fonts::Font2);
+    char val[28];
+    for (int row = 0; row < kVisible; ++row) {
+        const int i = top + row;
+        if (i >= kItemCount) break;
+        const int y = 18 + row * 13;
+        const bool isSel = (i == sel);
+        if (isSel) c.fillRect(0, y - 1, cfg::kScreenW, 13, theme::kPanel);
+        c.setTextColor(isSel ? theme::kAmber : theme::kDim, isSel ? theme::kPanel : theme::kBg);
+        c.drawString(kItems[i].name, 8, y);
+        kItems[i].format(val, sizeof val);
+        c.setTextDatum(top_right);
+        c.setTextColor(isSel ? theme::kIdle : theme::kDim, isSel ? theme::kPanel : theme::kBg);
+        c.drawString(val, cfg::kScreenW - 8, y);
+        c.setTextDatum(top_left);
+    }
+
+    c.setFont(&fonts::Font0);
+    c.setTextColor(theme::kDim, theme::kBg);
+    c.drawString("; . move    , / or [ ] change    ` tab back", 4, 125);
+    c.pushSprite(0, 0);
+}
+
+}  // namespace
+
+void run(M5Canvas& canvas) {
+    // quiet the instrument while configuring
+    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
+
+    int sel = 0, top = 0;
+    uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
+
+    // wait for the tab press that opened us to clear
+    for (;;) {
+        const uint32_t now = millis();
+        M5Cardputer.update();
+        uint64_t cur = 0;
+        for (const auto& p : M5Cardputer.Keyboard.keyList()) cur |= 1ULL << (p.y * 14 + p.x);
+        const uint64_t pressed = cur & ~prev;
+        prev = cur;
+
+        auto hit = [&](int cd) { return (pressed >> cd) & 1ULL; };
+
+        if (hit(kExit1) || hit(kExit2)) break;
+        if (hit(kUp)) sel = (sel + kItemCount - 1) % kItemCount;
+        if (hit(kDown)) sel = (sel + 1) % kItemCount;
+        int dir = 0;
+        if (hit(kLeft) || hit(kDecAlt)) dir = -1;
+        if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) dir = +1;
+        if (dir != 0) {
+            kItems[sel].adjust(dir);
+            store::markDirty();
+            audio::setParams(store::get().synth);
+        }
+
+        if (sel < top) top = sel;
+        if (sel >= top + kVisible) top = sel - kVisible + 1;
+
+        draw(canvas, sel, top);
+        store::tick(now);
+        delay(16);
+    }
+    store::persistNow();
+}
+
+}  // namespace settings

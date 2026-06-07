@@ -1,0 +1,191 @@
+#include "synth.h"
+#include <cmath>
+#include <cstring>
+#include "wavetables.h"
+
+namespace dsp {
+
+namespace {
+constexpr float kTwoPi = 6.28318530718f;
+constexpr float kVibratoHz = 5.5f;
+}  // namespace
+
+void Synth::init(float sampleRate) {
+    sr_ = sampleRate;
+    initWavetables();
+    svf_.init(sr_);
+    out_.init(sr_);
+    for (auto& v : voices_) v.init(sr_);
+    cutoffSm_ = p_.cutoffHz;
+}
+
+Voice* Synth::findActiveById(uint8_t id) {
+    for (auto& v : voices_)
+        if (v.active() && v.id() == id) return &v;
+    return nullptr;
+}
+
+Voice* Synth::heldOnLane(uint8_t lane) {
+    if (lane == 0xFF) return nullptr;
+    for (auto& v : voices_)
+        if (v.held() && v.lane() == lane) return &v;
+    return nullptr;
+}
+
+Voice* Synth::nearestHeld(float pitch) {
+    Voice* best = nullptr;
+    float bestDist = 1e9f;
+    for (auto& v : voices_) {
+        if (!v.held()) continue;
+        const float d = fabsf(v.currentPitch() - pitch);
+        if (d < bestDist) {
+            bestDist = d;
+            best = &v;
+        }
+    }
+    return best;
+}
+
+Voice* Synth::alloc() {
+    // 1) a truly idle voice
+    for (auto& v : voices_)
+        if (!v.active()) return &v;
+    // 2) the quietest releasing tail
+    Voice* best = nullptr;
+    float bestLvl = 1e9f;
+    for (auto& v : voices_) {
+        if (v.held()) continue;
+        if (v.level() < bestLvl) {
+            bestLvl = v.level();
+            best = &v;
+        }
+    }
+    if (best) return best;
+    // 3) the oldest held voice (pool fully saturated)
+    uint32_t oldest = 0xFFFFFFFF;
+    for (auto& v : voices_) {
+        if (v.seq() < oldest) {
+            oldest = v.seq();
+            best = &v;
+        }
+    }
+    return best;
+}
+
+int Synth::heldVoices() const {
+    int n = 0;
+    for (const auto& v : voices_) n += v.held() ? 1 : 0;
+    return n;
+}
+
+int Synth::activeVoices() const {
+    int n = 0;
+    for (const auto& v : voices_) n += v.active() ? 1 : 0;
+    return n;
+}
+
+void Synth::noteOn(const NoteEvent& ev) {
+    // Re-press of a key whose voice is still sounding (sustain pedal overlap,
+    // release tail): retrigger that voice in place.
+    if (Voice* v = findActiveById(ev.id)) {
+        v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
+        v->retrigger();
+        leadIdx_ = (int8_t)(v - voices_);
+        return;
+    }
+
+    // String-mode hand-off: the lane already sings — glide it to the new key.
+    if (ev.legato) {
+        if (Voice* v = heldOnLane(ev.lane)) {
+            v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
+            leadIdx_ = (int8_t)(v - voices_);
+            return;
+        }
+    }
+
+    // Voice cap reached -> nearest-pitch steal WITH glide: this is how a
+    // chord shape slides in free allocation (press the new shape, each new
+    // note grabs its nearest sounding neighbor and glides there).
+    const uint8_t cap = p_.voiceCount < 1 ? 1 : (p_.voiceCount > kMaxVoices ? kMaxVoices : p_.voiceCount);
+    if (heldVoices() >= cap) {
+        if (Voice* v = nearestHeld(ev.pitchMidi)) {
+            v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
+            leadIdx_ = (int8_t)(v - voices_);
+            return;
+        }
+    }
+
+    // Fresh voice. In Always-glide mode, slide in from the lead's pitch.
+    float from = ev.pitchMidi;
+    bool doGlide = false;
+    if (p_.glideMode == GlideMode::Always && leadIdx_ >= 0 && voices_[leadIdx_].active()) {
+        from = voices_[leadIdx_].currentPitch();
+        doGlide = true;
+    }
+    Voice* v = alloc();
+    v->noteOn(ev.id, ev.lane, ev.pitchMidi, from, doGlide, ++seq_);
+    leadIdx_ = (int8_t)(v - voices_);
+}
+
+void Synth::handleEvent(const NoteEvent& ev) {
+    switch (ev.type) {
+        case NoteEvent::On:
+            noteOn(ev);
+            break;
+        case NoteEvent::Off:
+            if (Voice* v = findActiveById(ev.id)) v->noteOff(p_.releaseS);
+            break;
+        case NoteEvent::Retarget:
+            if (Voice* v = findActiveById(ev.id)) {
+                v->retarget(ev.pitchMidi);
+                leadIdx_ = (int8_t)(v - voices_);
+            }
+            break;
+        case NoteEvent::AllOff:
+            for (auto& v : voices_) v.kill();
+            break;
+    }
+}
+
+void Synth::render(float* out, int n) {
+    memset(out, 0, sizeof(float) * n);
+
+    // vibrato LFO, evaluated per block (250 Hz update of a 5.5 Hz LFO)
+    lfoPhase_ += kTwoPi * kVibratoHz * n / sr_;
+    if (lfoPhase_ > kTwoPi) lfoPhase_ -= kTwoPi;
+    const float cents = p_.bendCents + p_.vibratoCents * sinf(lfoPhase_);
+
+    for (auto& v : voices_)
+        if (v.active()) v.render(out, n, p_, cents);
+
+    // smoothed cutoff with tilt modulation in octaves
+    float cutTarget = p_.cutoffHz * exp2f(p_.cutoffModOct);
+    if (cutTarget < 60.f) cutTarget = 60.f;
+    if (cutTarget > 14000.f) cutTarget = 14000.f;
+    cutoffSm_ += (cutTarget - cutoffSm_) * 0.2f;
+    svf_.set(cutoffSm_, p_.resonance);
+
+    // master volume ramped linearly across the block (no zipper)
+    float volTarget = p_.masterVol * p_.volMod;
+    if (volTarget < 0.f) volTarget = 0.f;
+    if (volTarget > 1.f) volTarget = 1.f;
+    const float v1 = volSm_ + (volTarget - volSm_) * 0.3f;
+    float vol = volSm_;
+    const float dv = (v1 - volSm_) / n;
+    volSm_ = v1;
+
+    for (int i = 0; i < n; ++i) {
+        out[i] = out_.process(svf_.process(out[i])) * vol;
+        vol += dv;
+    }
+
+    // once-per-block NaN/denormal guard: a poisoned filter would otherwise
+    // stay silent forever — reset loudly visible (silence) but recoverable
+    if (!std::isfinite(out[n - 1])) {
+        svf_.reset();
+        out_.reset();
+        memset(out, 0, sizeof(float) * n);
+    }
+}
+
+}  // namespace dsp
