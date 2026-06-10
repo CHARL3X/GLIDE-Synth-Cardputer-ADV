@@ -41,7 +41,7 @@ it's already a tiny fretboard. So GLIDE treats it like one:
  `     exit                 fn (hold)    quick-edit layer
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt octave -/+ (left thumb)        alt loop pedal (left thumb)
-                                         (tap: rec/play/overdub, hold: clear)
+                                         (tap rec/play/dub, hold undo, fn+alt clear)
 
  fn + q..p         : switch between the ten sounds, live
  fn + shift + q..p : save your current tweaks over that slot
@@ -154,8 +154,16 @@ replayed through the live engine:
 
 - **tap**: start recording. **tap again**: the loop closes and starts
   playing on that press. **tap again**: overdub a layer; once more seals it.
-- **hold** (~0.6 s): clear. **panic** (bksp) silences the loop but keeps
-  the take — tap alt and it plays again.
+- **hold** (~0.6 s): **peel** the last overdub layer (undo). Hold again and
+  it walks back up the stack — the gesture bounces at the ends, so repeated
+  holds undo down to the base take and redo back to the top. The base loop
+  is protected; you only ever peel the dubs you stacked on it. The
+  annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
+- **fn + alt**: clear the whole take in one deliberate chord.
+- **panic** (bksp) silences the loop but keeps the take — tap alt and it
+  plays again.
+- The hint line at the bottom turns loop-aware while a take exists
+  (`alt dub  hold undo  fn+alt clear`), so the gestures are always on screen.
 - Because the loop is events, it costs kilobytes — and, the good part, it
   **plays through whatever sound is selected**. Record a CELLO bassline,
   switch to LEAD, solo over it; swap sounds mid-jam and the whole

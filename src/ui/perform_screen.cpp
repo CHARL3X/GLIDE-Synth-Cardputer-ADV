@@ -443,9 +443,17 @@ void drawLoop(M5Canvas& c, uint32_t now) {
                 c.fillRect(bx + 1, y + 2, (int)((bw - 2) * looper::positionMs(now) / len), 3,
                            ovr ? theme::kAmber : theme::kGreenDim);
             }
+            // layer count: amber while a peel is in effect (live < total)
             if (looper::overflowed()) {
                 c.setTextColor(theme::kRed, theme::kBg);
                 c.drawString("FULL", x + 76, y);
+            } else if (looper::topLayers() > 0) {
+                const int live = looper::liveLayers() + 1, top = looper::topLayers() + 1;
+                char lc[12];
+                if (live < top) snprintf(lc, sizeof lc, "x%d/%d", live, top);
+                else            snprintf(lc, sizeof lc, "x%d", live);
+                c.setTextColor(live < top ? theme::kAmber : theme::kDim, theme::kBg);
+                c.drawString(lc, x + 76, y);
             }
             break;
         }
@@ -483,10 +491,18 @@ void drawHint(M5Canvas& c) {
     if (keys::quickEditActive()) {
         c.setTextColor(theme::kAmber, theme::kBg);
         c.drawString("release fn to play", 4, kHintY);
-    } else {
-        c.setTextColor(theme::kDim, theme::kBg);
-        c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
+        return;
     }
+    // the hint line turns loop-aware while a take exists — the gestures live
+    // on screen exactly when they're relevant (no more hunting for clear)
+    const looper::State ls = looper::state();
+    c.setTextColor(theme::kDim, theme::kBg);
+    if (ls == looper::State::Recording)
+        c.drawString("recording...  alt: close the loop", 2, kHintY);
+    else if (ls != looper::State::Empty)
+        c.drawString("alt dub   hold undo   fn+alt clear", 2, kHintY);
+    else
+        c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
 }
 
 void drawIntro(M5Canvas& c) {

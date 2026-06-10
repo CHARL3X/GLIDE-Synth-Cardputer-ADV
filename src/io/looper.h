@@ -6,9 +6,11 @@
 // Playback is scheduled onto the audio thread (audio::pushEventAt), so loop
 // timing is block-accurate (~4 ms), not UI-frame-accurate (~33 ms).
 //
-//   alt tap  : record -> play (closes the loop) -> overdub -> play -> ...
-//   alt hold : clear
-//   panic    : silences playback, keeps the take (alt tap plays it again)
+//   alt tap   : record -> play (closes the loop) -> overdub -> play -> ...
+//   alt hold  : peel the last overdub layer (undo); a further hold climbs
+//               back up (redo). The base loop is protected — never peeled.
+//   fn + alt  : clear everything
+//   panic     : silences playback, keeps the take (alt tap plays it again)
 #pragma once
 #include <cstdint>
 #include "../dsp/params.h"
@@ -23,13 +25,17 @@ enum class State : uint8_t { Empty, Recording, Playing, Overdub, Stopped };
 void record(const dsp::NoteEvent& ev);
 
 State tap(uint32_t nowMs);   // the pedal press; returns the new state
-void clear();                // stop playback and erase the take
+int peel(uint32_t nowMs);    // hold: undo/redo a layer. 0 = nothing to do,
+                             // 1 = peeled a layer (undo), 2 = restored (redo)
+void clear();                // erase the take entirely (fn+alt)
 void stop();                 // panic: silence playback, keep the take
 void tick(uint32_t nowMs);   // call every UI frame; schedules due playback
 
 State state();
 uint32_t lengthMs();
 uint32_t positionMs(uint32_t nowMs);  // 0..lengthMs while playing/overdubbing
+int liveLayers();                     // audible overdub layers above the base
+int topLayers();                      // overdub layers recorded (>= liveLayers)
 bool overflowed();                    // the take hit the event-buffer cap
 
 }  // namespace looper

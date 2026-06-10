@@ -645,9 +645,17 @@ Actions poll(uint32_t nowMs) {
                 gTiltLatchFired = false;
                 break;
             case kKeyAlt:
-                // loop pedal: tap vs hold decided on release / threshold
-                gLoopPressMs = nowMs;
-                gLoopHoldFired = false;
+                if (held(cur, kKeyFn)) {  // fn+alt = clear the whole loop
+                    if (looper::state() != looper::State::Empty) {
+                        looper::clear();
+                        hud::show("LOOP", "cleared", -1.f);
+                    }
+                    gLoopHoldFired = true;  // consume: no tap on release, no hold-peel
+                } else {
+                    // loop pedal: tap vs hold decided on release / threshold
+                    gLoopPressMs = nowMs;
+                    gLoopHoldFired = false;
+                }
                 break;
             default:
                 break;
@@ -710,12 +718,18 @@ Actions poll(uint32_t nowMs) {
         hud::show("TILT", gTiltLatched ? "latched" : "live", -1.f);
     }
 
-    // loop pedal held past the threshold -> clear the loop (fires once)
+    // loop pedal held past the threshold -> peel/restore a layer (fires once
+    // per hold; hold again to keep walking the stack — it bounces at the ends)
     if (held(cur, kKeyAlt) && !gLoopHoldFired && nowMs - gLoopPressMs >= kLoopHoldMs) {
         gLoopHoldFired = true;
-        if (looper::state() != looper::State::Empty) {
-            looper::clear();
-            hud::show("LOOP", "cleared", -1.f);
+        const int r = looper::peel(nowMs);
+        if (r != 0) {
+            char v[20];
+            snprintf(v, sizeof v, "%s  x%d", r == 1 ? "undo" : "redo",
+                     looper::liveLayers() + 1);
+            hud::show("LOOP", v, -1.f);
+        } else if (looper::state() != looper::State::Empty) {
+            hud::show("LOOP", "no layers", -1.f);
         }
     }
 
