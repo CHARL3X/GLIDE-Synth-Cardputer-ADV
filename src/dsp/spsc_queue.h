@@ -28,6 +28,15 @@ public:
         return true;
     }
 
+    // Consumer-side peek: read the head without consuming it. Lets the
+    // consumer hold a not-yet-due scheduled item in place.
+    bool peek(T& v) const {
+        const uint32_t t = tail_.load(std::memory_order_relaxed);
+        if (t == head_.load(std::memory_order_acquire)) return false;  // empty
+        v = buf_[t];
+        return true;
+    }
+
 private:
     T buf_[N];
     std::atomic<uint32_t> head_{0};

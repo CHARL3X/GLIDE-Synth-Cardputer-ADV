@@ -15,6 +15,17 @@ namespace {
 dsp::Synth gSynth;
 dsp::SpscQueue<dsp::NoteEvent, 64> gEvents;
 
+// Scheduled events (loop-pedal playback): held until due, fired at block
+// rate. The generation counter makes flushes race-free: a stale-gen event
+// is dropped on the render thread instead of being fished out of the queue.
+struct TimedEvent {
+    dsp::NoteEvent ev;
+    uint32_t dueMs;
+    uint16_t gen;
+};
+dsp::SpscQueue<TimedEvent, 128> gTimed;
+std::atomic<uint16_t> gGen{0};
+
 // Double-buffered params: UI writes the inactive copy, flips the index.
 // The render thread copies the active struct once per block — always a
 // coherent set, never a torn cutoff/resonance combo.
@@ -65,6 +76,17 @@ void renderTask(void*) {
         ++blocksDone;
 
         gSynth.setParams(gParams[gParamIdx.load(std::memory_order_acquire)]);
+
+        // scheduled (loop playback) events that have come due
+        const uint32_t nowMs = millis();
+        const uint16_t gen = gGen.load(std::memory_order_acquire);
+        TimedEvent te;
+        while (gTimed.peek(te)) {
+            if (te.gen == gen && (int32_t)(nowMs - te.dueMs) < 0) break;  // not due yet
+            gTimed.pop(te);
+            if (te.gen == gen) gSynth.handleEvent(te.ev);  // stale gen: dropped
+        }
+
         dsp::NoteEvent ev;
         while (gEvents.pop(ev)) gSynth.handleEvent(ev);
 
@@ -166,6 +188,18 @@ const char* lastError() {
 
 void pushEvent(const dsp::NoteEvent& ev) {
     gEvents.push(ev);
+}
+
+void pushEventAt(const dsp::NoteEvent& ev, uint32_t dueMs) {
+    TimedEvent te;
+    te.ev = ev;
+    te.dueMs = dueMs;
+    te.gen = gGen.load(std::memory_order_relaxed);
+    if (!gTimed.push(te)) gEvents.push(ev);  // full: fire now rather than drop
+}
+
+void flushScheduled() {
+    gGen.fetch_add(1, std::memory_order_release);
 }
 
 void setParams(const dsp::SynthParams& p) {

@@ -181,6 +181,29 @@ int main() {
     s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
     peakOf(s, 40);
 
+    // ---- backing (loop-pedal playback): drone-grade protection, normal tail
+    p = SynthParams();
+    p.voiceCount = 1;
+    p.releaseS = 0.05f;
+    s.setParams(p);
+    NoteEvent bk = NoteEvent::make(NoteEvent::On, 50, 4, false, 50.f);  // loop lane 4
+    bk.backing = true;
+    s.handleEvent(bk);
+    s.handleEvent(NoteEvent::make(NoteEvent::On, 1, 0, false, 69.f));
+    s.handleEvent(NoteEvent::make(NoteEvent::On, 2, 0xFF, false, 72.f));  // cap steal
+    peakOf(s, 100);
+    CHECK(s.heldVoices() == 2, "backing exempt from the cap (1 lead + 1 backing)");
+    CHECK(s.heldLeadVoices() == 1, "lead counter ignores the backing");
+    CHECK(fabsf(s.leadPitchMidi() - 72.f) < 0.2f, "steal hit the lead, not the loop");
+    s.handleEvent(NoteEvent::make(NoteEvent::LeadsOff, 0, 0xFF, false, 0.f));
+    peakOf(s, 4);
+    CHECK(s.heldVoices() == 1, "LeadsOff keeps the loop playing");
+    s.handleEvent(NoteEvent::make(NoteEvent::Off, 50, 0xFF, false, 0.f));
+    peakOf(s, 25);  // 100 ms — far past the 50 ms release, well short of a drone tail
+    CHECK(s.activeVoices() == 0, "backing releases at the normal rate");
+    s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+    peakOf(s, 40);
+
     // ---- LeadsOff: sound switches / settings clear the solo, not the jam --
     dr = NoteEvent::make(NoteEvent::On, 45, 0xFF, false, 45.f);
     dr.drone = true;

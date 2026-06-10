@@ -8,7 +8,7 @@
 //   string 0 (lo) |  z x c v b n m , . /  | space:sustain
 //
 //   ` exit   tab settings   fn(hold) quick-edit   shift(hold) chromatic
-//   ctrl/opt octave-/+ (left thumb)   alt sustain (left thumb)
+//   ctrl/opt octave-/+ (left thumb)   alt loop pedal (left thumb)
 //
 // In string mode each row is a mono lane: a new press while the lane sings
 // hands the voice off legato (hammer-on); releasing back onto a still-held

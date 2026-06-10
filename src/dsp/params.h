@@ -91,6 +91,11 @@ struct NoteEvent {
     bool    drone  = false; // jam-row note: latched backing layer — exempt
                             // from the voice cap and from nearest-pitch
                             // stealing, released with a drawn-out tail
+    bool    backing = false; // loop-pedal playback note: cap-exempt and
+                             // steal-proof like a drone, survives LeadsOff,
+                             // ignores live bend/tilt vibrato — but releases
+                             // normally (it's a recorded performance, not a
+                             // drone bed)
     float   pitchMidi = 60.f;  // fractional MIDI note number
 
     // C++11-safe construction helper (NoteEvent has default member

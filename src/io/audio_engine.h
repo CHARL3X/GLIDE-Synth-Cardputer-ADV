@@ -18,6 +18,14 @@ const char* lastError();
 void pushEvent(const dsp::NoteEvent& ev);
 void setParams(const dsp::SynthParams& p);
 
+// Scheduled delivery: the event fires on the render thread when millis()
+// reaches dueMs (4 ms block precision — far tighter than the ~33 ms UI
+// frame). The loop pedal's playback path. Events must be pushed in due
+// order. flushScheduled() invalidates everything still queued (loop
+// stop/clear) without racing the render thread.
+void pushEventAt(const dsp::NoteEvent& ev, uint32_t dueMs);
+void flushScheduled();
+
 // audio thread -> UI thread
 struct Lead {
     bool active;

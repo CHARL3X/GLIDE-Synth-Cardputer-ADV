@@ -32,6 +32,8 @@ public:
     bool held() const { return active() && env_ != Env::Release; }
     bool isDrone() const { return drone_; }
     void setDrone(bool d) { drone_ = d; }
+    bool isBacking() const { return backing_; }
+    void setBacking(bool b) { backing_ = b; }
     uint8_t id() const { return id_; }
     uint8_t lane() const { return lane_; }
     void setLane(uint8_t lane) { lane_ = lane; }
@@ -59,6 +61,7 @@ private:
     uint32_t rng_ = 0x9E3779B9u;     // per-voice noise state
     float pwmPhase_ = 0.f;           // slow pulse-width LFO (Pulse wave)
     bool drone_ = false;             // jam-row backing voice
+    bool backing_ = false;           // loop-pedal playback voice
 };
 
 }  // namespace dsp

@@ -6,6 +6,7 @@
 #include "../dsp/params.h"
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
+#include "../io/looper.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "theme.h"
@@ -316,6 +317,7 @@ void run(M5Canvas& canvas) {
 
         draw(canvas, sel, top);
         store::tick(now);
+        looper::tick(now);  // the loop plays through settings, like the drones
         delay(16);
     }
     store::persistNow();

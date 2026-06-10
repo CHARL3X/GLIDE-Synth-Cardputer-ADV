@@ -36,7 +36,7 @@ Voice* Synth::nearestHeld(float pitch) {
     Voice* best = nullptr;
     float bestDist = 1e9f;
     for (auto& v : voices_) {
-        if (!v.held() || v.isDrone()) continue;  // never steal the backing
+        if (!v.held() || v.isDrone() || v.isBacking()) continue;  // never steal the backing
         const float d = fabsf(v.currentPitch() - pitch);
         if (d < bestDist) {
             bestDist = d;
@@ -80,7 +80,7 @@ int Synth::heldVoices() const {
 
 int Synth::heldLeadVoices() const {
     int n = 0;
-    for (const auto& v : voices_) n += (v.held() && !v.isDrone()) ? 1 : 0;
+    for (const auto& v : voices_) n += (v.held() && !v.isDrone() && !v.isBacking()) ? 1 : 0;
     return n;
 }
 
@@ -98,16 +98,19 @@ void Synth::noteOn(const NoteEvent& ev) {
         v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
         v->retrigger();
         v->setDrone(ev.drone);
+        v->setBacking(ev.backing);
         fenvStage_ = FEnv::Attack;  // a re-strike snaps the filter again
-        if (!ev.drone) leadIdx_ = (int8_t)(v - voices_);
+        if (!ev.drone && !ev.backing) leadIdx_ = (int8_t)(v - voices_);
         return;
     }
 
     // String-mode hand-off: the lane already sings — glide it to the new key.
+    // (Loop playback uses lanes 4..7, so its hand-offs can only ever grab
+    // its own voices, never the live player's.)
     if (ev.legato) {
         if (Voice* v = heldOnLane(ev.lane)) {
             v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
-            leadIdx_ = (int8_t)(v - voices_);
+            if (!ev.backing) leadIdx_ = (int8_t)(v - voices_);
             return;
         }
     }
@@ -120,8 +123,8 @@ void Synth::noteOn(const NoteEvent& ev) {
     const uint8_t cap = p_.voiceCount < 1 ? 1 : (p_.voiceCount > kMaxVoices ? kMaxVoices : p_.voiceCount);
     int heldLead = 0;
     for (const auto& v : voices_)
-        if (v.held() && !v.isDrone()) ++heldLead;
-    if (!ev.drone && heldLead >= cap) {
+        if (v.held() && !v.isDrone() && !v.isBacking()) ++heldLead;
+    if (!ev.drone && !ev.backing && heldLead >= cap) {
         if (Voice* v = nearestHeld(ev.pitchMidi)) {
             v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
             leadIdx_ = (int8_t)(v - voices_);
@@ -129,18 +132,21 @@ void Synth::noteOn(const NoteEvent& ev) {
         }
     }
 
-    // Fresh voice. In Always-glide mode, slide in from the lead's pitch.
+    // Fresh voice. In Always-glide mode, slide in from the lead's pitch —
+    // live notes only: the backing layers replay their own recorded slides.
     float from = ev.pitchMidi;
     bool doGlide = false;
-    if (p_.glideMode == GlideMode::Always && leadIdx_ >= 0 && voices_[leadIdx_].active()) {
+    if (p_.glideMode == GlideMode::Always && !ev.drone && !ev.backing && leadIdx_ >= 0 &&
+        voices_[leadIdx_].active()) {
         from = voices_[leadIdx_].currentPitch();
         doGlide = true;
     }
     Voice* v = alloc();
     v->noteOn(ev.id, ev.lane, ev.pitchMidi, from, doGlide, ++seq_);
     v->setDrone(ev.drone);
+    v->setBacking(ev.backing);
     fenvStage_ = FEnv::Attack;  // fresh attack retriggers the filter envelope
-    if (!ev.drone) leadIdx_ = (int8_t)(v - voices_);  // readout tracks the solo hand
+    if (!ev.drone && !ev.backing) leadIdx_ = (int8_t)(v - voices_);  // readout = the solo hand
 }
 
 void Synth::handleEvent(const NoteEvent& ev) {
@@ -157,18 +163,18 @@ void Synth::handleEvent(const NoteEvent& ev) {
         case NoteEvent::Retarget:
             if (Voice* v = findActiveById(ev.id)) {
                 v->retarget(ev.pitchMidi);
-                // never let a retuned drone hijack the note readout
-                if (!v->isDrone()) leadIdx_ = (int8_t)(v - voices_);
+                // never let a retuned backing layer hijack the note readout
+                if (!v->isDrone() && !v->isBacking()) leadIdx_ = (int8_t)(v - voices_);
             }
             break;
         case NoteEvent::AllOff:
             for (auto& v : voices_) v.kill();
             break;
         case NoteEvent::LeadsOff:
-            // the backing layer plays through sound switches and settings
-            // trips — only the solo hand resets
+            // the backing layers (drones AND the loop) play through sound
+            // switches and settings trips — only the solo hand resets
             for (auto& v : voices_)
-                if (v.active() && !v.isDrone()) v.kill();
+                if (v.active() && !v.isDrone() && !v.isBacking()) v.kill();
             break;
     }
 }
@@ -182,12 +188,14 @@ void Synth::render(float* out, int n) {
     if (lfoPhase_ > kTwoPi) lfoPhase_ -= kTwoPi;
     const float lfo = sinf(lfoPhase_);
     const float cents = p_.bendCents + (p_.vibratoCents + p_.autoVibCents) * lfo;
-    // the backing stays put: drones ignore bend keys and tilt vibrato (only
-    // the solo hand bends strings), keeping just the patch's own vibrato
-    const float droneCents = p_.autoVibCents * lfo;
+    // the backing stays put: drones and loop playback ignore bend keys and
+    // tilt vibrato (only the solo hand bends strings), keeping just the
+    // patch's own vibrato
+    const float backCents = p_.autoVibCents * lfo;
 
     for (auto& v : voices_)
-        if (v.active()) v.render(out, n, p_, v.isDrone() ? droneCents : cents);
+        if (v.active())
+            v.render(out, n, p_, (v.isDrone() || v.isBacking()) ? backCents : cents);
 
     // paraphonic filter envelope, advanced at block rate (4 ms)
     const float blockDur = n / sr_;

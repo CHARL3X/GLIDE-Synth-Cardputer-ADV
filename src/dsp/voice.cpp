@@ -25,7 +25,8 @@ void Voice::noteOn(uint8_t id, uint8_t lane, float pitch, float fromPitch, bool 
     id_ = id;
     lane_ = lane;
     seq_ = seq;
-    drone_ = false;  // reused voice: caller re-flags via setDrone
+    drone_ = false;    // reused voice: caller re-flags via setDrone
+    backing_ = false;  // same: caller re-flags via setBacking
     tgtPitch_ = pitch;
     curPitch_ = doGlide ? fromPitch : pitch;
     startPitch_ = curPitch_;

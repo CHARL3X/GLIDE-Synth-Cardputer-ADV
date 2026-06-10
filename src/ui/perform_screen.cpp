@@ -10,6 +10,7 @@
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
 #include "../io/keys.h"
+#include "../io/looper.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
@@ -412,6 +413,51 @@ void drawBottom(M5Canvas& c, uint32_t now) {
     }
 }
 
+// Loop pedal state, top-left of the scope: REC blinks red while the take
+// rolls, LOOP green with a cycle-progress bar while it plays, OVR amber
+// while layering. Dim LOOP = a stopped take waiting on the pedal.
+void drawLoop(M5Canvas& c, uint32_t now) {
+    const looper::State st = looper::state();
+    if (st == looper::State::Empty || keys::quickEditActive()) return;
+
+    const int x = kTraceX + 2, y = kScopeY + 3;
+    char buf[16];
+    c.setFont(&fonts::Font0);
+    switch (st) {
+        case looper::State::Recording:
+            if ((now >> 8) & 1) c.fillCircle(x + 3, y + 3, 3, theme::kRed);
+            snprintf(buf, sizeof buf, "REC %lu.%lus", (unsigned long)(looper::positionMs(now) / 1000),
+                     (unsigned long)(looper::positionMs(now) % 1000 / 100));
+            c.setTextColor(theme::kRed, theme::kBg);
+            c.drawString(buf, x + 10, y);
+            break;
+        case looper::State::Playing:
+        case looper::State::Overdub: {
+            const bool ovr = st == looper::State::Overdub;
+            c.setTextColor(ovr ? theme::kAmber : theme::kGreen, theme::kBg);
+            c.drawString(ovr ? "OVR" : "LOOP", x, y);
+            const uint32_t len = looper::lengthMs();
+            if (len > 0) {  // cycle progress — see the downbeat coming
+                const int bx = x + 28, bw = 44;
+                c.drawRect(bx, y + 1, bw, 5, theme::kLine);
+                c.fillRect(bx + 1, y + 2, (int)((bw - 2) * looper::positionMs(now) / len), 3,
+                           ovr ? theme::kAmber : theme::kGreenDim);
+            }
+            if (looper::overflowed()) {
+                c.setTextColor(theme::kRed, theme::kBg);
+                c.drawString("FULL", x + 76, y);
+            }
+            break;
+        }
+        case looper::State::Stopped:
+            c.setTextColor(theme::kDim, theme::kBg);
+            c.drawString("LOOP --", x, y);
+            break;
+        default:
+            break;
+    }
+}
+
 // Low-battery warning: a pocket instrument that dies mid-jam without telling
 // you is a broken promise. Quiet until 20%, blinking red at 10%.
 void drawBattery(M5Canvas& c, uint32_t now) {
@@ -427,7 +473,9 @@ void drawBattery(M5Canvas& c, uint32_t now) {
     snprintf(buf, sizeof buf, "BAT %d%%", level);
     c.setFont(&fonts::Font0);
     c.setTextColor(level <= 10 ? theme::kRed : theme::kAmber, theme::kBg);
-    c.drawString(buf, kTraceX + 2, kScopeY + 3);
+    // drop a line when the loop annunciator owns the top-left corner
+    const int y = looper::state() == looper::State::Empty ? kScopeY + 3 : kScopeY + 13;
+    c.drawString(buf, kTraceX + 2, y);
 }
 
 void drawHint(M5Canvas& c) {
@@ -476,6 +524,7 @@ void run() {
         auto& cf = store::get();
 
         keys::Actions act = keys::poll(frameStart);
+        looper::tick(frameStart);  // schedule due loop-playback events
 
         if (act.exitApp) {
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
@@ -506,6 +555,7 @@ void run() {
         drawStatus(canvas);
         drawScope(canvas, frameStart);
         drawReadout(canvas);
+        drawLoop(canvas, frameStart);
         drawBattery(canvas, frameStart);
         drawBottom(canvas, frameStart);
         drawHint(canvas);

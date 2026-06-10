@@ -11,6 +11,7 @@
 #include "../storage/glide_config.h"
 #include "../ui/hud.h"
 #include "audio_engine.h"
+#include "looper.h"
 
 namespace keys {
 
@@ -34,7 +35,8 @@ constexpr int kKeyScaleLock = 40;  // '
 constexpr int kKeyTilt = 41;       // enter
 constexpr int kKeyCtrl = 42;       // ctrl  (octave down, left thumb)
 constexpr int kKeyOpt = 43;        // opt   (octave up, left thumb)
-constexpr int kKeyAlt = 44;        // alt   (sustain, left thumb)
+constexpr int kKeyAlt = 44;        // alt   (the loop pedal, left thumb —
+                                   // space already covers sustain)
 constexpr int kKeySpace = 55;      // space (sustain)
 
 // note grid: code -> (string, col). string 0 = bottom row = lowest.
@@ -99,6 +101,12 @@ bool gTiltLatched = false;
 uint32_t gTiltPressMs = 0;
 bool gTiltLatchFired = false;            // long-press consumed this hold
 constexpr uint32_t kTiltLongMs = 350;
+
+// loop pedal (alt): tap = rec/play/overdub cycle, long-press = clear.
+// Same release-fired gesture split as the tilt key.
+uint32_t gLoopPressMs = 0;
+bool gLoopHoldFired = false;
+constexpr uint32_t kLoopHoldMs = 600;
 
 // jam motion: a millis-paced beat clock on the UI thread re-strikes the
 // latched drones, turning the static bed into a living backing. Pure event
@@ -186,12 +194,16 @@ void notePress(int cd, bool shiftHeld) {
         legato = gLaneDepth[n.string] > 0;
         lanePush(n.string, (uint8_t)cd);
     }
-    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd, (uint8_t)n.string,
-                                          legato, n.pitch));
+    const dsp::NoteEvent ev = dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd,
+                                                   (uint8_t)n.string, legato, n.pitch);
+    audio::pushEvent(ev);
+    looper::record(ev);
 }
 
 void sendOff(int cd) {
-    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd));
+    const dsp::NoteEvent ev = dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd);
+    audio::pushEvent(ev);
+    looper::record(ev);  // no-op unless this id's On was recorded
     gNotes[cd].physical = false;
     gNotes[cd].sustained = false;
     gNotes[cd].drone = false;
@@ -246,8 +258,10 @@ void noteRelease(int cd) {
             if (back >= 0) {
                 // pull-off: glide the lane's voice back to the still-held key
                 HeldNote& b = gNotes[back];
-                audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)back,
-                                                      (uint8_t)lane, true, b.pitch));
+                const dsp::NoteEvent ev = dsp::NoteEvent::make(
+                    dsp::NoteEvent::On, (uint8_t)back, (uint8_t)lane, true, b.pitch);
+                audio::pushEvent(ev);
+                looper::record(ev);
                 n.string = -1;
                 return;
             }
@@ -292,6 +306,7 @@ void clearLeadNotes() {
 }
 
 void panic() {
+    looper::stop();  // silence the loop layer too — the take survives
     clearAllNotes();
     hud::show("PANIC", "all notes off", -1.f);
 }
@@ -302,9 +317,10 @@ void retuneHeldNotes() {
         HeldNote& n = gNotes[cd];
         if (!sounding(n)) continue;
         n.pitch = pitchFor(n);
-        audio::pushEvent(
-            dsp::NoteEvent::make(dsp::NoteEvent::Retarget, (uint8_t)cd, (uint8_t)n.string,
-                                 false, n.pitch));
+        const dsp::NoteEvent ev = dsp::NoteEvent::make(
+            dsp::NoteEvent::Retarget, (uint8_t)cd, (uint8_t)n.string, false, n.pitch);
+        audio::pushEvent(ev);
+        looper::record(ev);  // octave sweeps of recorded notes loop too
         if (n.drone && n.droneVoicing > 0)  // sweep the drone's partner too
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Retarget,
                                                   (uint8_t)(cd + kDroneStackOffset), 0xFF, false,
@@ -336,9 +352,13 @@ void octaveShift(int dir) {
                 restrikeDrone(cd);
                 continue;
             }
-            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd));
-            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd,
-                                                  (uint8_t)n.string, false, n.pitch));
+            const dsp::NoteEvent off = dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)cd);
+            const dsp::NoteEvent on = dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd,
+                                                           (uint8_t)n.string, false, n.pitch);
+            audio::pushEvent(off);
+            looper::record(off);
+            audio::pushEvent(on);
+            looper::record(on);
         }
     }
     char v[16];
@@ -505,9 +525,10 @@ void resync() {
     // fresh press edge, so mark the long-press already consumed — it won't
     // latch (or cycle on release) until enter is released and pressed anew.
     gTiltLatchFired = true;
+    gLoopHoldFired = true;  // same guard for the loop pedal
     gLastBeatMs = 0;  // restart the jam clock cleanly after the blocking screen
     gArpIdx = 0;
-    clearLeadNotes();  // drones ride through settings trips
+    clearLeadNotes();  // drones (and the loop) ride through settings trips
 }
 
 Actions poll(uint32_t nowMs) {
@@ -524,7 +545,7 @@ Actions poll(uint32_t nowMs) {
     gLastPollMs = nowMs;
 
     const bool shiftHeld = held(cur, kKeyShift);
-    gSustainHeld = held(cur, kKeySpace) || held(cur, kKeyAlt);
+    gSustainHeld = held(cur, kKeySpace);  // alt is the loop pedal now
     const bool wasQuickEdit = gQuickEdit;
     gQuickEdit = held(cur, kKeyFn);
     if (wasQuickEdit && !gQuickEdit) store::markDirty();  // persist on fn release
@@ -623,6 +644,11 @@ Actions poll(uint32_t nowMs) {
                 gTiltPressMs = nowMs;
                 gTiltLatchFired = false;
                 break;
+            case kKeyAlt:
+                // loop pedal: tap vs hold decided on release / threshold
+                gLoopPressMs = nowMs;
+                gLoopHoldFired = false;
+                break;
             default:
                 break;
         }
@@ -639,6 +665,34 @@ Actions poll(uint32_t nowMs) {
         // tilt key released: if the long-press latch didn't fire, it was a
         // short tap -> cycle the tilt mode
         if (cd == kKeyTilt && !gTiltLatchFired) cycleTilt();
+        // loop pedal released: short tap steps the rec -> play -> overdub cycle
+        if (cd == kKeyAlt && !gLoopHoldFired) {
+            const looper::State prev = looper::state();
+            const looper::State s = looper::tap(nowMs);
+            char v[20];
+            switch (s) {
+                case looper::State::Recording:
+                    hud::show("LOOP", "recording...", -1.f);
+                    break;
+                case looper::State::Playing:
+                    if (prev == looper::State::Recording) {
+                        snprintf(v, sizeof v, "%lu.%lus loop",
+                                 (unsigned long)(looper::lengthMs() / 1000),
+                                 (unsigned long)(looper::lengthMs() % 1000 / 100));
+                        hud::show("LOOP", v, -1.f);
+                    } else {
+                        hud::show("LOOP", "play", -1.f);
+                    }
+                    break;
+                case looper::State::Overdub:
+                    hud::show("LOOP", "overdub", -1.f);
+                    break;
+                default:  // a too-short take was discarded
+                    if (prev == looper::State::Recording)
+                        hud::showError("LOOP", "too short");
+                    break;
+            }
+        }
     }
 
     // tilt key held past the long-press threshold -> toggle the mod-latch
@@ -654,6 +708,15 @@ Actions poll(uint32_t nowMs) {
             store::markDirty();
         }
         hud::show("TILT", gTiltLatched ? "latched" : "live", -1.f);
+    }
+
+    // loop pedal held past the threshold -> clear the loop (fires once)
+    if (held(cur, kKeyAlt) && !gLoopHoldFired && nowMs - gLoopPressMs >= kLoopHoldMs) {
+        gLoopHoldFired = true;
+        if (looper::state() != looper::State::Empty) {
+            looper::clear();
+            hud::show("LOOP", "cleared", -1.f);
+        }
     }
 
     // sustain pedal lifted -> let go of everything not physically held
