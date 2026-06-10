@@ -40,7 +40,8 @@ it's already a tiny fretboard. So GLIDE treats it like one:
 
  `     exit                 fn (hold)    quick-edit layer
  tab   settings             shift (hold) momentary chromatic
- ctrl/opt octave -/+ (left thumb)        alt sustain (left thumb)
+ ctrl/opt octave -/+ (left thumb)        alt loop pedal (left thumb)
+                                         (tap: rec/play/overdub, hold: clear)
 
  fn + q..p         : switch between the ten sounds, live
  fn + shift + q..p : save your current tweaks over that slot
@@ -143,6 +144,39 @@ hurdy-gurdy lineage). Settings → *Jam rows*:
 
 Off by default — the uniform grid is still the instrument you learn on.
 Jam rows are an arrangement you switch on when it's time to perform.
+
+## The loop pedal
+
+The other half of "one hand plays the backing, the other solos": **alt**
+(left thumb — space already covers sustain) is a one-button looper, and what
+it records is the *performance*, not the audio — the note events themselves,
+replayed through the live engine:
+
+- **tap**: start recording. **tap again**: the loop closes and starts
+  playing on that press. **tap again**: overdub a layer; once more seals it.
+- **hold** (~0.6 s): clear. **panic** (bksp) silences the loop but keeps
+  the take — tap alt and it plays again.
+- Because the loop is events, it costs kilobytes — and, the good part, it
+  **plays through whatever sound is selected**. Record a CELLO bassline,
+  switch to LEAD, solo over it; swap sounds mid-jam and the whole
+  arrangement re-voices itself. Recorded slides, hammer-ons and octave
+  sweeps replay as slides, hammer-ons and sweeps.
+- Loop playback is a protected backing layer like the drones: its voices
+  ride outside the voice cap, can't be robbed by chord-slide stealing,
+  ignore live bends and tilt vibrato, never hijack the note readout, and
+  survive sound switches and settings trips. Internally it plays on its own
+  set of string lanes (4–7) with its own key ids, so it can never collide
+  with your hands.
+- Timing belongs to the audio thread: playback events are *scheduled*
+  (block-accurate, ~4 ms), not fired from the ~33 ms UI frame — the loop
+  doesn't swing with the frame rate.
+- Status lives top-left of the scope: **REC** blinks red with elapsed time,
+  **LOOP** green with a cycle-progress bar, **OVR** amber while layering,
+  dim `LOOP --` for a stopped take. `FULL` means the take hit the
+  1024-event ceiling.
+
+Loops are performance state — they live until cleared or power-off, and are
+never written to flash.
 
 ## The philosophy, encoded
 
