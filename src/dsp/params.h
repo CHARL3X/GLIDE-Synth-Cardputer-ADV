@@ -69,6 +69,17 @@ struct SynthParams {
     float drive = 1.f;        // pre-filter gain into the soft clipper, 1..8
     float autoVibCents = 0.f; // built-in vibrato depth (tilt adds on top)
 
+    // ---- send effects (global block, post-filter; 0 = dry/off) -----------
+    // The "space" a bare mono voice lacks. Defaults are fully dry so the
+    // neutral SynthParams is bit-for-bit the old engine (and the native
+    // tests' default-param paths are unchanged).
+    float chorusDepth = 0.f;   // 0..1 ensemble shimmer (dual-tap mod delay)
+    float delayMix    = 0.f;   // 0..1 echo send level
+    float delayTimeS  = 0.28f; // echo time, seconds (clamped to the fx buffer)
+    float delayFb     = 0.35f; // 0..0.9 echo regeneration
+    float reverbMix   = 0.f;   // 0..1 reverb send level
+    float reverbSize  = 0.6f;  // 0..1 tail length / room size
+
     // live modulation, pre-summed by the UI thread each frame
     float bendCents    = 0.f;  // bend keys, ramped by UI
     float vibratoCents = 0.f;  // tilt->vibrato depth (0 = off)

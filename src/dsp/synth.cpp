@@ -15,6 +15,7 @@ void Synth::init(float sampleRate) {
     initWavetables();
     svf_.init(sr_);
     out_.init(sr_);
+    fx_.init(sr_);
     for (auto& v : voices_) v.init(sr_);
     cutoffSm_ = p_.cutoffHz;
 }
@@ -169,6 +170,7 @@ void Synth::handleEvent(const NoteEvent& ev) {
             break;
         case NoteEvent::AllOff:
             for (auto& v : voices_) v.kill();
+            fx_.reset();  // panic kills the tails too — no reverb ringing on
             break;
         case NoteEvent::LeadsOff:
             // the backing layers (drones AND the loop) play through sound
@@ -239,11 +241,17 @@ void Synth::render(float* out, int n) {
         vol += dv;
     }
 
-    // once-per-block NaN/denormal guard: a poisoned filter would otherwise
-    // stay silent forever — reset loudly visible (silence) but recoverable
+    // send effects (chorus/delay/reverb) on the finished mono mix; self-
+    // bypasses when all three sends are 0, so a dry patch is untouched
+    fx_.process(out, n, p_);
+
+    // once-per-block NaN/denormal guard: a poisoned filter or a runaway
+    // reverb tail would otherwise stay broken forever — reset loudly visible
+    // (silence) but recoverable
     if (!std::isfinite(out[n - 1])) {
         svf_.reset();
         out_.reset();
+        fx_.reset();
         memset(out, 0, sizeof(float) * n);
     }
 }

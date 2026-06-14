@@ -3,6 +3,7 @@
 // the voice cap (free mode), retargets for octave sweeps. Pure C++ —
 // everything here ports unchanged to dedicated hardware later.
 #pragma once
+#include "fx.h"
 #include "params.h"
 #include "saturator.h"
 #include "svf.h"
@@ -39,6 +40,7 @@ private:
     SynthParams p_;
     Svf svf_;
     OutputStage out_;
+    Fx fx_;
     float sr_ = 32000.f;
     float lfoPhase_ = 0.f;
     float cutoffSm_ = 4000.f;

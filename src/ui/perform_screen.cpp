@@ -10,6 +10,7 @@
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
 #include "../io/keys.h"
+#include "../io/led.h"
 #include "../io/looper.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
@@ -544,6 +545,7 @@ void run() {
 
         if (act.exitApp) {
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
+            led::off();
             store::persistNow();
             delay(120);  // let the release tails fade
             ESP.restart();
@@ -565,6 +567,17 @@ void run() {
         applyTilt();
         audio::setParams(cf.synth);
         store::tick(frameStart);
+
+        // onboard LED mirrors the lead voice: pitch -> hue, activity ->
+        // brightness, fresh attacks and bends throw a white sparkle
+        {
+            static bool prevLedActive = false;
+            auto ld = audio::lead();
+            const bool bending = fabsf(keys::bendCentsNow()) > 2.f;
+            const bool accent = (ld.active && !prevLedActive) || bending;
+            prevLedActive = ld.active;
+            led::update(ld.active, ld.pitchMidi, 1.f, accent);
+        }
 
         // ---- draw ----------------------------------------------------------
         canvas.fillScreen(theme::kBg);

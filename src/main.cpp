@@ -9,6 +9,7 @@
 #include "dsp/patches.h"
 #include "io/audio_engine.h"
 #include "io/keys.h"
+#include "io/led.h"
 #include "io/tilt.h"
 #include "storage/glide_config.h"
 #include "ui/perform_screen.h"
@@ -90,6 +91,7 @@ void setup() {
 
     keys::begin();
     tilt::begin();
+    led::begin();
 
     Serial.printf("[glide] ready  heap=%u  starved=%u\n", (unsigned)ESP.getFreeHeap(),
                   (unsigned)audio::starvedBlocks());

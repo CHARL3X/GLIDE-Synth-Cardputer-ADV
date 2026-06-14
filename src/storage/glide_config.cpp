@@ -28,7 +28,14 @@ T clampT(T v, T lo, T hi) {
 // before the two-axis-tilt update keeps its synth + axis-A tilt, and just
 // gains a neutral (Off) roll axis. The on-flash size differs between versions,
 // so the loader accepts either size and disambiguates on the version byte.
-constexpr uint8_t kPatchBlobVersion = 2;
+//
+// v3 grew SynthParams itself (the six send-effect fields). That changes the
+// size of the embedded synth — and therefore of BOTH blob structs below — so
+// pre-FX (v1/v2) saves no longer size-match and fall through to the factory
+// patch. That is the intended migration: an old custom sound is replaced by
+// the upgraded factory voice (now with its FX), never garbage. New saves are
+// v3 and round-trip the FX with the slot.
+constexpr uint8_t kPatchBlobVersion = 3;
 
 struct PatchBlobV1 {  // frozen: byte-for-byte the original v1 layout
     uint8_t version;
@@ -112,6 +119,16 @@ void begin() {
     s.detuneCents = (float)clampT<int>(gPrefs.getInt("det", (int)d.synth.detuneCents), 0, 50);
     s.voiceCount = clampT<int>(gPrefs.getUChar("voices", d.synth.voiceCount), 1, dsp::kMaxVoices);
 
+    // send effects (the live sound's FX state, so it survives a reboot like
+    // every other synth param). Absent keys on an existing device default to
+    // dry — the new lush presets load the moment any patch is selected.
+    s.chorusDepth = clampT<int>(gPrefs.getInt("chorus", (int)(d.synth.chorusDepth * 100)), 0, 100) / 100.f;
+    s.delayMix    = clampT<int>(gPrefs.getInt("dlymix", (int)(d.synth.delayMix * 100)), 0, 100) / 100.f;
+    s.delayTimeS  = clampT<int>(gPrefs.getInt("dlytime", (int)(d.synth.delayTimeS * 1000)), 10, 290) / 1000.f;
+    s.delayFb     = clampT<int>(gPrefs.getInt("dlyfb", (int)(d.synth.delayFb * 100)), 0, 90) / 100.f;
+    s.reverbMix   = clampT<int>(gPrefs.getInt("rvbmix", (int)(d.synth.reverbMix * 100)), 0, 100) / 100.f;
+    s.reverbSize  = clampT<int>(gPrefs.getInt("rvbsize", (int)(d.synth.reverbSize * 100)), 0, 100) / 100.f;
+
     auto& l = gCfg.layout;
     l.rootSemis = clampT<int>(gPrefs.getUChar("root", d.layout.rootSemis), 0, 11);
     l.scaleIdx = clampT<int>(gPrefs.getUChar("scale", d.layout.scaleIdx), 0, dsp::kScaleCount - 1);
@@ -158,6 +175,12 @@ void persistNow() {
     gPrefs.putInt("vol", (int)(s.masterVol * 100));
     gPrefs.putInt("det", (int)s.detuneCents);
     gPrefs.putUChar("voices", s.voiceCount);
+    gPrefs.putInt("chorus", (int)(s.chorusDepth * 100));
+    gPrefs.putInt("dlymix", (int)(s.delayMix * 100));
+    gPrefs.putInt("dlytime", (int)(s.delayTimeS * 1000));
+    gPrefs.putInt("dlyfb", (int)(s.delayFb * 100));
+    gPrefs.putInt("rvbmix", (int)(s.reverbMix * 100));
+    gPrefs.putInt("rvbsize", (int)(s.reverbSize * 100));
 
     const auto& l = gCfg.layout;
     gPrefs.putUChar("root", l.rootSemis);

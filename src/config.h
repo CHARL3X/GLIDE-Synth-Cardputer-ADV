@@ -50,4 +50,21 @@ constexpr int   kTiltAxisB = 0;     // 0=x 1=y 2=z  — left/right roll
 constexpr float kTiltSignB = 1.0f;
 constexpr float kTiltSmooth = 0.15f; // per-frame smoothing toward raw reading
 
+// ---- onboard RGB LED (WS2812 / SK6812) --------------------------------
+// A second display: the lead voice's pitch picks the hue (chromatic color
+// wheel — C is red and it rotates up by semitone), note activity drives the
+// brightness, and bends/new attacks throw a white sparkle. Driven once per UI
+// frame off audio::lead(), never from the audio thread, via the core's
+// built-in neopixelWrite() (no FastLED).
+//
+// Hardware: M5Stamp S3A core. Its single SK6812 RGB LED is on GPIO 21 (data,
+// GRB wire order handled by neopixelWrite) AND needs its power rail enabled
+// first — GPIO 38 driven HIGH, or the LED stays dark no matter what data you
+// send. If the color comes out wrong (e.g. red shows as green) the panel isn't
+// GRB — tell me and I'll remap. kLedPowerPin = 255 means "no enable pin".
+constexpr bool    kLedEnabled   = true;
+constexpr uint8_t kLedPin       = 21;   // SK6812 data
+constexpr uint8_t kLedPowerPin  = 38;   // LED power-enable (HIGH = on); 255 = none
+constexpr uint8_t kLedMaxBright = 90;   // 0..255 ceiling — the LED is searing at full
+
 }  // namespace cfg
