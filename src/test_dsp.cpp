@@ -192,6 +192,39 @@ int main() {
         s.setParams(p);
     }
 
+    // ---- solo/backing split: each layer renders with its own sound ---------
+    // Lead voices use the `lead` params, the backing layer uses `back`. Prove
+    // the routing by silencing one bus and confirming only the other sounds.
+    {
+        s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+        peakOf(s, 40);
+        SynthParams lead;
+        SynthParams back = lead;
+        back.masterVol = 0.f;            // silence the backing bus
+        s.setParams(lead, back);
+        peakOf(s, 30);                   // let the backing volume ramp settle to 0
+        NoteEvent dr = NoteEvent::make(NoteEvent::On, 40, 0xFF, false, 60.f);
+        dr.drone = true;
+        s.handleEvent(dr);               // a drone -> backing bus (silenced)
+        CHECK(peakOf(s, 20) < 1e-3f, "backing routed to its own (silenced) bus");
+        s.handleEvent(NoteEvent::make(NoteEvent::On, 1, 0xFF, false, 64.f));  // lead bus
+        CHECK(peakOf(s, 20) > 0.02f, "lead routed to the audible lead bus");
+
+        // flip: silence lead, voice the backing, replay the drone fresh
+        s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+        peakOf(s, 40);
+        lead.masterVol = 0.f;
+        back.masterVol = 0.7f;
+        s.setParams(lead, back);
+        peakOf(s, 30);                   // settle both ramps (no voices yet)
+        s.handleEvent(dr);               // drone again, now on the audible backing bus
+        CHECK(peakOf(s, 20) > 0.02f, "backing bus uses its own volume, not the lead's");
+        s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+        peakOf(s, 40);
+        p = SynthParams();
+        s.setParams(p);
+    }
+
     // ---- drones: the layering jam ------------------------------------------
     // A latched drone must survive the lead's voice-cap stealing and let go
     // with a drawn-out tail.

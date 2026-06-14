@@ -133,6 +133,9 @@ int gProgLen = 0;
 int gProgIdx = 0;
 bool gProgSounding = false;
 uint32_t gProgLastAdv = 0;  // beat clock for the chord advance (0 = re-arm)
+// The layout (octave/root/scale) snapshotted when the progression was built, so
+// shifting octave or changing key while soloing leaves the backing in place.
+dsp::Layout gProgLayout;
 
 // quick-edit
 bool gQuickEdit = false;
@@ -173,7 +176,8 @@ void lanePush(int lane, uint8_t cd) {
 void sendOff(int cd);
 void sendDroneOff(int cd);
 void restrikeDrone(int cd);
-void clearProg();  // defined with the progression engine, used by panic()
+void clearProg();      // defined with the progression engine, used by panic()
+bool backingActive();  // any backing layer alive (drones / loop / progression)
 
 void notePress(int cd, bool shiftHeld) {
     auto& cfgr = store::get();
@@ -190,9 +194,13 @@ void notePress(int cd, bool shiftHeld) {
             gProg[gProgLen].col = gGridCol[cd];
             gProg[gProgLen].chrom = chrom;
             ++gProgLen;
-            if (gProgLen == 1) { gProgIdx = 0; gProgLastAdv = 0; }  // arm the clock
+            if (gProgLen == 1) {
+                gProgIdx = 0;
+                gProgLastAdv = 0;            // arm the clock
+                gProgLayout = cfgr.layout;   // freeze the key/register here
+            }
             float pp[kProgVoices];
-            dsp::chordPitches(cfgr.layout, gGridString[cd], gGridCol[cd], chrom, pp, kProgVoices);
+            dsp::chordPitches(gProgLayout, gGridString[cd], gGridCol[cd], chrom, pp, kProgVoices);
             char v[20];
             snprintf(v, sizeof v, "%d: %s", gProgLen, dsp::pitchClassName(pp[0]));
             hud::show("PROG", v, -1.f);
@@ -344,6 +352,7 @@ void panic() {
     looper::stop();  // silence the loop layer too — the take survives
     clearProg();     // the auto-progression clears with panic, like the drones
     clearAllNotes();
+    store::unlockBacking();  // backing gone -> the split is no longer in effect
     hud::show("PANIC", "all notes off", -1.f);
 }
 
@@ -464,9 +473,9 @@ void clearProg() {
 // on a pad. Flagged drone: cap-exempt, steal-proof, ignores bend/tilt, and
 // re-voices through whatever sound is selected.
 void strikeProgChord(int idx) {
-    auto& cfgr = store::get();
     float p[kProgVoices];
-    const int n = dsp::chordPitches(cfgr.layout, gProg[idx].string, gProg[idx].col,
+    // frozen layout: the backing keeps its key/register while the solo roams
+    const int n = dsp::chordPitches(gProgLayout, gProg[idx].string, gProg[idx].col,
                                     gProg[idx].chrom, p, kProgVoices);
     for (int i = 0; i < kProgVoices; ++i) {
         if (i < n) {
@@ -505,6 +514,16 @@ void progTick(uint32_t nowMs) {
     strikeProgChord(gProgIdx);
     gBeatFlashAt = nowMs;
     gBeatFlashCd = -1;
+}
+
+// Is any protected backing layer currently alive? Drives the solo/backing
+// sound split: switching sound while this is true freezes the backing.
+bool backingActive() {
+    if (gProgLen > 0) return true;
+    if (looper::state() != looper::State::Empty) return true;
+    for (int cd = 0; cd < 56; ++cd)
+        if (gNotes[cd].drone && gNotes[cd].string >= 0) return true;
+    return false;
 }
 
 // ---- jam motion -------------------------------------------------------------
@@ -684,12 +703,17 @@ Actions poll(uint32_t nowMs) {
                             hud::showError("SOUND", "save failed");
                         }
                     } else {
-                        clearLeadNotes();  // new sound, same jam: drones ring on
+                        // switching sound over a running jam keeps the backing
+                        // on its own sound: freeze it, then this patch is the
+                        // solo voice only (own register + own effect on top)
+                        if (!store::backingLocked() && backingActive()) store::lockBacking();
+                        clearLeadNotes();  // new sound, same jam: backing rings on
                         store::applyPatch(slot);
-                        audio::setParams(store::get().synth);
+                        auto& g = store::get();
+                        audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
                         snprintf(v, sizeof v, "%s%s", store::patchName(slot),
                                  store::patchHasOverride(slot) ? "*" : "");
-                        hud::show("SOUND", v, (slot + 1) / 10.f);
+                        hud::show(g.backingLocked ? "SOLO" : "SOUND", v, (slot + 1) / 10.f);
                     }
                 }
                 continue;  // grid is muted while editing
@@ -883,6 +907,10 @@ Actions poll(uint32_t nowMs) {
 
     jamTick(nowMs);  // living backing: re-strike latched drones on the beat
 
+    // the solo/backing split only holds while a backing exists — once the jam
+    // is cleared, the next sound switch affects everything again
+    if (store::backingLocked() && !backingActive()) store::unlockBacking();
+
     gPrevMask = cur;
     return act;
 }
@@ -956,8 +984,7 @@ void progStepName(int i, char* out, int cap) {
     if (cap <= 0) return;
     if (i < 0 || i >= gProgLen) { out[0] = '\0'; return; }
     float pp[kProgVoices];
-    dsp::chordPitches(store::get().layout, gProg[i].string, gProg[i].col, gProg[i].chrom, pp,
-                      kProgVoices);
+    dsp::chordPitches(gProgLayout, gProg[i].string, gProg[i].col, gProg[i].chrom, pp, kProgVoices);
     snprintf(out, cap, "%s", dsp::pitchClassName(pp[0]));
 }
 

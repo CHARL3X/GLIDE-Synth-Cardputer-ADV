@@ -16,7 +16,11 @@ const char* lastError();
 
 // UI thread -> audio thread (lock-free)
 void pushEvent(const dsp::NoteEvent& ev);
-void setParams(const dsp::SynthParams& p);
+// Two sounds: `lead` for the solo voices, `back` for the backing layer
+// (drones/loop/progression). Pass the same struct for both when there's no
+// solo/backing split.
+void setParams(const dsp::SynthParams& lead, const dsp::SynthParams& back);
+void setParams(const dsp::SynthParams& p);  // convenience: lead == back
 
 // Scheduled delivery: the event fires on the render thread when millis()
 // reaches dueMs (4 ms block precision — far tighter than the ~33 ms UI

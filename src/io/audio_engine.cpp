@@ -28,8 +28,10 @@ std::atomic<uint16_t> gGen{0};
 
 // Double-buffered params: UI writes the inactive copy, flips the index.
 // The render thread copies the active struct once per block — always a
-// coherent set, never a torn cutoff/resonance combo.
+// coherent set, never a torn cutoff/resonance combo. Two sounds travel
+// together (lead + backing) so the split is always a coherent pair too.
 dsp::SynthParams gParams[2];
+dsp::SynthParams gParamsBack[2];
 std::atomic<uint8_t> gParamIdx{0};
 
 // 3 rotating output buffers vs M5Unified's per-channel queue depth of 2:
@@ -75,7 +77,10 @@ void renderTask(void*) {
         if (blocksDone > 16 && spk.isPlaying(cfg::kAudioChannel) == 0) gStarved.fetch_add(1);
         ++blocksDone;
 
-        gSynth.setParams(gParams[gParamIdx.load(std::memory_order_acquire)]);
+        {
+            const uint8_t pi = gParamIdx.load(std::memory_order_acquire);
+            gSynth.setParams(gParams[pi], gParamsBack[pi]);
+        }
 
         // scheduled (loop playback) events that have come due
         const uint32_t nowMs = millis();
@@ -131,6 +136,8 @@ bool begin() {
     gSynth.init((float)cfg::kSampleRate);
     gParams[0] = dsp::SynthParams();
     gParams[1] = gParams[0];
+    gParamsBack[0] = gParams[0];
+    gParamsBack[1] = gParams[0];
 
     auto& spk = M5Cardputer.Speaker;
 
@@ -202,12 +209,15 @@ void flushScheduled() {
     gGen.fetch_add(1, std::memory_order_release);
 }
 
-void setParams(const dsp::SynthParams& p) {
+void setParams(const dsp::SynthParams& lead, const dsp::SynthParams& back) {
     const uint8_t cur = gParamIdx.load(std::memory_order_relaxed);
     const uint8_t next = cur ^ 1;
-    gParams[next] = p;
+    gParams[next] = lead;
+    gParamsBack[next] = back;
     gParamIdx.store(next, std::memory_order_release);
 }
+
+void setParams(const dsp::SynthParams& p) { setParams(p, p); }
 
 Lead lead() {
     Lead l;

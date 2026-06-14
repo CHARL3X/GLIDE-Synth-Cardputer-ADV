@@ -133,6 +133,14 @@ void drawStatus(M5Canvas& c) {
     snprintf(buf, sizeof buf, "OCT%d", cf.layout.octave);
     c.drawString(buf, 108, 2);  // ends 132: clears HOLD (right edge 134-158)
 
+    // solo/backing split engaged: the backing is held on its own sound while
+    // this patch/octave is the solo. Small amber "LK" so you know why a sound
+    // switch isn't changing the bed.
+    if (store::backingLocked()) {
+        c.setTextColor(theme::kAmber, theme::kPanel);
+        c.drawString("LK", 138, 2);
+    }
+
     // annunciators, right side
     int x = cfg::kScreenW - 4;
     auto l = audio::lead();
@@ -612,7 +620,8 @@ void run() {
         }
 
         applyTilt();
-        audio::setParams(cf.synth);
+        // lead = live sound; backing = its frozen sound when the jam is locked
+        audio::setParams(cf.synth, cf.backingLocked ? cf.backingSynth : cf.synth);
         store::tick(frameStart);
 
         // onboard LED mirrors the lead voice: pitch -> hue, activity ->

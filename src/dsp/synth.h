@@ -13,8 +13,18 @@ namespace dsp {
 
 class Synth {
 public:
+    static constexpr int kBlockMax = 256;  // render block ceiling (device uses 128)
+
     void init(float sampleRate);
-    void setParams(const SynthParams& p) { p_ = p; }
+    // Two sounds at once: lead voices render with `lead`, the backing layer
+    // (drones + loop + auto-progression) with `back`. They get separate
+    // filters/envelopes but share one FX "room" (the lead's). Pass the same
+    // struct for both (the convenience overload) when there's no split.
+    void setParams(const SynthParams& lead, const SynthParams& back) {
+        p_ = lead;
+        pBack_ = back;
+    }
+    void setParams(const SynthParams& p) { setParams(p, p); }
     void handleEvent(const NoteEvent& ev);
     void render(float* out, int n);
 
@@ -36,23 +46,33 @@ private:
     Voice* alloc();
     void noteOn(const NoteEvent& ev);
 
-    Voice voices_[kMaxVoices];
-    SynthParams p_;
-    Svf svf_;
-    OutputStage out_;
-    Fx fx_;
-    float sr_ = 32000.f;
-    float lfoPhase_ = 0.f;
-    float cutoffSm_ = 4000.f;
-    float volSm_ = 0.f;
-    uint32_t seq_ = 0;
-    int8_t leadIdx_ = -1;
-
     // paraphonic filter envelope: retriggered by fresh attacks only —
     // legato hand-offs and slides never re-snap the filter
     enum class FEnv : uint8_t { Idle, Attack, Decay };
-    FEnv fenvStage_ = FEnv::Idle;
+    void advanceFenv(FEnv& stage, float& env, const SynthParams& p, float blockDur);
+
+    Voice voices_[kMaxVoices];
+    SynthParams p_;      // lead (the live, solo sound — carries the tilt mods)
+    SynthParams pBack_;  // backing (drones/loop/progression; steady, no tilt)
+    Svf svf_;            // lead filter
+    Svf svfBack_;        // backing filter (own cutoff/env, no tilt)
+    OutputStage out_;    // lead output stage
+    OutputStage outBack_;// backing output stage
+    Fx fx_;              // one shared "room" (reverb/delay/chorus), lead-driven
+    float backBuf_[kBlockMax] = {0.f};  // backing sub-mix before it joins the lead
+    float sr_ = 32000.f;
+    float lfoPhase_ = 0.f;
+    float cutoffSm_ = 4000.f;
+    float cutoffSmBack_ = 4000.f;
+    float volSm_ = 0.f;
+    float volSmBack_ = 0.f;
+    uint32_t seq_ = 0;
+    int8_t leadIdx_ = -1;
+
+    FEnv fenvStage_ = FEnv::Idle;       // lead filter env (was the only one)
     float fenv_ = 0.f;
+    FEnv fenvBackStage_ = FEnv::Idle;   // backing filter env — fixes the old quirk
+    float fenvBack_ = 0.f;              // where a chord re-strike pumped the solo
 };
 
 }  // namespace dsp

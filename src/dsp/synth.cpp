@@ -14,10 +14,13 @@ void Synth::init(float sampleRate) {
     sr_ = sampleRate;
     initWavetables();
     svf_.init(sr_);
+    svfBack_.init(sr_);
     out_.init(sr_);
+    outBack_.init(sr_);
     fx_.init(sr_);
     for (auto& v : voices_) v.init(sr_);
     cutoffSm_ = p_.cutoffHz;
+    cutoffSmBack_ = pBack_.cutoffHz;
 }
 
 Voice* Synth::findActiveById(uint8_t id) {
@@ -113,7 +116,9 @@ void Synth::noteOn(const NoteEvent& ev) {
         v->retrigger();
         v->setDrone(ev.drone);
         v->setBacking(ev.backing);
-        fenvStage_ = FEnv::Attack;  // a re-strike snaps the filter again
+        // snap the filter env of the layer this voice belongs to — a backing
+        // chord re-strike no longer pumps the solo's filter, and vice versa
+        ((ev.drone || ev.backing) ? fenvBackStage_ : fenvStage_) = FEnv::Attack;
         if (!ev.drone && !ev.backing) leadIdx_ = (int8_t)(v - voices_);
         return;
     }
@@ -159,7 +164,7 @@ void Synth::noteOn(const NoteEvent& ev) {
     v->noteOn(ev.id, ev.lane, ev.pitchMidi, from, doGlide, ++seq_);
     v->setDrone(ev.drone);
     v->setBacking(ev.backing);
-    fenvStage_ = FEnv::Attack;  // fresh attack retriggers the filter envelope
+    ((ev.drone || ev.backing) ? fenvBackStage_ : fenvStage_) = FEnv::Attack;  // its layer's filter
     if (!ev.drone && !ev.backing) leadIdx_ = (int8_t)(v - voices_);  // readout = the solo hand
 }
 
@@ -169,10 +174,15 @@ void Synth::handleEvent(const NoteEvent& ev) {
             noteOn(ev);
             break;
         case NoteEvent::Off:
-            if (Voice* v = findActiveById(ev.id))
-                // drones let go with a drawn-out tail — the backing fades,
-                // it never stops dead under a solo
-                v->noteOff(v->isDrone() ? p_.releaseS * 4.f + 0.4f : p_.releaseS);
+            if (Voice* v = findActiveById(ev.id)) {
+                // each layer releases on its own envelope: a drone fades with a
+                // long drawn-out tail, the loop at its backing rate, the lead
+                // on the live patch
+                float rel = p_.releaseS;
+                if (v->isDrone())        rel = pBack_.releaseS * 4.f + 0.4f;
+                else if (v->isBacking()) rel = pBack_.releaseS;
+                v->noteOff(rel);
+            }
             break;
         case NoteEvent::Retarget:
             if (Voice* v = findActiveById(ev.id)) {
@@ -194,68 +204,94 @@ void Synth::handleEvent(const NoteEvent& ev) {
     }
 }
 
-void Synth::render(float* out, int n) {
-    memset(out, 0, sizeof(float) * n);
+void Synth::advanceFenv(FEnv& stage, float& env, const SynthParams& p, float blockDur) {
+    if (stage == FEnv::Attack) {
+        const float aS = p.fenvAtkS < 0.001f ? 0.001f : p.fenvAtkS;
+        env += blockDur / aS;
+        if (env >= 1.f) {
+            env = 1.f;
+            stage = FEnv::Decay;
+        }
+    } else if (stage == FEnv::Decay) {
+        const float dS = p.fenvDecS < 0.01f ? 0.01f : p.fenvDecS;
+        env -= blockDur / dS;
+        if (env <= 0.f) {
+            env = 0.f;
+            stage = FEnv::Idle;
+        }
+    }
+}
 
-    // vibrato LFO, evaluated per block (250 Hz update of a 5.5 Hz LFO);
-    // patch vibrato (autoVibCents) and tilt vibrato sum
+void Synth::render(float* out, int n) {
+    if (n > kBlockMax) n = kBlockMax;  // member sub-mix buffer ceiling
+    memset(out, 0, sizeof(float) * n);          // lead bus
+    memset(backBuf_, 0, sizeof(float) * n);     // backing bus
+
+    // vibrato LFO, evaluated per block (250 Hz update of a 5.5 Hz LFO).
+    // Shared phase; the lead sums patch + tilt vibrato, the backing only the
+    // patch's own vibrato — drones/loop ignore the bend keys and tilt.
     lfoPhase_ += kTwoPi * kVibratoHz * n / sr_;
     if (lfoPhase_ > kTwoPi) lfoPhase_ -= kTwoPi;
     const float lfo = sinf(lfoPhase_);
-    const float cents = p_.bendCents + (p_.vibratoCents + p_.autoVibCents) * lfo;
-    // the backing stays put: drones and loop playback ignore bend keys and
-    // tilt vibrato (only the solo hand bends strings), keeping just the
-    // patch's own vibrato
-    const float backCents = p_.autoVibCents * lfo;
+    const float leadCents = p_.bendCents + (p_.vibratoCents + p_.autoVibCents) * lfo;
+    const float backCents = pBack_.autoVibCents * lfo;
 
+    // Lead voices render with the live sound; the backing layer (drones, loop
+    // playback, the auto-progression) renders into its own bus with the frozen
+    // backing sound — so switching the solo's patch/octave leaves the bed alone.
     for (auto& v : voices_)
-        if (v.active())
-            v.render(out, n, p_, (v.isDrone() || v.isBacking()) ? backCents : cents);
+        if (v.active()) {
+            if (v.isDrone() || v.isBacking()) v.render(backBuf_, n, pBack_, backCents);
+            else                              v.render(out, n, p_, leadCents);
+        }
 
-    // paraphonic filter envelope, advanced at block rate (4 ms)
     const float blockDur = n / sr_;
-    if (fenvStage_ == FEnv::Attack) {
-        const float aS = p_.fenvAtkS < 0.001f ? 0.001f : p_.fenvAtkS;
-        fenv_ += blockDur / aS;
-        if (fenv_ >= 1.f) {
-            fenv_ = 1.f;
-            fenvStage_ = FEnv::Decay;
-        }
-    } else if (fenvStage_ == FEnv::Decay) {
-        const float dS = p_.fenvDecS < 0.01f ? 0.01f : p_.fenvDecS;
-        fenv_ -= blockDur / dS;
-        if (fenv_ <= 0.f) {
-            fenv_ = 0.f;
-            fenvStage_ = FEnv::Idle;
-        }
-    }
+    advanceFenv(fenvStage_, fenv_, p_, blockDur);             // lead filter env
+    advanceFenv(fenvBackStage_, fenvBack_, pBack_, blockDur);  // backing filter env
 
-    // smoothed cutoff: base * tilt octaves * filter-env octaves
-    float cutTarget = p_.cutoffHz * exp2f(p_.cutoffModOct + p_.fenvOct * fenv_);
-    if (cutTarget < 60.f) cutTarget = 60.f;
-    if (cutTarget > 14000.f) cutTarget = 14000.f;
-    cutoffSm_ += (cutTarget - cutoffSm_) * 0.2f;
+    // lead filter: base * tilt octaves * env octaves
+    float cutL = p_.cutoffHz * exp2f(p_.cutoffModOct + p_.fenvOct * fenv_);
+    if (cutL < 60.f) cutL = 60.f;
+    if (cutL > 14000.f) cutL = 14000.f;
+    cutoffSm_ += (cutL - cutoffSm_) * 0.2f;
     svf_.set(cutoffSm_, p_.resonance);
 
-    // master volume ramped linearly across the block (no zipper)
-    float volTarget = p_.masterVol * p_.volMod;
-    if (volTarget < 0.f) volTarget = 0.f;
-    if (volTarget > 1.f) volTarget = 1.f;
-    const float v1 = volSm_ + (volTarget - volSm_) * 0.3f;
-    float vol = volSm_;
-    const float dv = (v1 - volSm_) / n;
-    volSm_ = v1;
+    // backing filter: its own env, NO tilt (the bed stays put under the solo)
+    float cutB = pBack_.cutoffHz * exp2f(pBack_.fenvOct * fenvBack_);
+    if (cutB < 60.f) cutB = 60.f;
+    if (cutB > 14000.f) cutB = 14000.f;
+    cutoffSmBack_ += (cutB - cutoffSmBack_) * 0.2f;
+    svfBack_.set(cutoffSmBack_, pBack_.resonance);
 
-    // drive: push harder into the filter+clipper, compensate loudness after
-    const float drive = p_.drive < 1.f ? 1.f : (p_.drive > 8.f ? 8.f : p_.drive);
-    const float makeup = 1.f / (0.55f + 0.45f * drive);
+    // per-bus volume ramps (no zipper). Tilt swell only touches the lead.
+    auto rampVol = [n](float target, float& sm, float& step) {
+        if (target < 0.f) target = 0.f;
+        if (target > 1.f) target = 1.f;
+        const float v1 = sm + (target - sm) * 0.3f;
+        step = (v1 - sm) / n;
+        const float start = sm;
+        sm = v1;
+        return start;
+    };
+    float dvL = 0.f, dvB = 0.f;
+    float volL = rampVol(p_.masterVol * p_.volMod, volSm_, dvL);
+    float volB = rampVol(pBack_.masterVol * pBack_.volMod, volSmBack_, dvB);
+
+    const float driveL = p_.drive < 1.f ? 1.f : (p_.drive > 8.f ? 8.f : p_.drive);
+    const float driveB = pBack_.drive < 1.f ? 1.f : (pBack_.drive > 8.f ? 8.f : pBack_.drive);
+    const float makeupL = 1.f / (0.55f + 0.45f * driveL);
+    const float makeupB = 1.f / (0.55f + 0.45f * driveB);
+
     for (int i = 0; i < n; ++i) {
-        out[i] = out_.process(svf_.process(out[i] * drive)) * makeup * vol;
-        vol += dv;
+        const float l = out_.process(svf_.process(out[i] * driveL)) * makeupL * volL;
+        const float b = outBack_.process(svfBack_.process(backBuf_[i] * driveB)) * makeupB * volB;
+        out[i] = l + b;
+        volL += dvL;
+        volB += dvB;
     }
 
-    // send effects (chorus/delay/reverb) on the finished mono mix; self-
-    // bypasses when all three sends are 0, so a dry patch is untouched
+    // one shared FX "room": both layers wash into the live patch's
+    // chorus/delay/reverb. Self-bypasses when all three sends are 0.
     fx_.process(out, n, p_);
 
     // once-per-block NaN/denormal guard: a poisoned filter or a runaway
@@ -263,7 +299,9 @@ void Synth::render(float* out, int n) {
     // (silence) but recoverable
     if (!std::isfinite(out[n - 1])) {
         svf_.reset();
+        svfBack_.reset();
         out_.reset();
+        outBack_.reset();
         fx_.reset();
         memset(out, 0, sizeof(float) * n);
     }

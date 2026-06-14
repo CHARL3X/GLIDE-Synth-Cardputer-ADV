@@ -45,11 +45,19 @@ struct GlideConfig {
     uint8_t jamChordBeats = 4;// progression: beats each chord holds (1 bar)
     uint16_t bendMs = 250;    // time to reach full bend range
     uint8_t bendRange = 2;    // semitones
-    uint8_t scopeMode = 0;    // 0=waveform scope, 1=pitch trail (the glide,
-                              // drawn over time — watch a slide curve between
-                              // the notes)
+    uint8_t scopeMode = 1;    // 0=waveform scope, 1=pitch trail (default — the
+                              // glide drawn over time, the instrument's whole
+                              // point; watch a slide curve between the notes)
     bool bootSound = true;
     bool seenIntro = false;
+
+    // ---- solo/backing split (transient performance state, never persisted) --
+    // When you switch sound (or shift octave) over a running jam, the backing
+    // freezes onto the sound it was playing so the solo gets its own voice and
+    // register. The backing keeps its own oscillator/filter/envelope; the two
+    // layers share one reverb/delay "room" (the live patch's FX).
+    dsp::SynthParams backingSynth;   // the frozen backing sound (when locked)
+    bool backingLocked = false;      // true once the backing is held apart
 };
 
 GlideConfig& get();
@@ -66,6 +74,14 @@ void resetDefaults();         // restore + persist
 // firmware that changes SynthParams silently falls back to factory.
 void applyPatch(int slot);             // load slot -> working sound + tilt
 bool savePatch(int slot);              // working sound -> slot override
+
+// ---- solo/backing split -------------------------------------------------
+// Freeze the current sound as the backing (called when the player switches
+// sound over a running jam); unlock when the backing is gone. The live mods
+// are neutralised in the frozen copy so the bed stays steady.
+void lockBacking();
+void unlockBacking();
+bool backingLocked();
 void clearOverride(int slot);          // back to factory
 bool patchHasOverride(int slot);
 const char* patchName(int slot);       // factory name

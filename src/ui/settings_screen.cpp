@@ -443,9 +443,10 @@ void run(M5Canvas& canvas) {
         }
         if (dir != 0 && !isHeader(sel)) {
             kItems[sel].adjust(dir);
-            store::get().synth.tempoBpm = (float)store::get().jamBpm;  // synced-delay preview
+            auto& g = store::get();
+            g.synth.tempoBpm = (float)g.jamBpm;  // synced-delay preview
             store::markDirty();
-            audio::setParams(store::get().synth);
+            audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
         }
 
         if (sel < top) top = sel;

@@ -311,4 +311,18 @@ const char* patchName(int slot) {
     return dsp::factoryPatches()[slot].name;
 }
 
+// ---- solo/backing split -----------------------------------------------------
+void lockBacking() {
+    gCfg.backingSynth = gCfg.synth;       // freeze the sound now playing
+    gCfg.backingSynth.bendCents = 0.f;    // a steady bed: no live mods baked in
+    gCfg.backingSynth.vibratoCents = 0.f;
+    gCfg.backingSynth.cutoffModOct = 0.f;
+    gCfg.backingSynth.volMod = 1.f;
+    gCfg.backingLocked = true;
+}
+
+void unlockBacking() { gCfg.backingLocked = false; }
+
+bool backingLocked() { return gCfg.backingLocked; }
+
 }  // namespace store
