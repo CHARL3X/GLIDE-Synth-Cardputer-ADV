@@ -219,6 +219,30 @@ progression* (needs *Jam rows* on):
 Pick PAD, STRINGS, or ORGAN for the bed, set a slow tempo, tap four chords,
 and you've got a song to solo on in about ten seconds.
 
+## Soloing over the jam: a separate register and sound
+
+Once the backing is looping, you don't want to be stuck in its octave or its
+sound — you want to *solo* over it. So the moment you change the solo while a
+jam is running, the backing holds its ground:
+
+- **Different register.** Shift octave (or even change key/scale) and only your
+  **solo** moves — the progression keeps looping in the register and key it was
+  built in. Build a progression low, then solo two octaves up over it.
+- **Different sound.** Switch patches (`fn`+letter) over a running jam and the
+  backing **freezes onto the sound it was playing** while the new patch becomes
+  your solo voice. Lay down a PAD progression, flip to LEAD, and wail over it —
+  the pad keeps padding. An amber **`LK`** by the octave readout (and a `SOLO`
+  flash on the switch) tells you the split is engaged.
+- **Their own voice, a shared room.** The backing and the solo each keep their
+  own oscillator, filter, envelope and drive — but they wash into one shared
+  reverb/delay space (the solo patch's), so the whole thing sits together
+  instead of sounding like two unrelated machines.
+- **`bksp` (panic)** clears the jam and drops the split — the next sound switch
+  goes back to changing everything, as normal.
+
+No new gesture to learn: it's just "start the jam, then change your sound." The
+split appears when you need it and disappears when the jam's gone.
+
 ## Tempo, the synced delay, and the live FX rack
 
 One tempo (the *Jam tempo*) drives both the progression and the echo. Two
@@ -382,7 +406,8 @@ firmware never touches raw I2S and why the library versions are pinned.
 | tilt routing | off / cutoff / vibrato / volume | per sound | settings, enter toggles |
 | tilt depth | 0–100% | per sound | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
-| display | waveform scope / pitch trail | waveform | settings |
+| display | waveform scope / pitch trail | pitch trail | settings |
+| solo/backing split | auto when you change sound/octave over a jam | — | live |
 
 ---
 
