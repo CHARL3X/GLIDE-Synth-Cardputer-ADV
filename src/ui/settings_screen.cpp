@@ -23,6 +23,7 @@ constexpr int kRight = 54;  // /
 constexpr int kDecAlt = 25; // [
 constexpr int kIncAlt = 26; // ]
 constexpr int kEnter = 41;
+constexpr int kFn = 28;     // fn — held, jumps section to section
 constexpr int kExit1 = 0;   // `
 constexpr int kExit2 = 14;  // tab
 
@@ -266,27 +267,34 @@ void fReset(char* o, int c) { snprintf(o, c, "press , or /"); }
 void aReset(int) { store::resetDefaults(); }
 
 const Item kItems[] = {
+    // Sections (a null format = a non-selectable header the cursor skips).
+    // fn+up/down jumps header-to-header so the deep list stays navigable.
+    {"LAYOUT", nullptr, nullptr},
     {"Root key", fRoot, aRoot},
     {"Scale", fScale, aScale},
     {"Row interval", fRowInt, aRowInt},
     {"Glide mode", fGlideMode, aGlideMode},
     {"Allocation", fStringMode, aStringMode},
+    {"Octave keys", fOctGlide, aOctGlide},
+    {"JAM / BACKING", nullptr, nullptr},
     {"Jam rows (drones)", fJamRows, aJamRows},
     {"Drone voicing", fDroneVoice, aDroneVoice},
     {"Jam motion", fJamMotion, aJamMotion},
     {"Jam tempo", fJamBpm, aJamBpm},
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
-    {"Octave keys", fOctGlide, aOctGlide},
+    {"TILT", nullptr, nullptr},
     {"Tilt f/b route", fTilt, aTilt},
     {"Tilt f/b depth", fTiltDepth, aTiltDepth},
     {"Tilt l/r route", fTiltB, aTiltB},
     {"Tilt l/r depth", fTiltDepthB, aTiltDepthB},
     {"Tilt center", fTiltCenter, aTiltCenter},
+    {"SOUND", nullptr, nullptr},
     {"Sound reset", fPatchReset, aPatchReset},
     {"Bend time", fBendMs, aBendMs},
     {"Fat detune", fDetune, aDetune},
     {"Resonance", fRes, aRes},
+    {"EFFECTS", nullptr, nullptr},
     {"Chorus", fChorus, aChorus},
     {"Delay send", fDelaySend, aDelaySend},
     {"Delay time", fDelayTime, aDelayTime},
@@ -294,6 +302,7 @@ const Item kItems[] = {
     {"Delay fb", fDelayFb, aDelayFb},
     {"Reverb send", fReverbSend, aReverbSend},
     {"Reverb size", fReverbSize, aReverbSize},
+    {"SYSTEM", nullptr, nullptr},
     {"Display", fScopeMode, aScopeMode},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
@@ -301,6 +310,32 @@ const Item kItems[] = {
 };
 constexpr int kItemCount = (int)(sizeof(kItems) / sizeof(kItems[0]));
 constexpr int kVisible = 8;
+
+inline bool isHeader(int i) { return kItems[i].format == nullptr; }
+
+// Next selectable row in `dir`, skipping headers, wrapping around the list.
+int step(int from, int dir) {
+    int i = from;
+    for (int n = 0; n < kItemCount; ++n) {
+        i = (i + dir + kItemCount) % kItemCount;
+        if (!isHeader(i)) return i;
+    }
+    return from;
+}
+
+// First selectable item of the previous/next section (fn+up/down).
+int jumpSection(int sel, int dir) {
+    int h = sel;  // find this item's header
+    while (h >= 0 && !isHeader(h)) --h;
+    for (int j = h + dir; j >= 0 && j < kItemCount; j += dir)
+        if (isHeader(j)) return step(j, +1);
+    // wrapped past an end: land on the first item of the last/first section
+    if (dir > 0) return step(0, +1);
+    int last = 0;
+    for (int j = 0; j < kItemCount; ++j)
+        if (isHeader(j)) last = j;
+    return step(last, +1);
+}
 
 void draw(M5Canvas& c, int sel, int top) {
     c.fillScreen(theme::kBg);
@@ -330,12 +365,21 @@ void draw(M5Canvas& c, int sel, int top) {
         c.setTextDatum(top_left);
     }
 
-    c.setFont(&fonts::Font2);
     char val[28];
     for (int row = 0; row < kVisible; ++row) {
         const int i = top + row;
         if (i >= kItemCount) break;
         const int y = 18 + row * 13;
+
+        if (isHeader(i)) {  // section label + a divider rule under it
+            c.setFont(&fonts::Font0);
+            c.setTextColor(theme::kAmber, theme::kBg);
+            c.drawString(kItems[i].name, 6, y + 3);
+            c.drawFastHLine(6, y + 12, cfg::kScreenW - 16, theme::kLine);
+            continue;
+        }
+
+        c.setFont(&fonts::Font2);
         const bool isSel = (i == sel);
         if (isSel) c.fillRect(0, y - 1, cfg::kScreenW, 13, theme::kPanel);
         c.setTextColor(isSel ? theme::kAmber : theme::kDim, isSel ? theme::kPanel : theme::kBg);
@@ -356,7 +400,7 @@ void draw(M5Canvas& c, int sel, int top) {
 
     c.setFont(&fonts::Font0);
     c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString("; . move    , / or [ ] change    ` tab back", 4, 125);
+    c.drawString(";. move  fn+;. section  ,/ change  ` back", 4, 125);
     c.pushSprite(0, 0);
 }
 
@@ -367,7 +411,8 @@ void run(M5Canvas& canvas) {
     // heard live against the backing — sound design with your ears on
     audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::LeadsOff, 0));
 
-    int sel = 0, top = 0;
+    int sel = step(kItemCount - 1, +1);  // first selectable item (skip the header)
+    int top = 0;
     uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
 
     // wait for the tab press that opened us to clear
@@ -382,12 +427,21 @@ void run(M5Canvas& canvas) {
         auto hit = [&](int cd) { return (pressed >> cd) & 1ULL; };
 
         if (hit(kExit1) || hit(kExit2)) break;
-        if (hit(kUp)) sel = (sel + kItemCount - 1) % kItemCount;
-        if (hit(kDown)) sel = (sel + 1) % kItemCount;
+
+        const bool fnHeld = (cur >> kFn) & 1ULL;  // fn = jump section to section
+        if (fnHeld && hit(kUp)) sel = jumpSection(sel, -1);
+        else if (fnHeld && hit(kDown)) sel = jumpSection(sel, +1);
+        else {
+            if (hit(kUp)) sel = step(sel, -1);
+            if (hit(kDown)) sel = step(sel, +1);
+        }
+
         int dir = 0;
-        if (hit(kLeft) || hit(kDecAlt)) dir = -1;
-        if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) dir = +1;
-        if (dir != 0) {
+        if (!fnHeld) {
+            if (hit(kLeft) || hit(kDecAlt)) dir = -1;
+            if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) dir = +1;
+        }
+        if (dir != 0 && !isHeader(sel)) {
             kItems[sel].adjust(dir);
             store::get().synth.tempoBpm = (float)store::get().jamBpm;  // synced-delay preview
             store::markDirty();
@@ -396,6 +450,8 @@ void run(M5Canvas& canvas) {
 
         if (sel < top) top = sel;
         if (sel >= top + kVisible) top = sel - kVisible + 1;
+        if (sel > 0 && isHeader(sel - 1) && top > sel - 1)
+            top = sel - 1;  // keep the section header in view atop its first item
 
         draw(canvas, sel, top);
         store::tick(now);
