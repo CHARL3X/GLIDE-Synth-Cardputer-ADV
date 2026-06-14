@@ -74,6 +74,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.55f;
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 0.4f;
+        p.tiltRouteB = TiltRoute::Vibrato;  // roll = a Rhodes wobble
+        p.tiltDepthB = 0.4f;
     }
     // e — HARP: a bright, articulate plucked string. Full pluck (sustain 0),
     // a snappy filter attack that decays to a round body, and a cascading
@@ -102,6 +104,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.7f;
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 0.4f;
+        p.tiltRouteB = TiltRoute::Volume;  // roll = pluck dynamics / swell
+        p.tiltDepthB = 0.4f;
     }
     // r — BASS: a fat, modern analog bass. Saw over a square sub for weight,
     // pushed into the clipper for growl, with a snappy filter-env pluck (the
@@ -126,6 +130,8 @@ void buildBank(Patch* P) {
         s.chorusDepth = 0.10f;     // a hair of width, no low-end smear
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 0.5f;
+        p.tiltRouteB = TiltRoute::Volume;  // roll = subtle dynamics (no bass wobble)
+        p.tiltDepthB = 0.3f;
     }
     // t — ACID: resonant squelch; tilt IS the wah. Lean into it. A dub delay
     // with heavy regen and a little room give the 303 line space to breathe
@@ -180,6 +186,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.85f;
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 0.35f;
+        p.tiltRouteB = TiltRoute::Volume;  // lean = brighten, roll = swell the wash
+        p.tiltDepthB = 0.5f;
     }
     // u — LEAD: the expressive solo voice. Fat driven saws with a touch of
     // filter bite on the attack, a subtle singing vibrato (kept small so it
@@ -211,6 +219,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.62f;
         p.tiltRoute = TiltRoute::Vibrato;
         p.tiltDepth = 0.6f;
+        p.tiltRouteB = TiltRoute::Cutoff;  // sing on f/b, brighten on roll
+        p.tiltDepthB = 0.6f;
     }
     // i — ORGAN: square + sub, instant on/off — tilt is the swell pedal. A
     // heavy chorus stands in for a Leslie's rotary shimmer, with a little
@@ -263,6 +273,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.6f;
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 0.5f;
+        p.tiltRouteB = TiltRoute::Vibrato;  // roll = section shake on the brass
+        p.tiltDepthB = 0.4f;
     }
     // p — GLASS: a crystalline struck bell / mallet. Triangle struck hard
     // (sustain 0) with a fast bright ping, then a long shimmering delay + hall
@@ -290,6 +302,8 @@ void buildBank(Patch* P) {
         s.reverbSize = 0.85f;
         p.tiltRoute = TiltRoute::Vibrato;
         p.tiltDepth = 0.4f;
+        p.tiltRouteB = TiltRoute::Cutoff;  // roll = ring the bell brighter
+        p.tiltDepthB = 0.5f;
     }
 }
 
