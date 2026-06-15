@@ -394,7 +394,7 @@ firmware never touches raw I2S and why the library versions are pinned.
 | glide mode | legato-only / always | legato-only | settings (per sound) |
 | allocation | strings (mono rows) / free poly | strings | settings |
 | jam rows (drones) | off / bottom / bottom 2 | off | settings |
-| jam motion | sustained / pulse / arp / progression | sustained | settings |
+| jam motion | sustained / pulse / arp / progression | progression | settings |
 | jam tempo / chord length | 40–240 bpm / 1–8 beats | 100 / 4 | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
 | sound slots | 10, factory + user overrides | GLIDE | fn+q..p, fn+shift+q..p |
