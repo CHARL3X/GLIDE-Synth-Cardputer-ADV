@@ -158,6 +158,13 @@ void begin() {
     gCfg.jamRows = clampT<int>(gPrefs.getUChar("jamrows", d.jamRows), 0, 2);
     gCfg.droneVoicing = clampT<int>(gPrefs.getUChar("dvoice", d.droneVoicing), 0, 2);
     gCfg.jamMotion = clampT<int>(gPrefs.getUChar("jammot", d.jamMotion), 0, 3);
+    // one-time: progression became the default jam motion — adopt it once even
+    // on devices that saved the old "sustained" default (later choice sticks).
+    if (!gPrefs.getBool("jammot2", false)) {
+        gCfg.jamMotion = 3;
+        gPrefs.putUChar("jammot", 3);
+        gPrefs.putBool("jammot2", true);
+    }
     gCfg.jamBpm = clampT<int>(gPrefs.getUShort("jambpm", d.jamBpm), 40, 240);
     gCfg.jamChordBeats = clampT<int>(gPrefs.getUChar("jamcbt", d.jamChordBeats), 1, 8);
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
