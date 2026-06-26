@@ -110,6 +110,40 @@ int main() {
         CHECK(hp.len == 7, "harmony parent is a full 7-note diatonic scale");
     }
 
+    // ---- chord builder is well-formed for EVERY scale and EVERY grid cell ---
+    // (edge sweep: no scale/position must ever produce garbage, a cluster, or a
+    // non-triad — the backing's "you can't hit a wrong note" promise, total.)
+    {
+        float ch[3];
+        bool sawDim = false;
+        for (int si = 0; si < kScaleCount; ++si) {
+            Layout ls = l; ls.scaleIdx = (uint8_t)si;
+            for (int st = 0; st < kGridStrings; ++st)
+                for (int co = 0; co < kGridCols; ++co) {
+                    // scale-lock branch: always a stack of two diatonic thirds
+                    const int nd = chordPitches(ls, st, co, false, ch, 3);
+                    CHECK(nd == 3, "every cell builds a 3-note chord");
+                    CHECK(ch[0] < ch[1] && ch[1] < ch[2], "chord tones strictly ascend");
+                    CHECK(ch[0] > 0.f && ch[2] < 200.f, "chord pitches are finite & in range");
+                    const int t1 = (int)(ch[1] - ch[0] + 0.5f);
+                    const int t2 = (int)(ch[2] - ch[1] + 0.5f);
+                    CHECK(t1 >= 3 && t1 <= 4 && t2 >= 3 && t2 <= 4,
+                          "chord is a real triad: two stacked thirds, never a cluster");
+                    if (t1 == 3 && t2 == 3) sawDim = true;  // diminished is allowed
+                    // chromatic branch: a power voicing, every cell, every scale
+                    chordPitches(ls, st, co, true, ch, 3);
+                    CHECK(fabsf(ch[1] - ch[0] - 7.f) < 1e-4 &&
+                          fabsf(ch[2] - ch[0] - 12.f) < 1e-4,
+                          "chromatic voicing is root+5th+8ve everywhere");
+                }
+        }
+        CHECK(sawDim, "the diatonic vii° still voices as a diminished triad");
+        // maxOut is honored (a smaller voice budget never overruns)
+        float two[2] = {-1.f, -1.f};
+        CHECK(chordPitches(l, 0, 0, false, two, 2) == 2, "respects maxOut < 3");
+        CHECK(chordPitches(l, 0, 0, false, two, 0) == 0, "maxOut 0 writes nothing");
+    }
+
     // ---- scale tables are well-formed (incl. the v0.5 additions) ---------
     for (int si = 0; si < kScaleCount; ++si) {
         const Scale& sc = kScales[si];
