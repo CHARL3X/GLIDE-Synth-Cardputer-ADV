@@ -341,25 +341,32 @@ void drawPitchTrail(M5Canvas& c) {
                                      ? theme::kAmber
                                      : theme::blend(theme::kGreen, theme::kAmber,
                                                     (uint8_t)((uint32_t)gTrailBri[idx] * 153 / 255));
-        const uint8_t age = (uint8_t)(40 + (uint32_t)x * 215 / kTraceW);  // old->new
-        const uint8_t lev = gTrailLev[idx];                              // loudness here
-        // loudness shapes brightness on top of the age fade: a loud note glows,
-        // a releasing/quiet one dims even when recent — the envelope made visible.
-        const uint8_t bright = (uint8_t)((uint32_t)age * (90 + (uint32_t)lev * 165 / 255) / 255);
+        const uint8_t age = (uint8_t)(100 + (uint32_t)x * 155 / kTraceW);  // old->new, bold floor
+        const uint8_t lev = gTrailLev[idx];                               // loudness here
+        // brightness rides loudness on a high floor, so the trail stays bold and
+        // bright well across the screen and only really dims as a note releases.
+        const uint8_t bright = (uint8_t)((uint32_t)age * (140 + (uint32_t)lev * 115 / 255) / 255);
         uint16_t col = theme::scale(baseCol, bright);
         const int fromHead = kTraceW - 1 - x;
         if (fromHead < 18)  // white-hot tip, where the beam is now
             col = theme::blend(col, theme::kIdle, (uint8_t)((18 - fromHead) * 8));
-        if (prevValid)
+        if (prevValid) {
             c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y, col);
-        else
+            // glow halo: thickness tracks brightness, drawn as parallel strands so
+            // the trace reads bold and glowing where it's loud/recent, thinning to
+            // a single thread only as it ages and fades off to the left.
+            if (bright > 50) {
+                const uint16_t h1 = theme::scale(baseCol, (uint8_t)(bright / 2));
+                c.drawLine(kTraceX + x - 1, prevY - 1, kTraceX + x, y - 1, h1);
+                c.drawLine(kTraceX + x - 1, prevY + 1, kTraceX + x, y + 1, h1);
+            }
+            if (bright > 150) {  // a wider soft bloom on the brightest stretch
+                const uint16_t h2 = theme::scale(baseCol, (uint8_t)(bright / 5));
+                c.drawLine(kTraceX + x - 1, prevY - 2, kTraceX + x, y - 2, h2);
+                c.drawLine(kTraceX + x - 1, prevY + 2, kTraceX + x, y + 2, h2);
+            }
+        } else {
             c.drawPixel(kTraceX + x, y, col);
-        // bloom: loud + recent segments bleed a faint halo above/below, so the
-        // bright part reads thick and glowing, then thins as the note releases.
-        if (lev > 110 && fromHead < 48) {
-            const uint16_t hcol = theme::scale(baseCol, (uint8_t)((uint32_t)bright * (lev - 110) / 220));
-            c.drawPixel(kTraceX + x, y - 1, hcol);
-            c.drawPixel(kTraceX + x, y + 1, hcol);
         }
         prevY = y;
         prevValid = true;
@@ -373,10 +380,10 @@ void drawPitchTrail(M5Canvas& c) {
         const float drv = cf.synth.drive;
         const float warm = drv <= 2.f ? 0.f : (drv >= 7.f ? 1.f : (drv - 2.f) / 5.f);
         const uint16_t core = theme::blend(theme::kIdle, theme::kAmber, (uint8_t)(warm * 150.f));
-        c.drawFastVLine(hx, prevY - 5, 11, theme::scale(theme::kGreen, 22));
-        c.drawFastVLine(hx, prevY - 3, 7, theme::scale(theme::kGreen, 70));
-        c.drawFastVLine(hx, prevY - 1, 3, theme::kGreen);
-        c.fillRect(hx - 1, prevY - 1, 3, 3, core);
+        c.drawFastVLine(hx, prevY - 6, 13, theme::scale(theme::kGreen, 32));
+        c.drawFastVLine(hx, prevY - 4, 9, theme::scale(theme::kGreen, 90));
+        c.drawFastVLine(hx, prevY - 2, 5, theme::kGreen);
+        c.fillRect(hx - 1, prevY - 2, 3, 5, core);
     }
 }
 
