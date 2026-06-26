@@ -10,11 +10,14 @@
 #include "../io/looper.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
+#include "help.h"
 #include "theme.h"
 
 namespace settings {
 
 namespace {
+
+bool gOpenHelp = false;  // set by the Help item; run() opens the modal (it owns the canvas)
 
 // positional key codes (y*14+x) — same convention as keys.cpp
 constexpr int kUp = 39;     // ;
@@ -375,9 +378,78 @@ MOD_SLOT_THUNKS(4)
 MOD_SLOT_THUNKS(5)
 #undef MOD_SLOT_THUNKS
 
+void fHelp(char* o, int c) { snprintf(o, c, "open ->"); }
+void aHelp(int) { gOpenHelp = true; }  // run() does the actual modal open
+
+// ---- sound-design starting points -----------------------------------------
+// A tiny LCG for the randomizer (seeded lazily off millis — this is UI code,
+// not dsp/, so non-determinism is fine here).
+uint32_t gRng = 0;
+float rndf() {
+    gRng = gRng * 1664525u + 1013904223u;
+    return (float)(gRng >> 8) * (1.f / 16777216.f);  // 0..1
+}
+int rndi(int lo, int hi) { return lo + (int)(rndf() * (hi - lo + 1)); }
+
+void pushLiveSound() {  // apply the working sound to the engine + persist
+    auto& g = store::get();
+    g.synth.tempoBpm = (float)g.jamBpm;
+    audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+    store::persistNow();
+}
+
+void fInitSound(char* o, int c) { snprintf(o, c, "blank slate ,/"); }
+void aInitSound(int) {
+    auto& g = store::get();
+    const float vol = g.synth.masterVol;       // keep the player's level
+    g.synth = dsp::SynthParams();              // neutral: plain saw, no FX, no mod
+    g.synth.masterVol = vol;
+    pushLiveSound();
+}
+
+void fRandomize(char* o, int c) { snprintf(o, c, "surprise me ,/"); }
+void aRandomize(int) {
+    auto& g = store::get();
+    if (gRng == 0) gRng = (uint32_t)millis() * 2654435761u + 1u;
+    const float vol = g.synth.masterVol;
+    dsp::SynthParams s;  // start neutral, then paint within musical bounds
+    s.wave = (dsp::Waveform)rndi(0, (int)dsp::Waveform::Count - 1);
+    s.filterMode = (uint8_t)(rndf() < 0.6f ? 0 : rndi(0, (int)dsp::FilterMode::Count - 1));
+    s.cutoffHz = 400.f + rndf() * rndf() * 7000.f;  // skew bright-but-not-harsh
+    s.resonance = rndf() * 0.6f;
+    s.attackS = rndf() * rndf() * 0.4f;
+    s.decayS = 0.05f + rndf() * 0.6f;
+    s.sustain = 0.3f + rndf() * 0.7f;
+    s.releaseS = 0.1f + rndf() * 0.8f;
+    s.glideS = rndf() * rndf() * 0.25f;
+    s.detuneCents = rndf() < 0.5f ? 0.f : rndf() * 18.f;
+    s.fenvOct = rndf() < 0.5f ? 0.f : rndf() * 2.f;
+    s.fenvDecS = 0.1f + rndf() * 0.6f;
+    s.subLevel = rndf() < 0.6f ? 0.f : rndf() * 0.7f;
+    s.drive = 1.f + rndf() * rndf() * 4.f;
+    if (rndf() < 0.5f) s.reverbMix = rndf() * 0.5f;
+    if (rndf() < 0.4f) { s.delayMix = rndf() * 0.4f; s.delaySync = (uint8_t)rndi(1, 5); }
+    if (rndf() < 0.4f) s.chorusDepth = rndf() * 0.6f;
+    const int nmod = rndi(0, 2);  // 0-2 mod routings for movement
+    for (int i = 0; i < nmod; ++i) {
+        const dsp::ModSource src = (dsp::ModSource)rndi(1, (int)dsp::ModSource::Count - 1);
+        const dsp::ModDest dst = (dsp::ModDest)rndi(1, (int)dsp::ModDest::Count - 1);
+        s.slots[i] = dsp::ModSlot::make(src, dst, (rndf() * 2.f - 1.f) * 0.6f);
+    }
+    if (nmod > 0) {
+        s.lfo1RateHz = 0.2f + rndf() * 8.f;
+        s.lfo1Shape = (uint8_t)rndi(0, (int)dsp::LfoShape::Count - 1);
+    }
+    s.masterVol = vol;
+    g.synth = s;
+    pushLiveSound();
+}
+
 const Item kItems[] = {
     // Sections (a null format = a non-selectable header the cursor skips).
     // fn+up/down jumps header-to-header so the deep list stays navigable.
+    {"HELP", nullptr, nullptr},
+    {"How to play", fHelp, aHelp},
     {"LAYOUT", nullptr, nullptr},
     {"Root key", fRoot, aRoot},
     {"Scale", fScale, aScale},
@@ -399,6 +471,8 @@ const Item kItems[] = {
     {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
     {"Tilt center", fTiltCenter, aTiltCenter},
     {"SOUND", nullptr, nullptr},
+    {"Init sound", fInitSound, aInitSound},
+    {"Randomize", fRandomize, aRandomize},
     {"Sound reset", fPatchReset, aPatchReset},
     {"Bend time", fBendMs, aBendMs, true},
     {"Fat detune", fDetune, aDetune, true},
@@ -643,6 +717,14 @@ void run(M5Canvas& canvas) {
         }
         const bool anyAdj = held(kLeft) || held(kDecAlt) || held(kRight) || held(kIncAlt) || held(kEnter);
         if (!anyAdj || fnHeld) adjRep = 0;  // released -> disarm
+
+        if (gOpenHelp) {  // the Help item asked to open the cheat-sheet modal
+            gOpenHelp = false;
+            help::run(canvas);
+            prev = ~0ULL;  // treat keys held across the modal as already-down
+            draw(canvas, sel, top);
+            continue;
+        }
 
         if (dir != 0 && !isHeader(sel)) {
             kItems[sel].adjust(dir);
