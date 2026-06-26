@@ -400,6 +400,38 @@ void pushLiveSound() {  // apply the working sound to the engine + persist
     store::persistNow();
 }
 
+// --- randomize audition ---------------------------------------------------
+// A short preview note fired right after Randomize so the player can keep
+// hitting it and listening — no exit-play-and-dig-back-in dance. Scheduled
+// non-blocking (like the boot chime): the run() loop fires the glide + release
+// as they come due, so neither the UI nor the backing jam ever stalls. A fresh
+// Randomize just re-articulates the same id. The note is a lead voice, so it
+// auditions the live (just-randomized) lead sound, tails and all.
+constexpr uint8_t kPreviewId = 251;  // distinct from the boot chime's 250
+uint32_t gPreviewT0 = 0;             // note-on time (0 = idle sentinel)
+bool gPreviewGlided = false, gPreviewOff = false;
+
+void startPreview() {
+    gPreviewT0 = millis();
+    if (gPreviewT0 == 0) gPreviewT0 = 1;  // 0 means idle; never let now() land there
+    gPreviewGlided = gPreviewOff = false;
+    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::On, kPreviewId, 0xFF, false, 60.f));
+}
+
+void tickPreview(uint32_t now) {
+    if (!gPreviewT0) return;
+    const uint32_t dt = now - gPreviewT0;
+    if (!gPreviewGlided && dt >= 170) {  // a short rise shows off glide + movement
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Retarget, kPreviewId, 0xFF, false, 67.f));
+        gPreviewGlided = true;
+    }
+    if (!gPreviewOff && dt >= 520) {  // let go; the patch's own release/FX tail rings on
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, kPreviewId));
+        gPreviewOff = true;
+        gPreviewT0 = 0;  // done — the tail is the engine's to finish
+    }
+}
+
 void fInitSound(char* o, int c) { snprintf(o, c, "blank slate ,/"); }
 void aInitSound(int) {
     auto& g = store::get();
@@ -445,6 +477,7 @@ void aRandomize(int) {
     s.masterVol = vol;
     g.synth = s;
     pushLiveSound();
+    startPreview();  // audition it on the spot — hit Randomize until it sings
 }
 
 const Item kItems[] = {
@@ -768,8 +801,11 @@ void run(M5Canvas& canvas) {
         store::tick(now);
         looper::tick(now);   // the loop plays through settings, like the drones
         keys::tickBacking(now);  // ...and so does the jam/chord progression
+        tickPreview(now);    // fire a Randomize audition's glide/release when due
         delay(16);
     }
+    // never leave an audition note ringing if the player exits mid-preview
+    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, kPreviewId));
     store::persistNow();
 }
 

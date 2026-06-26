@@ -194,6 +194,43 @@ int main() {
     peakOf(s, 90);  // run well past the 250 ms release tail (90 blocks = 360 ms)
     CHECK(peakOf(s, 4) < 1e-4f, "silent after release tail");
 
+    // ---- regression: two notes on one row struck twice in quick succession --
+    // A lane carries exactly ONE voice, and its release sends a note-off only
+    // for the stack owner. A legato re-press must therefore GLIDE that lane
+    // voice, never resurrect a still-fading same-id tail as a SECOND held voice
+    // — otherwise the non-owner key's release sends no off and that voice is
+    // stranded droning. This is the real "G+H, then G+H rapidly, one sticks"
+    // bug; round 2 fires while round 1's release tail is still ringing.
+    {
+        p = SynthParams();
+        p.glideS = 0.03f;
+        p.releaseS = 0.3f;  // a long-ish tail so round 2 overlaps it
+        s.setParams(p);
+        s.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+        peakOf(s, 100);  // start from a truly empty pool
+        CHECK(s.activeVoices() == 0, "pool empty before the row re-strike test");
+
+        const uint8_t kG = 30, kH = 31;  // two keys on one row -> same lane 0
+        // round 1: press G, then H legato; release H (G is a non-owner: no off)
+        s.handleEvent(NoteEvent::make(NoteEvent::On, kG, 0, false, 67.f));
+        s.handleEvent(NoteEvent::make(NoteEvent::On, kH, 0, true, 69.f));
+        peakOf(s, 4);
+        s.handleEvent(NoteEvent::make(NoteEvent::Off, kH, 0, false, 0.f));
+        peakOf(s, 1);  // barely into H's release tail — still active
+        // round 2: same gesture while round 1's tail still rings
+        s.handleEvent(NoteEvent::make(NoteEvent::On, kG, 0, false, 67.f));
+        s.handleEvent(NoteEvent::make(NoteEvent::On, kH, 0, true, 69.f));
+        CHECK(s.heldLeadVoices() == 1, "row re-strike keeps one held voice on the lane");
+        peakOf(s, 4);
+        s.handleEvent(NoteEvent::make(NoteEvent::Off, kH, 0, false, 0.f));
+        peakOf(s, 150);  // run past every release tail
+        CHECK(s.activeVoices() == 0, "no voice stranded after the row re-strike");
+        // restore the fast glide the sections below were written against
+        p = SynthParams();
+        p.glideS = 0.05f;
+        s.setParams(p);
+    }
+
     // ---- voice-cap nearest steal (the free-mode chord slide) -------------
     p.voiceCount = 2;
     s.setParams(p);

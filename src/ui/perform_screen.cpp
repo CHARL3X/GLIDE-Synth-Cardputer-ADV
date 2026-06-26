@@ -178,10 +178,10 @@ void drawStatus(M5Canvas& c) {
     c.drawString(buf, 108, 2);  // ends 132: clears HOLD (right edge 134-158)
 
     // solo/backing split engaged: the backing is held on its own sound while
-    // this patch/octave is the solo. Small amber "LK" so you know why a sound
-    // switch isn't changing the bed.
+    // this patch/octave is the solo. Steel "LK" (the backing's colour) so you
+    // know why a sound switch isn't changing the bed.
     if (store::backingLocked()) {
-        c.setTextColor(theme::kAmber, theme::kPanel);
+        c.setTextColor(theme::kSteel, theme::kPanel);
         c.drawString("LK", 138, 2);
     }
 
@@ -320,10 +320,10 @@ void drawPitchTrail(M5Canvas& c) {
     }
 
     // the trace, oldest at the left edge; segments drawn while the bend keys
-    // were pulling the pitch go amber — earned notes, marked. Phosphor decay:
-    // the line fades from dim at the old (left) end to full at the new end, and
-    // the leading ~18px blend white-hot — it reads like a real CRT trace
-    // decaying behind the beam instead of a flat painted line.
+    // were pulling the pitch go amber — earned notes, marked. Built in layers
+    // per segment: a green glow halo underneath, a punchy green body, then a
+    // white-hot core filament burned down its centre near the beam — it reads
+    // like a real CRT trace decaying behind the beam, not a flat painted line.
     int prevY = 0;
     bool prevValid = false;
     for (int x = 0; x < kTraceW; ++x) {
@@ -335,55 +335,64 @@ void drawPitchTrail(M5Canvas& c) {
         }
         const int y = yOf(m);
         // hue = timbre: a dark filter reads green, an open one warms toward gold
-        // (capped ~60% so it stays in the green-gold family). Bend overrides to
-        // full amber, since the deflection + colour together mark a pulled note.
+        // — kept mostly green (cap 120) so the trace stays punchy, not olive.
+        // Bend overrides to full amber: the deflection + colour mark a pulled note.
         const uint16_t baseCol = gTrailBend[idx]
                                      ? theme::kAmber
                                      : theme::blend(theme::kGreen, theme::kAmber,
-                                                    (uint8_t)((uint32_t)gTrailBri[idx] * 153 / 255));
-        const uint8_t age = (uint8_t)(100 + (uint32_t)x * 155 / kTraceW);  // old->new, bold floor
+                                                    (uint8_t)((uint32_t)gTrailBri[idx] * 120 / 255));
+        const uint8_t age = (uint8_t)(110 + (uint32_t)x * 145 / kTraceW);  // old->new, bold floor
         const uint8_t lev = gTrailLev[idx];                               // loudness here
-        // brightness rides loudness on a high floor, so the trail stays bold and
-        // bright well across the screen and only really dims as a note releases.
-        const uint8_t bright = (uint8_t)((uint32_t)age * (140 + (uint32_t)lev * 115 / 255) / 255);
-        uint16_t col = theme::scale(baseCol, bright);
-        const int fromHead = kTraceW - 1 - x;
-        if (fromHead < 18)  // white-hot tip, where the beam is now
-            col = theme::blend(col, theme::kIdle, (uint8_t)((18 - fromHead) * 8));
+        // brightness rides loudness on a HIGH floor, so the green stays vivid and
+        // punchy well across the screen and only dims as a note releases.
+        const uint8_t bright = (uint8_t)((uint32_t)age * (180 + (uint32_t)lev * 75 / 255) / 255);
+        const uint16_t body = theme::scale(baseCol, bright);
         if (prevValid) {
-            c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y, col);
-            // glow halo: thickness tracks brightness, drawn as parallel strands so
-            // the trace reads bold and glowing where it's loud/recent, thinning to
-            // a single thread only as it ages and fades off to the left.
-            if (bright > 50) {
-                const uint16_t h1 = theme::scale(baseCol, (uint8_t)(bright / 2));
-                c.drawLine(kTraceX + x - 1, prevY - 1, kTraceX + x, y - 1, h1);
-                c.drawLine(kTraceX + x - 1, prevY + 1, kTraceX + x, y + 1, h1);
-            }
-            if (bright > 150) {  // a wider soft bloom on the brightest stretch
-                const uint16_t h2 = theme::scale(baseCol, (uint8_t)(bright / 5));
+            // green glow halo UNDER the body: a luminous tube, fat where loud and
+            // recent, thinning to a single thread as it ages off to the left.
+            if (bright > 150) {  // wider soft bloom on the brightest stretch
+                const uint16_t h2 = theme::scale(baseCol, (uint8_t)(bright / 4));
                 c.drawLine(kTraceX + x - 1, prevY - 2, kTraceX + x, y - 2, h2);
                 c.drawLine(kTraceX + x - 1, prevY + 2, kTraceX + x, y + 2, h2);
             }
+            if (bright > 50) {
+                const uint16_t h1 = theme::scale(baseCol, (uint8_t)((uint32_t)bright * 100 / 255));
+                c.drawLine(kTraceX + x - 1, prevY - 1, kTraceX + x, y - 1, h1);
+                c.drawLine(kTraceX + x - 1, prevY + 1, kTraceX + x, y + 1, h1);
+            }
+            // the punchy green body
+            c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y, body);
+            // white-hot core: a bright filament down the CENTRE of the green that
+            // fades off behind the beam (~36px), so the live end burns hot like a
+            // CRT trace instead of wearing a pasted-on white cap.
+            const int fromHead = kTraceW - 1 - x;
+            if (fromHead < 36) {
+                const uint8_t hot = (uint8_t)((36 - fromHead) * 255 / 36);  // hottest at head
+                c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y,
+                           theme::blend(body, theme::kIdle, hot));
+            }
         } else {
-            c.drawPixel(kTraceX + x, y, col);
+            c.drawPixel(kTraceX + x, y, body);
         }
         prevY = y;
         prevValid = true;
     }
-    // the beam head: a white core inside a layered green bloom (wide soft halo ->
-    // mid glow -> hot inner), so the live end glows before the trail fades behind it
+    // the beam head: a white-hot point seated in a layered green bloom (wide soft
+    // halo -> mid glow -> hot inner). The core filament above already burns the
+    // trace white into this point, so the head reads as a round glowing beam
+    // rather than a pasted-on square.
     if (prevValid) {
         const int hx = kTraceX + kTraceW - 2;
-        // the white core warms toward amber as drive climbs — a gritty patch
-        // glows hot, a clean one stays cool white.
+        // the core warms toward amber as drive climbs — a gritty patch glows hot,
+        // a clean one stays cool white.
         const float drv = cf.synth.drive;
         const float warm = drv <= 2.f ? 0.f : (drv >= 7.f ? 1.f : (drv - 2.f) / 5.f);
-        const uint16_t core = theme::blend(theme::kIdle, theme::kAmber, (uint8_t)(warm * 150.f));
-        c.drawFastVLine(hx, prevY - 6, 13, theme::scale(theme::kGreen, 32));
-        c.drawFastVLine(hx, prevY - 4, 9, theme::scale(theme::kGreen, 90));
+        const uint16_t core = theme::blend(theme::kIdle, theme::kAmber, (uint8_t)(warm * 130.f));
+        c.drawFastVLine(hx, prevY - 6, 13, theme::scale(theme::kGreen, 40));
+        c.drawFastVLine(hx, prevY - 4, 9, theme::scale(theme::kGreen, 120));
         c.drawFastVLine(hx, prevY - 2, 5, theme::kGreen);
-        c.fillRect(hx - 1, prevY - 2, 3, 5, core);
+        c.fillCircle(hx, prevY, 2, theme::scale(theme::kGreen, 210));  // green corona
+        c.fillCircle(hx, prevY, 1, core);                              // white-hot point
     }
 }
 
@@ -504,10 +513,10 @@ void drawBottom(M5Canvas& c, uint32_t now) {
                  (int)(s.masterVol * 100), cf.bendRange);
     c.drawString(buf, 4, kBottomY + 10);
 
-    // mini grid-map: 4x10, top row = string 3. green = held lead, amber =
-    // latched drone (blinking white on the jam-motion beat — you can SEE the
-    // arp walk), small amber dot = root degrees (lock on) or in-scale keys
-    // (lock off), faint = the rest.
+    // mini grid-map: 4x10, top row = string 3. green = held lead, steel =
+    // latched drone (the backing's colour; blinking white on the jam-motion
+    // beat — you can SEE the arp walk), small amber dot = root degrees (lock on)
+    // or in-scale keys (lock off), faint = the rest.
     const int gx = 166, gy = kBottomY, cw = 7, ch = 6;
     const auto& sc = dsp::kScales[cf.layout.scaleIdx];
     const int rowDeg = dsp::rowDegrees(cf.layout);
@@ -520,7 +529,7 @@ void drawBottom(M5Canvas& c, uint32_t now) {
             if (st > 0) {
                 if (st >= 2) ++droneCount;
                 const uint16_t fill = st == 1   ? theme::kGreen
-                                      : st == 2 ? theme::kAmber
+                                      : st == 2 ? theme::kSteel
                                                 : theme::kIdle;  // beat blink
                 c.fillRect(x, y, cw - 1, ch - 1, fill);
                 continue;
@@ -539,13 +548,13 @@ void drawBottom(M5Canvas& c, uint32_t now) {
     int ps, pc;
     if (keys::progCurrentCell(ps, pc)) {
         const int x = gx + pc * cw, y = gy + (3 - ps) * ch;
-        c.drawRect(x, y, cw - 1, ch - 1, theme::kAmber);
+        c.drawRect(x, y, cw - 1, ch - 1, theme::kSteel);
     }
 
     // the backing, counted where it lives — drones sit outside the lead cap
     if (droneCount > 0) {
         snprintf(buf, sizeof buf, "+%d", droneCount);
-        c.setTextColor(theme::kAmber, theme::kBg);
+        c.setTextColor(theme::kSteel, theme::kBg);
         c.setTextDatum(top_right);
         c.drawString(buf, gx - 3, gy + 9);
         c.setTextDatum(top_left);

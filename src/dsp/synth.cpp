@@ -108,6 +108,29 @@ int Synth::activeVoices() const {
 }
 
 void Synth::noteOn(const NoteEvent& ev) {
+    // String-mode hand-off FIRST: a lane carries exactly ONE sounding voice, so
+    // a legato press must glide THAT voice to the new key. Checking this before
+    // the re-press-in-place path below is load-bearing: otherwise a fast re-
+    // articulation on a row (e.g. G+H, then G+H again) can let a still-fading
+    // release tail that happens to carry this id get resurrected as a SECOND
+    // held voice on the lane — and the lane's release logic (only the stack
+    // owner sends note-off) then strands the other voice droning with no off.
+    // (Loop playback uses lanes 4..7, so its hand-offs can only ever grab its
+    // own voices, never the live player's.)
+    if (ev.legato) {
+        if (Voice* v = heldOnLane(ev.lane)) {
+            // A release tail may still carry this id; retire it so the id stays
+            // unique among active voices and the matching note-off later resolves
+            // to THIS voice, never the stale tail. Only tails (never held voices)
+            // are touched, so a live drone/lead is never cut.
+            for (auto& o : voices_)
+                if (&o != v && o.active() && !o.held() && o.id() == ev.id) o.kill();
+            v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
+            if (!ev.backing) leadIdx_ = (int8_t)(v - voices_);
+            return;
+        }
+    }
+
     // Re-press of a key whose voice is still sounding (sustain pedal overlap,
     // release tail): retrigger that voice in place. The voice adopts the
     // event's role — a re-pressed ex-drone key becomes a normal lead voice.
@@ -126,17 +149,6 @@ void Synth::noteOn(const NoteEvent& ev) {
             leadIdx_ = (int8_t)(v - voices_);
         }
         return;
-    }
-
-    // String-mode hand-off: the lane already sings — glide it to the new key.
-    // (Loop playback uses lanes 4..7, so its hand-offs can only ever grab
-    // its own voices, never the live player's.)
-    if (ev.legato) {
-        if (Voice* v = heldOnLane(ev.lane)) {
-            v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
-            if (!ev.backing) leadIdx_ = (int8_t)(v - voices_);
-            return;
-        }
     }
 
     // Voice cap reached -> nearest-pitch steal WITH glide: this is how a
