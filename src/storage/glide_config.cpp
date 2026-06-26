@@ -5,6 +5,7 @@
 
 #include "../config.h"
 #include "../dsp/scales.h"
+#include "patch_codec.h"
 
 namespace store {
 
@@ -92,6 +93,63 @@ bool loadBlob(const char* key, PatchBlob& out) {
     }
     return false;
 }
+
+// Load a slot into a PatchData, seeding from the factory patch first so any
+// field the stored blob predates keeps its factory default. Handles BOTH the
+// new tagged format and the legacy binary blob (so un-migrated saves still
+// load). Returns true iff an override blob exists for the slot.
+bool loadPatchData(int slot, PatchData& out) {
+    const dsp::Patch& fp = dsp::factoryPatches()[slot];
+    out.synth = fp.synth;  // seed: defaults for anything the blob doesn't carry
+    out.tiltRoute = (uint8_t)fp.tiltRoute;
+    out.tiltDepth = fp.tiltDepth;
+    out.tiltRouteB = (uint8_t)fp.tiltRouteB;
+    out.tiltDepthB = fp.tiltDepthB;
+
+    char key[3];
+    patchKey(slot, key);
+    const size_t len = gPrefs.getBytesLength(key);
+    if (len == 0) return false;  // no override saved
+
+    uint8_t buf[512];
+    if (len >= 3 && len <= sizeof buf) {
+        const size_t got = gPrefs.getBytes(key, buf, len);
+        if (got == len && buf[0] == 'G' && buf[1] == 'P')
+            return decodePatch(buf, len, out);  // tagged: overlays onto the seed
+    }
+    // legacy binary blob (pre-tagged saves): read via the frozen struct path
+    PatchBlob b;
+    if (loadBlob(key, b)) {
+        out.synth = b.synth;
+        out.tiltRoute = b.tiltRoute;
+        out.tiltDepth = b.tiltDepth;
+        out.tiltRouteB = b.tiltRouteB;
+        out.tiltDepthB = b.tiltDepthB;
+        return true;
+    }
+    return false;
+}
+
+// Apply a PatchData to the live config: the sound + tilt personality, with the
+// same hygiene applyPatch always did (keep the player's master volume, never
+// load live-mod fields, clamp voiceCount). Shared so the (future) SD-library
+// load path and the NVS-slot path can't drift.
+void applyPatchData(const PatchData& pd) {
+    const float keepVol = gCfg.synth.masterVol;  // volume is the player's, not the sound's
+    gCfg.synth = pd.synth;
+    gCfg.tiltRoute = (TiltRoute)clampT<int>(pd.tiltRoute, 0, (int)TiltRoute::Count - 1);
+    gCfg.tiltDepth = clampT(pd.tiltDepth, 0.f, 1.f);
+    gCfg.tiltRouteB = (TiltRoute)clampT<int>(pd.tiltRouteB, 0, (int)TiltRoute::Count - 1);
+    gCfg.tiltDepthB = clampT(pd.tiltDepthB, 0.f, 1.f);
+    gCfg.synth.masterVol = keepVol;
+    gCfg.synth.bendCents = 0.f;  // live-mod fields never come from a patch
+    gCfg.synth.vibratoCents = 0.f;
+    gCfg.synth.cutoffModOct = 0.f;
+    gCfg.synth.volMod = 1.f;
+    gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
+    gCfg.synth.voiceCount =
+        (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);  // blob hygiene
+}
 }  // namespace
 
 GlideConfig& get() {
@@ -144,13 +202,31 @@ void begin() {
     GlideConfig d;  // defaults
 
     // scan override slots once; afterwards patchHasOverride is a bit test.
-    // loadBlob counts both v1 and v2 saves as valid overrides (v1 migrates).
+    // loadPatchData counts tagged saves AND legacy v1/v2/v4 blobs as overrides.
     gOverrideMask = 0;
     for (int i = 0; i < dsp::kPatchCount; ++i) {
-        char key[3];
-        patchKey(i, key);
-        PatchBlob b;
-        if (loadBlob(key, b)) gOverrideMask |= (uint16_t)(1u << i);
+        PatchData pd;
+        if (loadPatchData(i, pd)) gOverrideMask |= (uint16_t)(1u << i);
+    }
+
+    // one-time: re-encode any legacy binary blobs into the tagged format, so
+    // future sound-param additions stop size-mismatching them. Opportunistic —
+    // loadPatchData still reads legacy blobs, so correctness doesn't depend on
+    // this. NVS-full safe: a failed putBytes leaves the legacy blob untouched
+    // and we DON'T set the sentinel, so it retries next boot once space frees up.
+    if (gNvsOk && !gPrefs.getBool("tlv1", false)) {
+        bool allOk = true;
+        for (int i = 0; i < dsp::kPatchCount; ++i) {
+            if (!((gOverrideMask >> i) & 1u)) continue;  // no override here
+            PatchData pd;
+            loadPatchData(i, pd);  // reads legacy or tagged, seeded from factory
+            uint8_t buf[512];
+            const size_t n = encodePatch(pd, buf, sizeof buf);
+            char key[3];
+            patchKey(i, key);
+            if (n == 0 || gPrefs.putBytes(key, buf, n) != n) allOk = false;
+        }
+        if (allOk) gPrefs.putBool("tlv1", true);
     }
 
     auto& s = gCfg.synth;
@@ -236,11 +312,9 @@ void begin() {
     // else factory) — restoring correct character without touching the other
     // flat-key fields the player may have tweaked. New saves persist them.
     if (!gPrefs.getBool("schar", false)) {
-        char ck[3];
-        patchKey(gCfg.currentPatch, ck);
-        PatchBlob b;
-        const dsp::SynthParams src =
-            loadBlob(ck, b) ? b.synth : dsp::factoryPatches()[gCfg.currentPatch].synth;
+        PatchData pd;  // seeded from factory, overlaid with the override if present
+        loadPatchData(gCfg.currentPatch, pd);
+        const dsp::SynthParams src = pd.synth;
         s.fenvAtkS = src.fenvAtkS;
         s.fenvDecS = src.fenvDecS;
         s.fenvOct = src.fenvOct;
@@ -387,55 +461,33 @@ bool patchHasOverride(int slot) {
 
 void applyPatch(int slot) {
     if (slot < 0 || slot >= dsp::kPatchCount) return;
-    // Master volume is the player's, not the sound's — keep it across a switch
-    // so picking a sound never jumps the level (and the level you set persists).
-    const float keepVol = gCfg.synth.masterVol;
-    char key[3];
-    patchKey(slot, key);
-    PatchBlob b;
-    if (loadBlob(key, b)) {
-        gCfg.synth = b.synth;
-        gCfg.tiltRoute = (TiltRoute)clampT<int>(b.tiltRoute, 0, (int)TiltRoute::Count - 1);
-        gCfg.tiltDepth = clampT(b.tiltDepth, 0.f, 1.f);
-        gCfg.tiltRouteB = (TiltRoute)clampT<int>(b.tiltRouteB, 0, (int)TiltRoute::Count - 1);
-        gCfg.tiltDepthB = clampT(b.tiltDepthB, 0.f, 1.f);
-    } else {
-        const dsp::Patch& p = dsp::factoryPatches()[slot];
-        gCfg.synth = p.synth;
-        gCfg.tiltRoute = p.tiltRoute;
-        gCfg.tiltDepth = p.tiltDepth;
-        gCfg.tiltRouteB = p.tiltRouteB;
-        gCfg.tiltDepthB = p.tiltDepthB;
-    }
-    gCfg.synth.masterVol = keepVol;  // volume is the player's, not the patch's
-    gCfg.synth.bendCents = 0.f;  // live-mod fields never come from a patch
-    gCfg.synth.vibratoCents = 0.f;
-    gCfg.synth.cutoffModOct = 0.f;
-    gCfg.synth.volMod = 1.f;
-    gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
-    gCfg.synth.voiceCount =
-        (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);  // blob hygiene
+    PatchData pd;
+    loadPatchData(slot, pd);  // pd = the override if saved, else the factory seed
+    applyPatchData(pd);
     gCfg.currentPatch = (uint8_t)slot;
     markDirty();
 }
 
 bool savePatch(int slot) {
     if (slot < 0 || slot >= dsp::kPatchCount) return false;
-    PatchBlob b;
-    b.version = kPatchBlobVersion;
-    b.tiltRoute = (uint8_t)gCfg.tiltRoute;
-    b.tiltDepth = gCfg.tiltDepth;
-    b.synth = gCfg.synth;
-    b.synth.bendCents = 0.f;  // never bake a live bend into a patch
-    b.synth.vibratoCents = 0.f;
-    b.synth.cutoffModOct = 0.f;
-    b.synth.volMod = 1.f;
-    b.synth.tempoBpm = 120.f;  // tempo is live, not part of the saved sound
-    b.tiltRouteB = (uint8_t)gCfg.tiltRouteB;  // v2: roll axis travels with the slot
-    b.tiltDepthB = gCfg.tiltDepthB;
+    PatchData pd;
+    pd.synth = gCfg.synth;
+    pd.synth.bendCents = 0.f;  // never bake live-mod into a saved sound
+    pd.synth.vibratoCents = 0.f;
+    pd.synth.cutoffModOct = 0.f;
+    pd.synth.volMod = 1.f;
+    pd.synth.tempoBpm = 120.f;  // tempo is live, not part of the saved sound
+    pd.tiltRoute = (uint8_t)gCfg.tiltRoute;
+    pd.tiltDepth = gCfg.tiltDepth;
+    pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
+    pd.tiltDepthB = gCfg.tiltDepthB;
+
+    uint8_t buf[512];
+    const size_t n = encodePatch(pd, buf, sizeof buf);
+    if (n == 0) return false;
     char key[3];
     patchKey(slot, key);
-    const bool ok = gPrefs.putBytes(key, &b, sizeof b) == sizeof b;
+    const bool ok = gPrefs.putBytes(key, buf, n) == n;
     if (ok) {
         gOverrideMask |= (uint16_t)(1u << slot);
         gCfg.currentPatch = (uint8_t)slot;
