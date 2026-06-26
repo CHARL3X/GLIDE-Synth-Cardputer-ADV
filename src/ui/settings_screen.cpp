@@ -37,6 +37,8 @@ struct Item {
     const char* name;
     void (*format)(char* out, int cap);
     void (*adjust)(int dir);
+    bool repeatable;  // true = hold ,/ to ramp (continuous numerics); enums/
+                      // toggles/actions stay tap-only (left {} = false by default)
 };
 
 void fRoot(char* o, int c) { snprintf(o, c, "%s", dsp::kNoteNames[store::get().layout.rootSemis]); }
@@ -387,38 +389,38 @@ const Item kItems[] = {
     {"Jam rows (drones)", fJamRows, aJamRows},
     {"Drone voicing", fDroneVoice, aDroneVoice},
     {"Jam motion", fJamMotion, aJamMotion},
-    {"Jam tempo", fJamBpm, aJamBpm},
+    {"Jam tempo", fJamBpm, aJamBpm, true},
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
     {"TILT", nullptr, nullptr},
     {"Tilt f/b route", fTilt, aTilt},
-    {"Tilt f/b depth", fTiltDepth, aTiltDepth},
+    {"Tilt f/b depth", fTiltDepth, aTiltDepth, true},
     {"Tilt l/r route", fTiltB, aTiltB},
-    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB},
+    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
     {"Tilt center", fTiltCenter, aTiltCenter},
     {"SOUND", nullptr, nullptr},
     {"Sound reset", fPatchReset, aPatchReset},
-    {"Bend time", fBendMs, aBendMs},
-    {"Fat detune", fDetune, aDetune},
+    {"Bend time", fBendMs, aBendMs, true},
+    {"Fat detune", fDetune, aDetune, true},
     {"Filter mode", fFilterMode, aFilterMode},
-    {"Resonance", fRes, aRes},
+    {"Resonance", fRes, aRes, true},
     {"EFFECTS", nullptr, nullptr},
-    {"Chorus", fChorus, aChorus},
-    {"Delay send", fDelaySend, aDelaySend},
-    {"Delay time", fDelayTime, aDelayTime},
+    {"Chorus", fChorus, aChorus, true},
+    {"Delay send", fDelaySend, aDelaySend, true},
+    {"Delay time", fDelayTime, aDelayTime, true},
     {"Delay sync", fDelaySync, aDelaySync},
-    {"Delay fb", fDelayFb, aDelayFb},
-    {"Reverb send", fReverbSend, aReverbSend},
-    {"Reverb size", fReverbSize, aReverbSize},
+    {"Delay fb", fDelayFb, aDelayFb, true},
+    {"Reverb send", fReverbSend, aReverbSend, true},
+    {"Reverb size", fReverbSize, aReverbSize, true},
     {"MOD SOURCES", nullptr, nullptr},
-    {"LFO1 rate", fLfo1Rate, aLfo1Rate},
+    {"LFO1 rate", fLfo1Rate, aLfo1Rate, true},
     {"LFO1 shape", fLfo1Shape, aLfo1Shape},
     {"LFO1 sync", fLfo1Sync, aLfo1Sync},
-    {"LFO2 rate", fLfo2Rate, aLfo2Rate},
+    {"LFO2 rate", fLfo2Rate, aLfo2Rate, true},
     {"LFO2 shape", fLfo2Shape, aLfo2Shape},
     {"LFO2 sync", fLfo2Sync, aLfo2Sync},
-    {"Mod env atk", fModEnvAtk, aModEnvAtk},
-    {"Mod env dec", fModEnvDec, aModEnvDec},
+    {"Mod env atk", fModEnvAtk, aModEnvAtk, true},
+    {"Mod env dec", fModEnvDec, aModEnvDec, true},
     {"MOD MATRIX (src>dest)", nullptr, nullptr},
     {"Slot 1 source", fSlot0Src, aSlot0Src},
     {"Slot 1 dest", fSlot0Dst, aSlot0Dst},
@@ -440,7 +442,7 @@ const Item kItems[] = {
     {"Slot 6 amount", fSlot5Amt, aSlot5Amt},
     {"TRIGGER (G0 button)", nullptr, nullptr},
     {"Trigger action", fTrigAct, aTrigAct},
-    {"Trigger depth", fTrigDepth, aTrigDepth},
+    {"Trigger depth", fTrigDepth, aTrigDepth, true},
     {"Trigger mode", fTrigMode, aTrigMode},
     {"SYSTEM", nullptr, nullptr},
     {"Display", fScopeMode, aScopeMode},
@@ -555,6 +557,12 @@ void run(M5Canvas& canvas) {
     int top = 0;
     uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
 
+    // hold-to-repeat (DAS/ARR, same feel as the perform-screen keys): nav always
+    // repeats (fast scroll of a long list); adjust repeats only on `repeatable`
+    // rows (continuous numerics — amounts, rates, %), so enums/toggles don't spin.
+    int navRep = 0, adjRep = 0;
+    uint32_t navStart = 0, navLast = 0, adjStart = 0, adjLast = 0;
+
     // wait for the tab press that opened us to clear
     for (;;) {
         const uint32_t now = millis();
@@ -568,29 +576,45 @@ void run(M5Canvas& canvas) {
 
         if (hit(kExit1) || hit(kExit2)) break;
 
-        const bool fnHeld = (cur >> kFn) & 1ULL;  // fn = jump section to section
+        auto held = [&](int cd) { return (cur >> cd) & 1ULL; };
+        const bool fnHeld = held(kFn);  // fn = jump section to section
+
+        // --- navigation: ;/. move, fn+;/. jump section, hold to auto-scroll ---
         if (fnHeld && hit(kUp)) sel = jumpSection(sel, -1);
         else if (fnHeld && hit(kDown)) sel = jumpSection(sel, +1);
-        else {
-            if (hit(kUp)) sel = step(sel, -1);
-            if (hit(kDown)) sel = step(sel, +1);
+        else if (hit(kUp)) { sel = step(sel, -1); navRep = -1; navStart = navLast = now; }
+        else if (hit(kDown)) { sel = step(sel, +1); navRep = +1; navStart = navLast = now; }
+        else if (!fnHeld && navRep == -1 && held(kUp) &&
+                 now - navStart >= cfg::kRepeatDelayMs && now - navLast >= cfg::kRepeatRateMs) {
+            sel = step(sel, -1); navLast = now;
+        } else if (!fnHeld && navRep == +1 && held(kDown) &&
+                   now - navStart >= cfg::kRepeatDelayMs && now - navLast >= cfg::kRepeatRateMs) {
+            sel = step(sel, +1); navLast = now;
         }
+        if (!(held(kUp) || held(kDown)) || fnHeld) navRep = 0;  // released -> disarm
 
+        // --- adjust: ,// change; hold repeats only on `repeatable` numeric rows ---
         int dir = 0;
         if (!fnHeld) {
-            if (hit(kLeft) || hit(kDecAlt)) dir = -1;
-            if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) dir = +1;
+            if (hit(kLeft) || hit(kDecAlt)) { dir = -1; adjRep = -1; adjStart = adjLast = now; }
+            else if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) { dir = +1; adjRep = +1; adjStart = adjLast = now; }
+            else if (!isHeader(sel) && kItems[sel].repeatable && adjRep != 0 &&
+                     now - adjStart >= cfg::kRepeatDelayMs && now - adjLast >= cfg::kRepeatRateMs) {
+                const bool stillDown = adjRep < 0 ? (held(kLeft) || held(kDecAlt))
+                                                  : (held(kRight) || held(kIncAlt) || held(kEnter));
+                if (stillDown) { dir = adjRep; adjLast = now; }
+            }
         }
+        const bool anyAdj = held(kLeft) || held(kDecAlt) || held(kRight) || held(kIncAlt) || held(kEnter);
+        if (!anyAdj || fnHeld) adjRep = 0;  // released -> disarm
+
         if (dir != 0 && !isHeader(sel)) {
             kItems[sel].adjust(dir);
             auto& g = store::get();
             g.synth.tempoBpm = (float)g.jamBpm;  // synced-delay preview
-            // Persist immediately, not just on exit: this is a pocket device and
-            // people change a setting then flick the hardware power switch — a
-            // debounced write would be lost. Settings edits are user-paced (no
-            // auto-repeat) and NVS skips unchanged keys, so a full write per
-            // press is cheap. (Perform-screen tweaks stay debounced; they can
-            // auto-repeat.)
+            // Persist immediately, not just on exit: a pocket device gets its
+            // power flicked mid-edit; a debounced write would be lost. NVS skips
+            // unchanged keys so a write per step (incl. auto-repeat) is cheap.
             store::persistNow();
             audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
         }
