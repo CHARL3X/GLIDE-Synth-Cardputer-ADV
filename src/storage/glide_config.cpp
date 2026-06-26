@@ -166,7 +166,7 @@ void begin() {
     gCfg.tiltRoute = (TiltRoute)clampT<int>(gPrefs.getUChar("tiltrt", (uint8_t)d.tiltRoute), 0,
                                             (int)TiltRoute::Count - 1);
     gCfg.tiltDepth = clampT<int>(gPrefs.getInt("tiltdep", (int)(d.tiltDepth * 100)), 0, 100) / 100.f;
-    gCfg.tiltCenter = clampT<int>(gPrefs.getInt("tiltctr", 0), -1000, 1000) / 1000.f;
+    gCfg.tiltCenter = clampT<int>(gPrefs.getInt("tiltctr", (int)(d.tiltCenter * 1000)), -1000, 1000) / 1000.f;
     gCfg.tiltRouteB = (TiltRoute)clampT<int>(gPrefs.getUChar("tiltrtb", (uint8_t)d.tiltRouteB), 0,
                                              (int)TiltRoute::Count - 1);
     gCfg.tiltDepthB = clampT<int>(gPrefs.getInt("tiltdepb", (int)(d.tiltDepthB * 100)), 0, 100) / 100.f;
