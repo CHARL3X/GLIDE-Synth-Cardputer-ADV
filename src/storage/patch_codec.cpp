@@ -27,8 +27,15 @@ enum Tag : uint16_t {
     T_fenvAtkS, T_fenvDecS, T_fenvOct, T_subLevel, T_noiseLevel, T_drive, T_autoVibCents,
     T_chorusDepth, T_delayMix, T_delayTimeS, T_delayFb, T_delaySync, T_reverbMix, T_reverbSize,
 
+    // modulation (mod matrix) — range 40..99
+    T_lfo1Rate = 40, T_lfo1Shape, T_lfo1Sync,
+    T_lfo2Rate, T_lfo2Shape, T_lfo2Sync,
+    T_modEnvAtk, T_modEnvDec,
+    // the kModSlots routing slots: tag = kSlotTagBase + slot*3 + {0=src,1=dest,2=depth}
+
     T_tiltRoute = 100, T_tiltDepth, T_tiltRouteB, T_tiltDepthB,
 };
+constexpr uint16_t kSlotTagBase = 50;
 
 // One row per persisted field: tag, wire type, and a pointer into a given
 // PatchData instance. Built fresh against the instance being read/written so
@@ -71,6 +78,19 @@ int buildTable(PatchData& pd, Field* f) {
     f[n++] = {T_delaySync,   T_U8,  &s.delaySync};
     f[n++] = {T_reverbMix,   T_F32, &s.reverbMix};
     f[n++] = {T_reverbSize,  T_F32, &s.reverbSize};
+    f[n++] = {T_lfo1Rate,    T_F32, &s.lfo1RateHz};
+    f[n++] = {T_lfo1Shape,   T_U8,  &s.lfo1Shape};
+    f[n++] = {T_lfo1Sync,    T_U8,  &s.lfo1Sync};
+    f[n++] = {T_lfo2Rate,    T_F32, &s.lfo2RateHz};
+    f[n++] = {T_lfo2Shape,   T_U8,  &s.lfo2Shape};
+    f[n++] = {T_lfo2Sync,    T_U8,  &s.lfo2Sync};
+    f[n++] = {T_modEnvAtk,   T_F32, &s.modEnvAtkS};
+    f[n++] = {T_modEnvDec,   T_F32, &s.modEnvDecS};
+    for (int i = 0; i < dsp::kModSlots; ++i) {
+        f[n++] = {(uint16_t)(kSlotTagBase + i * 3 + 0), T_U8,  &s.slots[i].src};
+        f[n++] = {(uint16_t)(kSlotTagBase + i * 3 + 1), T_U8,  &s.slots[i].dest};
+        f[n++] = {(uint16_t)(kSlotTagBase + i * 3 + 2), T_F32, &s.slots[i].depth};
+    }
     f[n++] = {T_tiltRoute,   T_U8,  &pd.tiltRoute};
     f[n++] = {T_tiltDepth,   T_F32, &pd.tiltDepth};
     f[n++] = {T_tiltRouteB,  T_U8,  &pd.tiltRouteB};

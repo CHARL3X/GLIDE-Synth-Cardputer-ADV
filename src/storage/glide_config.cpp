@@ -269,6 +269,27 @@ void begin() {
     s.drive       = clampT<int>(gPrefs.getInt("drive", (int)(d.synth.drive * 100)), 100, 800) / 100.f;
     s.autoVibCents = (float)clampT<int>(gPrefs.getInt("avib", (int)d.synth.autoVibCents), 0, 100);
 
+    // modulation: 2 LFOs + mod-env + the routing matrix. Absent keys default to
+    // the neutral values, so existing devices load with the matrix inert (no
+    // tone change) until the player assigns a slot. Rates as centi-Hz, env times
+    // as ms, slot depths as ×100 (-100..100). Keys ≤15 chars.
+    s.lfo1RateHz = clampT<int>(gPrefs.getInt("l1r", (int)(d.synth.lfo1RateHz * 100)), 1, 3000) / 100.f;
+    s.lfo1Shape  = (uint8_t)clampT<int>(gPrefs.getUChar("l1sh", d.synth.lfo1Shape), 0, (int)dsp::LfoShape::Count - 1);
+    s.lfo1Sync   = (uint8_t)clampT<int>(gPrefs.getUChar("l1sy", d.synth.lfo1Sync), 0, dsp::kDelaySyncCount - 1);
+    s.lfo2RateHz = clampT<int>(gPrefs.getInt("l2r", (int)(d.synth.lfo2RateHz * 100)), 1, 3000) / 100.f;
+    s.lfo2Shape  = (uint8_t)clampT<int>(gPrefs.getUChar("l2sh", d.synth.lfo2Shape), 0, (int)dsp::LfoShape::Count - 1);
+    s.lfo2Sync   = (uint8_t)clampT<int>(gPrefs.getUChar("l2sy", d.synth.lfo2Sync), 0, dsp::kDelaySyncCount - 1);
+    s.modEnvAtkS = clampT<int>(gPrefs.getInt("mea", (int)(d.synth.modEnvAtkS * 1000)), 1, 2000) / 1000.f;
+    s.modEnvDecS = clampT<int>(gPrefs.getInt("med", (int)(d.synth.modEnvDecS * 1000)), 10, 4000) / 1000.f;
+    for (int i = 0; i < dsp::kModSlots; ++i) {
+        char ks[4] = {'m', (char)('0' + i), 's', '\0'};
+        char kd[4] = {'m', (char)('0' + i), 'd', '\0'};
+        char ka[4] = {'m', (char)('0' + i), 'a', '\0'};
+        s.slots[i].src  = (uint8_t)clampT<int>(gPrefs.getUChar(ks, 0), 0, (int)dsp::ModSource::Count - 1);
+        s.slots[i].dest = (uint8_t)clampT<int>(gPrefs.getUChar(kd, 0), 0, (int)dsp::ModDest::Count - 1);
+        s.slots[i].depth = clampT<int>(gPrefs.getInt(ka, 0), -100, 100) / 100.f;
+    }
+
     auto& l = gCfg.layout;
     l.rootSemis = clampT<int>(gPrefs.getUChar("root", d.layout.rootSemis), 0, 11);
     l.scaleIdx = clampT<int>(gPrefs.getUChar("scale", d.layout.scaleIdx), 0, dsp::kScaleCount - 1);
@@ -401,6 +422,22 @@ void persistNow() {
     gPrefs.putInt("noise", (int)(s.noiseLevel * 100));
     gPrefs.putInt("drive", (int)(s.drive * 100));
     gPrefs.putInt("avib", (int)s.autoVibCents);
+    gPrefs.putInt("l1r", (int)(s.lfo1RateHz * 100));
+    gPrefs.putUChar("l1sh", s.lfo1Shape);
+    gPrefs.putUChar("l1sy", s.lfo1Sync);
+    gPrefs.putInt("l2r", (int)(s.lfo2RateHz * 100));
+    gPrefs.putUChar("l2sh", s.lfo2Shape);
+    gPrefs.putUChar("l2sy", s.lfo2Sync);
+    gPrefs.putInt("mea", (int)(s.modEnvAtkS * 1000));
+    gPrefs.putInt("med", (int)(s.modEnvDecS * 1000));
+    for (int i = 0; i < dsp::kModSlots; ++i) {
+        char ks[4] = {'m', (char)('0' + i), 's', '\0'};
+        char kd[4] = {'m', (char)('0' + i), 'd', '\0'};
+        char ka[4] = {'m', (char)('0' + i), 'a', '\0'};
+        gPrefs.putUChar(ks, s.slots[i].src);
+        gPrefs.putUChar(kd, s.slots[i].dest);
+        gPrefs.putInt(ka, (int)(s.slots[i].depth * 100));
+    }
 
     const auto& l = gCfg.layout;
     gPrefs.putUChar("root", l.rootSemis);
