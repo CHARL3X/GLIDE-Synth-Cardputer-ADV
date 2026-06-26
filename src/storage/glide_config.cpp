@@ -1,6 +1,7 @@
 #include "glide_config.h"
 
 #include <Preferences.h>
+#include <nvs_flash.h>
 
 #include "../config.h"
 #include "../dsp/scales.h"
@@ -10,6 +11,8 @@ namespace store {
 namespace {
 GlideConfig gCfg;
 Preferences gPrefs;
+bool gNvsOk = false;  // did the NVS namespace actually open? if not, NOTHING
+                      // persists — reads return defaults, writes silently no-op
 bool gDirty = false;
 uint32_t gDirtySince = 0;
 uint16_t gOverrideMask = 0;  // cached per-slot override flags — the UI asks
@@ -93,8 +96,26 @@ GlideConfig& get() {
     return gCfg;
 }
 
+bool nvsHealthy() {
+    return gNvsOk;
+}
+
 void begin() {
-    gPrefs.begin(cfg::kNvsNamespace, false);
+    // Open the namespace read/write. If it fails the instrument still plays,
+    // but nothing the player changes survives a reboot — so don't fail
+    // silently (Hard Rule #3). The usual cause is an NVS partition that was
+    // never initialised or got into a bad state (e.g. a NO_FREE_PAGES /
+    // NEW_VERSION_FOUND condition, which is common when the firmware runs
+    // under a Launcher whose flashed partition layout differs from ours).
+    // The standard ESP-IDF recovery is to erase + re-init NVS, then retry.
+    gNvsOk = gPrefs.begin(cfg::kNvsNamespace, false);
+    if (!gNvsOk) {
+        Serial.println("[glide] NVS open failed — erasing + re-init, retrying");
+        nvs_flash_erase();
+        nvs_flash_init();
+        gNvsOk = gPrefs.begin(cfg::kNvsNamespace, false);
+        Serial.printf("[glide] NVS retry: %s\n", gNvsOk ? "ok" : "STILL FAILED");
+    }
     GlideConfig d;  // defaults
 
     // scan override slots once; afterwards patchHasOverride is a bit test.

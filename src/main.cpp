@@ -66,6 +66,26 @@ void setup() {
     if (!audio::begin()) fatalAudio(audio::lastError());
     audio::setParams(store::get().synth);
 
+    // NVS failed to open even after the erase+retry recovery: the instrument
+    // still plays, but nothing the player changes will survive a reboot. Say
+    // so out loud rather than letting settings silently evaporate (Hard Rule
+    // #3). Non-fatal — a brief banner, then carry on.
+    if (!store::nvsHealthy()) {
+        auto& d = M5Cardputer.Display;
+        d.fillScreen(theme::kBg);
+        d.setTextDatum(top_left);
+        d.setFont(&fonts::Font2);
+        d.setTextColor(theme::kRed, theme::kBg);
+        d.drawString("STORAGE UNAVAILABLE", 12, 16);
+        d.setFont(&fonts::Font0);
+        d.setTextColor(theme::kIdle, theme::kBg);
+        d.drawString("NVS would not open — settings and saved", 12, 44);
+        d.drawString("sounds will NOT persist across reboots.", 12, 56);
+        d.setTextColor(theme::kDim, theme::kBg);
+        d.drawString("You can still play. (Check NVS partition.)", 12, 76);
+        delay(2500);
+    }
+
     // Escape hatch: press BACKSPACE during the boot splash -> full factory
     // reset (settings AND saved sound slots). Works even if stored state
     // ever wedges the UI. NOTE: it must be a press DURING the splash — the
