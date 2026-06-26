@@ -113,6 +113,22 @@ bool gSustainHeld = false;
 constexpr int kBootBtnPin = 0;
 bool gTriggerHeld = false;
 
+// TCA8418 keyboard-controller wedge recovery. The vendor reader (M5Cardputer's
+// TCA8418KeyboardReader) only processes events when an edge-triggered INT-pin
+// ISR has fired, and it clears that flag whenever INT_STAT bit0 reads 0 — but a
+// FIFO *overflow* sets a different INT bit it never clears, leaving INT asserted
+// (LOW) with the flag false and no further edge coming. The reader then goes
+// permanently deaf: a note rings on (a real held voice — it shows in the trail),
+// no key registers (not even backspace), yet the raw-GPIO G0 trigger still
+// responds. Draining can't fix it (the drain is gated on the same flag); only a
+// reader rebuild does. We watchdog the INT line and rebuild when it's wedged.
+// INT is active-low/open-drain (idle HIGH; deasserts as soon as events are read,
+// even while a key is physically held), so a sustained LOW means undrained
+// events — and kKbWedgeMs is far longer than any real drain gap (we pull up to
+// kKbDrainMax events/frame at ~30 fps), so normal play never trips it.
+constexpr int kKbIntPin = 11;          // TCA8418 INT (DEFAULT_TCA8418_INT_PIN)
+constexpr uint32_t kKbWedgeMs = 400;   // INT held asserted this long = wedged
+
 // tilt key (enter): short tap cycles off->single->dual->off, long-press
 // toggles the mod-latch. Fired on RELEASE so the two gestures don't collide.
 bool gTiltLatched = false;
@@ -761,6 +777,29 @@ Actions poll(uint32_t nowMs) {
     gTriggerHeld = (digitalRead(kBootBtnPin) == LOW);  // G0 trigger macro, raw level
     uint64_t cur = 0;
     for (const auto& p : M5Cardputer.Keyboard.keyList()) cur |= 1ULL << code(p.y, p.x);
+
+    // --- keyboard wedge watchdog (see kKbIntPin) ---------------------------
+    // INT asserted (LOW) means the controller has events the reader isn't
+    // draining; sustained past kKbWedgeMs, the reader is deaf — rebuild it (a
+    // fresh reader = empty key list + re-inited controller + re-attached ISR),
+    // kill any stuck note, and resync from the now-empty keyboard.
+    {
+        static uint32_t intLowSince = 0;
+        if (digitalRead(kKbIntPin) == LOW) {
+            if (intLowSince == 0) intLowSince = nowMs ? nowMs : 1;  // 0 = "not low"
+            else if (nowMs - intLowSince > kKbWedgeMs) {
+                detachInterrupt(digitalPinToInterrupt(kKbIntPin));  // old ISR arg dies with the reader
+                M5Cardputer.Keyboard.begin();  // rebuild: empty list, re-init controller, new ISR
+                clearAllNotes();               // stuck id is unknown — silence everything
+                gPrevMask = 0;                 // shadow now matches the empty keyboard
+                cur = 0;                       // derive no presses/releases this frame
+                intLowSince = 0;
+                hud::showError("KEYBOARD", "recovered");
+            }
+        } else {
+            intLowSince = 0;
+        }
+    }
 
     const uint64_t pressed = cur & ~gPrevMask;
     const uint64_t released = gPrevMask & ~cur;
