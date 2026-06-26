@@ -13,6 +13,8 @@ GlideConfig gCfg;
 Preferences gPrefs;
 bool gNvsOk = false;  // did the NVS namespace actually open? if not, NOTHING
                       // persists — reads return defaults, writes silently no-op
+uint32_t gBootCount = 0;     // DIAGNOSTIC: boots survived in NVS (see begin())
+bool gWriteProbeOk = false;  // DIAGNOSTIC: did this boot's probe write+readback?
 bool gDirty = false;
 uint32_t gDirtySince = 0;
 uint16_t gOverrideMask = 0;  // cached per-slot override flags — the UI asks
@@ -100,6 +102,14 @@ bool nvsHealthy() {
     return gNvsOk;
 }
 
+uint32_t bootCount() {
+    return gBootCount;
+}
+
+bool writeProbeOk() {
+    return gWriteProbeOk;
+}
+
 void begin() {
     // Open the namespace read/write. If it fails the instrument still plays,
     // but nothing the player changes survives a reboot — so don't fail
@@ -116,6 +126,21 @@ void begin() {
         gNvsOk = gPrefs.begin(cfg::kNvsNamespace, false);
         Serial.printf("[glide] NVS retry: %s\n", gNvsOk ? "ok" : "STILL FAILED");
     }
+
+    // DIAGNOSTIC: prove whether writes actually survive a reboot. Read a boot
+    // counter, increment, write+commit, read it BACK. gBootCount climbing
+    // across power cycles => NVS persists (bug is elsewhere); stuck at 1 =>
+    // writes don't survive (NVS full / wiped / not really committing). The
+    // readback also tells us if the write was even accepted this session.
+    const uint32_t prevBoot = gPrefs.getUInt("bootn", 0);
+    gBootCount = prevBoot + 1;
+    const size_t wrote = gPrefs.putUInt("bootn", gBootCount);
+    const uint32_t readBack = gPrefs.getUInt("bootn", 0);
+    gWriteProbeOk = (wrote == sizeof(uint32_t)) && (readBack == gBootCount);
+    Serial.printf("[glide] boot #%u (prev=%u) write=%uB readback=%u probe=%s\n",
+                  gBootCount, prevBoot, (unsigned)wrote, readBack,
+                  gWriteProbeOk ? "ok" : "FAIL");
+
     GlideConfig d;  // defaults
 
     // scan override slots once; afterwards patchHasOverride is a bit test.

@@ -66,23 +66,28 @@ void setup() {
     if (!audio::begin()) fatalAudio(audio::lastError());
     audio::setParams(store::get().synth);
 
-    // NVS failed to open even after the erase+retry recovery: the instrument
-    // still plays, but nothing the player changes will survive a reboot. Say
-    // so out loud rather than letting settings silently evaporate (Hard Rule
-    // #3). Non-fatal — a brief banner, then carry on.
-    if (!store::nvsHealthy()) {
+    // Storage won't persist — say so out loud rather than letting settings
+    // silently evaporate (Hard Rule #3). Two distinct failures: the namespace
+    // wouldn't open at all, or it opened but a write+readback probe failed —
+    // which on this hardware means the shared 16K NVS partition is FULL (the
+    // Launcher and every app share it). Full is the likely one and needs a
+    // different remedy (clear storage), so name it specifically. Non-fatal.
+    if (!store::nvsHealthy() || !store::writeProbeOk()) {
+        const bool full = store::nvsHealthy();  // opened, but can't write -> full
         auto& d = M5Cardputer.Display;
         d.fillScreen(theme::kBg);
         d.setTextDatum(top_left);
         d.setFont(&fonts::Font2);
         d.setTextColor(theme::kRed, theme::kBg);
-        d.drawString("STORAGE UNAVAILABLE", 12, 16);
+        d.drawString(full ? "STORAGE FULL" : "STORAGE UNAVAILABLE", 12, 16);
         d.setFont(&fonts::Font0);
         d.setTextColor(theme::kIdle, theme::kBg);
-        d.drawString("NVS would not open — settings and saved", 12, 44);
-        d.drawString("sounds will NOT persist across reboots.", 12, 56);
+        d.drawString("Settings and saved sounds will NOT", 12, 44);
+        d.drawString("persist across reboots.", 12, 56);
         d.setTextColor(theme::kDim, theme::kBg);
-        d.drawString("You can still play. (Check NVS partition.)", 12, 76);
+        d.drawString(full ? "NVS partition is full — clear device storage."
+                          : "NVS would not open. (Check NVS partition.)",
+                     12, 76);
         delay(2500);
     }
 

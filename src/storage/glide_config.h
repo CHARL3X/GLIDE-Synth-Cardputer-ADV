@@ -102,6 +102,8 @@ GlideConfig& get();
 
 void begin();                 // load from NVS (or defaults on first boot)
 bool nvsHealthy();            // false if NVS failed to open -> nothing persists
+uint32_t bootCount();         // DIAGNOSTIC: boots persisted in NVS (climbs => persist works)
+bool writeProbeOk();          // DIAGNOSTIC: did this boot's write+readback succeed?
 void markDirty();             // schedule a debounced persist
 void tick(uint32_t nowMs);    // call each frame; performs the deferred write
 void persistNow();
