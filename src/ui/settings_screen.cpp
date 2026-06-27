@@ -16,6 +16,7 @@
 #include "../io/sd_store.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
+#include "audition.h"
 #include "help.h"
 #include "sd_browser.h"
 #include "theme.h"
@@ -418,63 +419,9 @@ void pushLiveSound() {  // apply the working sound to the engine + persist
     store::persistNow();
 }
 
-// --- randomize audition ---------------------------------------------------
-// A short preview note fired right after Randomize so the player can keep
-// hitting it and listening — no exit-play-and-dig-back-in dance. Scheduled
-// non-blocking (like the boot chime): the run() loop fires the glide + release
-// as they come due, so neither the UI nor the backing jam ever stalls. A fresh
-// Randomize just re-articulates the same id. The note is a lead voice, so it
-// auditions the live (just-randomized) lead sound, tails and all.
-constexpr uint8_t kPreviewId = 251;  // distinct from the boot chime's 250
-
-// A short phrase, not a single beep: a low note, glides up then back down, a
-// couple of re-attacks across the range, then a sustained note left to ring on
-// its own tail. Long enough (~2.5s + release) to actually hear the attack
-// bloom, filter/LFO/mod-env movement, glide in BOTH directions, and the
-// reverb/delay tail — so a roll of Randomize is genuinely auditionable. A fixed
-// lick (same notes every roll) makes two random sounds easy to A/B.
-struct PrevStep { uint16_t atMs; uint8_t type; float pitch; };
-enum { kPrevOn = 0, kPrevReta = 1, kPrevOff = 2 };  // On = re-attack(+glide)
-const PrevStep kPhrase[] = {
-    {   0, kPrevOn,   52.f},  // low — hear the body
-    { 300, kPrevReta, 59.f},  // slide up
-    { 640, kPrevReta, 55.f},  // ...and back down: glide reads both ways
-    {1000, kPrevOn,   64.f},  // re-attack, mid
-    {1380, kPrevReta, 71.f},  // slide up high
-    {1860, kPrevOn,   60.f},  // re-attack, settle into a sustain
-    {2600, kPrevOff,   0.f},  // release — the patch's own tail rings on
-};
-constexpr int kPhraseLen = (int)(sizeof kPhrase / sizeof kPhrase[0]);
-
-uint32_t gPreviewT0 = 0;  // phrase start time (0 = idle sentinel)
-int gPreviewStep = 0;     // next step to fire
-
-void startPreview() {
-    gPreviewT0 = millis();
-    if (gPreviewT0 == 0) gPreviewT0 = 1;  // 0 means idle; never let now() land there
-    gPreviewStep = 0;  // a fresh roll re-articulates from the top
-}
-
-void tickPreview() {
-    if (!gPreviewT0) return;
-    // Fresh clock, NOT the run loop's cached `now`: that value is captured at the
-    // top of the frame, before adjust()/startPreview() runs, so it predates
-    // gPreviewT0 by a few ms — dt would underflow and fire the whole phrase
-    // (including the final Off) in one silent frame.
-    const uint32_t dt = millis() - gPreviewT0;
-    // fire every step that has come due (catches up if a frame ran long)
-    while (gPreviewStep < kPhraseLen && dt >= kPhrase[gPreviewStep].atMs) {
-        const PrevStep& s = kPhrase[gPreviewStep];
-        if (s.type == kPrevOff) {
-            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, kPreviewId));
-        } else {
-            const auto t = s.type == kPrevReta ? dsp::NoteEvent::Retarget : dsp::NoteEvent::On;
-            audio::pushEvent(dsp::NoteEvent::make(t, kPreviewId, 0xFF, false, s.pitch));
-        }
-        ++gPreviewStep;
-    }
-    if (gPreviewStep >= kPhraseLen) gPreviewT0 = 0;  // done — the tail is the engine's to finish
-}
+// The randomize/load audition phrase now lives in ui/audition.{h,cpp} (shared
+// with the SD browser's preview). Call audition::start() after changing the live
+// sound; audition::tick() each frame from run().
 
 // Build a GenPatch snapshot of the live sound (for mutate / naming / saving).
 dsp::GenPatch liveAsGen() {
@@ -492,9 +439,11 @@ void fInitSound(char* o, int c) { snprintf(o, c, "blank slate ,/"); }
 void aInitSound(int) {
     auto& g = store::get();
     store::historyCheckpoint();                // undoable — never trash a sound
+    keys::soundSwitchBegin();                  // over a jam: blank the SOLO, bed holds
     const float vol = g.synth.masterVol;       // keep the player's level
     g.synth = dsp::SynthParams();              // neutral: plain saw, no FX, no mod
     g.synth.masterVol = vol;
+    store::refreshLiveName();                  // the blank sound gets its own name
     pushLiveSound();
 }
 
@@ -504,8 +453,9 @@ void aInitSound(int) {
 void fRandomize(char* o, int c) { snprintf(o, c, "surprise me ,/"); }
 void aRandomize(int) {
     store::historyCheckpoint();
+    keys::soundSwitchBegin();  // over a jam: freeze the backing so the roll is solo-only
     store::applyGenerated(dsp::generateSound(esp_random()));
-    startPreview();
+    audition::start();
 }
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The
@@ -513,8 +463,9 @@ void aRandomize(int) {
 void fMutate(char* o, int c) { snprintf(o, c, "evolve this ,/"); }
 void aMutate(int) {
     store::historyCheckpoint();
+    keys::soundSwitchBegin();  // over a jam: evolve the SOLO, the backing holds
     store::applyGenerated(dsp::mutateSound(liveAsGen(), gMutateAmt, esp_random()));
-    startPreview();
+    audition::start();
 }
 
 void fMutAmt(char* o, int c) { snprintf(o, c, "%d %%", (int)(gMutateAmt * 100 + 0.5f)); }
@@ -526,28 +477,69 @@ void fUndo(char* o, int c) {
     if (d > 0) snprintf(o, c, "step back (%d) ,/", d);
     else       snprintf(o, c, "(nothing back)");
 }
-void aUndo(int) { if (store::historyUndo()) startPreview(); }
+void aUndo(int) {
+    if (!store::historyCanUndo()) return;
+    keys::soundSwitchBegin();  // undo/redo move the solo only; the backing holds
+    store::historyUndo();
+    audition::start();
+}
 void fRedo(char* o, int c) {
     snprintf(o, c, "%s", store::historyCanRedo() ? "step forward ,/" : "(nothing fwd)");
 }
-void aRedo(int) { if (store::historyRedo()) startPreview(); }
+void aRedo(int) {
+    if (!store::historyCanRedo()) return;
+    keys::soundSwitchBegin();
+    store::historyRedo();
+    audition::start();
+}
 
 // Save the live sound to the SD library under an auto-generated, evocative name
 // (e.g. "warm-haze-3f") derived from the sound itself — so it's reproducibly
 // yours. Shows the name in the row on success.
+// Pick the filename for a save: the sound's own name (= what the status bar
+// shows), but if a DIFFERENT sound already holds that name, suffix -2/-3.. so a
+// save never silently clobbers another sound. Re-saving the SAME sound (same
+// hash) overwrites its own file (idempotent). `out` cap >= 24.
+void chooseSaveName(const char* base, const dsp::GenPatch& gp, char* out, int cap) {
+    if (!sdstore::exists(base)) { snprintf(out, cap, "%s", base); return; }
+    store::PatchData ex;  // seed from GLIDE so a short file still decodes cleanly
+    const dsp::Patch& fp = dsp::factoryPatches()[0];
+    ex.synth = fp.synth;
+    ex.tiltRoute = (uint8_t)fp.tiltRoute; ex.tiltDepth = fp.tiltDepth;
+    ex.tiltRouteB = (uint8_t)fp.tiltRouteB; ex.tiltDepthB = fp.tiltDepthB;
+    if (sdstore::load(base, ex)) {
+        dsp::GenPatch eg;
+        eg.synth = ex.synth; eg.tiltRoute = ex.tiltRoute; eg.tiltDepth = ex.tiltDepth;
+        eg.tiltRouteB = ex.tiltRouteB; eg.tiltDepthB = ex.tiltDepthB;
+        if (dsp::patchHash(eg) == dsp::patchHash(gp)) { snprintf(out, cap, "%s", base); return; }
+    }
+    for (int i = 2; i <= 9; ++i) {
+        snprintf(out, cap, "%s-%d", base, i);
+        if (!sdstore::exists(out)) return;
+    }
+    snprintf(out, cap, "%s", base);  // library full of this name (≥8): overwrite base
+}
+
 void fSaveSd(char* o, int c) { snprintf(o, c, "%s", gLastSaved[0] ? gLastSaved : "to SD card ,/"); }
 void aSaveSd(int) {
     const dsp::GenPatch gp = liveAsGen();
-    char name[24];
-    dsp::nameForSeed(dsp::patchHash(gp), name, sizeof name);
     store::PatchData pd;
     pd.synth = gp.synth;
     pd.synth.bendCents = 0.f; pd.synth.vibratoCents = 0.f;  // never bake live-mods
     pd.synth.cutoffModOct = 0.f; pd.synth.volMod = 1.f; pd.synth.tempoBpm = 120.f;
     pd.tiltRoute = gp.tiltRoute; pd.tiltDepth = gp.tiltDepth;
     pd.tiltRouteB = gp.tiltRouteB; pd.tiltDepthB = gp.tiltDepthB;
-    if (sdstore::save(name, pd)) {
-        strncpy(gLastSaved, name, sizeof gLastSaved - 1);
+    // name it exactly what you see (liveName) — the file carries that name too,
+    // so what you saved is what the library and any slot you assign it to show.
+    char base[24];
+    strncpy(base, store::liveName(), sizeof base - 1);
+    base[sizeof base - 1] = '\0';
+    char finalName[24];
+    chooseSaveName(base, gp, finalName, sizeof finalName);
+    strncpy(pd.name, finalName, sizeof pd.name - 1);
+    pd.name[sizeof pd.name - 1] = '\0';
+    if (sdstore::save(finalName, pd)) {
+        strncpy(gLastSaved, finalName, sizeof gLastSaved - 1);
         gLastSaved[sizeof gLastSaved - 1] = '\0';
     } else {
         snprintf(gLastSaved, sizeof gLastSaved, "no SD");
@@ -571,7 +563,7 @@ void aReRoll(int) {
         gReRollArmed = false;
         store::historyCheckpoint();  // the live sound stays recoverable via Undo
         store::reRollBank();         // ...the slots do not — hence the confirm
-        startPreview();
+        audition::start();
     } else {
         gReRollArmed = true;         // first tap arms; second within 3s confirms
         gReRollArmedAt = millis();
@@ -581,6 +573,27 @@ void aReRoll(int) {
 const Item kItems[] = {
     // Sections (a null format = a non-selectable header the cursor skips).
     // fn+up/down jumps header-to-header so the deep list stays navigable.
+    //
+    // SOUND leads on purpose: opening settings lands the cursor on Randomize, so
+    // the generative loop (roll -> hear -> mutate -> keep) is the first thing
+    // every player meets — never buried, never a feature you stumble onto. A
+    // rough rolled bank is never a dead end: Randomize/Mutate are right here.
+    {"SOUND (make your own)", nullptr, nullptr},
+    {"Randomize", fRandomize, aRandomize},
+    {"Mutate", fMutate, aMutate},
+    {"Mutate amt", fMutAmt, aMutAmt, true},
+    {"Undo", fUndo, aUndo},
+    {"Redo", fRedo, aRedo},
+    {"Init sound", fInitSound, aInitSound},
+    {"Save to SD", fSaveSd, aSaveSd},
+    {"Load from SD", fLoadSd, aLoadSd},
+    {"Re-roll bank", fReRoll, aReRoll},
+    {"Sound reset", fPatchReset, aPatchReset},
+    {"Reset all sounds", fAllSoundsReset, aAllSoundsReset},
+    {"Bend time", fBendMs, aBendMs, true},
+    {"Fat detune", fDetune, aDetune, true},
+    {"Filter mode", fFilterMode, aFilterMode},
+    {"Resonance", fRes, aRes, true},
     {"HELP", nullptr, nullptr},
     {"How to play", fHelp, aHelp},
     {"LAYOUT", nullptr, nullptr},
@@ -603,22 +616,6 @@ const Item kItems[] = {
     {"Tilt l/r route", fTiltB, aTiltB},
     {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
     {"Tilt center", fTiltCenter, aTiltCenter},
-    {"SOUND (roll your own)", nullptr, nullptr},
-    {"Randomize", fRandomize, aRandomize},
-    {"Mutate", fMutate, aMutate},
-    {"Mutate amt", fMutAmt, aMutAmt, true},
-    {"Undo", fUndo, aUndo},
-    {"Redo", fRedo, aRedo},
-    {"Init sound", fInitSound, aInitSound},
-    {"Save to SD", fSaveSd, aSaveSd},
-    {"Load from SD", fLoadSd, aLoadSd},
-    {"Re-roll bank", fReRoll, aReRoll},
-    {"Sound reset", fPatchReset, aPatchReset},
-    {"Reset all sounds", fAllSoundsReset, aAllSoundsReset},
-    {"Bend time", fBendMs, aBendMs, true},
-    {"Fat detune", fDetune, aDetune, true},
-    {"Filter mode", fFilterMode, aFilterMode},
-    {"Resonance", fRes, aRes, true},
     {"EFFECTS", nullptr, nullptr},
     {"Chorus", fChorus, aChorus, true},
     {"Delay send", fDelaySend, aDelaySend, true},
@@ -892,7 +889,7 @@ void run(M5Canvas& canvas) {
                 g.synth.tempoBpm = (float)g.jamBpm;
                 audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
                 store::persistNow();
-                startPreview();  // audition the loaded sound on return
+                audition::start();  // audition the loaded sound on return
             }
             draw(canvas, sel, top);
             continue;
@@ -926,11 +923,10 @@ void run(M5Canvas& canvas) {
         store::tick(now);
         looper::tick(now);   // the loop plays through settings, like the drones
         keys::tickBacking(now);  // ...and so does the jam/chord progression
-        tickPreview();       // fire a Randomize audition's glide/release when due
+        audition::tick();    // fire a Randomize/preview audition's events when due
         delay(16);
     }
-    // never leave an audition note ringing if the player exits mid-preview
-    audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, kPreviewId));
+    audition::stop();  // never leave an audition note ringing if exiting mid-preview
     store::persistNow();
 }
 

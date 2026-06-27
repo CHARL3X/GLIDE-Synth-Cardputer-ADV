@@ -266,4 +266,18 @@ void shortNameForSeed(uint32_t seed, char* out, int cap) {
     out[n] = '\0';
 }
 
+void soundName(uint32_t seed, char* out, int cap) {
+    if (cap <= 0) return;
+    // adjective-noun, no hex tag — the same words nameForSeed() picks, just
+    // without the four-digit suffix. The hex was collision-insurance for SD
+    // filenames; that job now belongs to rename + a save-time suffix, leaving
+    // the user-facing name clean and identical wherever a sound appears.
+    const char* adj = kAdjs[(seed >> 16) & 15];
+    const char* noun = kNouns[(seed >> 20) & 15];
+    int n = 0;
+    auto put = [&](const char* s) { for (; *s && n < cap - 1; ++s) out[n++] = *s; };
+    put(adj); put("-"); put(noun);
+    out[n] = '\0';
+}
+
 }  // namespace dsp

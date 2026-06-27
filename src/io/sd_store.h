@@ -45,4 +45,12 @@ bool remove(const char* name);
 // Returns the count written (<= max, <= kMaxList), or -1 on error.
 int list(char names[][kMaxNameLen + 1], int max);
 
+// Reduce `name` to the on-card filename stem: [a-z0-9_-], lowercased, truncated
+// to kMaxNameLen, never empty (falls back to "patch"). For the rename preview
+// ("saves as: my-bass") and collision checks. out must be >= kMaxNameLen+1.
+void sanitize(const char* name, char* out, int cap);
+
+// True if a patch file with this (sanitised) name already exists on the card.
+bool exists(const char* name);
+
 }  // namespace sdstore

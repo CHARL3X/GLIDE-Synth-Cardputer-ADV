@@ -32,6 +32,12 @@ uint32_t gSeed = 0;          // this unit's stable unique seed (persisted)
 // patchName() is a per-UI-frame call and must stay a cheap lookup, never NVS.
 char gSlotNames[dsp::kPatchCount][24] = {};
 
+// The name of the LIVE working sound — what the status bar shows and what
+// Save-to-SD uses. Set wherever the live sound is (re)defined (load slot, roll,
+// mutate, load from SD, undo/redo), so "the name you see is the name you save"
+// holds by construction — no per-surface recompute that could drift.
+char gLiveName[24] = {};
+
 // ---- non-destructive live-sound history (RAM only) ------------------------
 // A two-stack undo/redo over the live working sound. checkpoint() pushes the
 // current sound onto the undo stack (and drops any redo tail); undo/redo swap
@@ -152,6 +158,26 @@ bool loadPatchData(int slot, PatchData& out) {
     return false;
 }
 
+// Copy a C-string into gLiveName (bounded; no <cstring> dependency here).
+void setLiveName(const char* s) {
+    int i = 0;
+    for (; s[i] && i < (int)sizeof gLiveName - 1; ++i) gLiveName[i] = s[i];
+    gLiveName[i] = '\0';
+}
+// Name the live sound from a patch: its carried name if it has one, else the
+// canonical content name (so a roll/SD-load with no stored name still shows the
+// same evocative label it would save under).
+void setLiveNameFromPatch(const PatchData& pd) {
+    if (pd.name[0]) { setLiveName(pd.name); return; }
+    dsp::GenPatch g;
+    g.synth = pd.synth;
+    g.tiltRoute = pd.tiltRoute;
+    g.tiltDepth = pd.tiltDepth;
+    g.tiltRouteB = pd.tiltRouteB;
+    g.tiltDepthB = pd.tiltDepthB;
+    dsp::soundName(dsp::patchHash(g), gLiveName, sizeof gLiveName);
+}
+
 // Apply a PatchData to the live config: the sound + tilt personality, with the
 // same hygiene applyPatch always did (keep the player's master volume, never
 // load live-mod fields, clamp voiceCount). Shared so the (future) SD-library
@@ -171,6 +197,7 @@ void applyPatchData(const PatchData& pd) {
     gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
     gCfg.synth.voiceCount =
         (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);  // blob hygiene
+    setLiveNameFromPatch(pd);  // the live sound carries its name everywhere
 }
 
 // Map a pure-dsp GenPatch onto a storage PatchData (the dsp/storage seam).
@@ -180,6 +207,7 @@ void genToPatchData(const dsp::GenPatch& g, PatchData& pd) {
     pd.tiltDepth = g.tiltDepth;
     pd.tiltRouteB = g.tiltRouteB;
     pd.tiltDepthB = g.tiltDepthB;
+    dsp::soundName(dsp::patchHash(g), pd.name, sizeof pd.name);  // bake its name in
 }
 
 // Per-slot generation seed: the device seed scrambled by the slot index, so a
@@ -215,6 +243,9 @@ void snapshotLive(PatchData& pd) {
     pd.tiltDepth = gCfg.tiltDepth;
     pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
     pd.tiltDepthB = gCfg.tiltDepthB;
+    int i = 0;  // carry the live sound's name -> history + slot saves keep it
+    for (; gLiveName[i] && i < (int)sizeof pd.name - 1; ++i) pd.name[i] = gLiveName[i];
+    pd.name[i] = '\0';
 }
 
 // Recompute a slot's cached display name. Custom slots are named from their own
@@ -228,13 +259,20 @@ void cacheSlotName(int slot) {
     if ((gOverrideMask >> slot) & 1u) {
         PatchData pd;
         loadPatchData(slot, pd);
+        if (pd.name[0]) {  // a named (generated / saved / renamed) sound shows YOUR name
+            int i = 0;
+            for (; pd.name[i] && i < cap - 1; ++i) dst[i] = pd.name[i];
+            dst[i] = '\0';
+            return;
+        }
+        // legacy override with no stored name: derive the canonical content name
         dsp::GenPatch g;
         g.synth = pd.synth;
         g.tiltRoute = pd.tiltRoute;
         g.tiltDepth = pd.tiltDepth;
         g.tiltRouteB = pd.tiltRouteB;
         g.tiltDepthB = pd.tiltDepthB;
-        dsp::shortNameForSeed(dsp::patchHash(g), dst, cap);  // compact: fits the status bar
+        dsp::soundName(dsp::patchHash(g), dst, cap);
     } else {
         const char* fn = dsp::factoryPatches()[slot].name;
         int i = 0;
@@ -539,6 +577,31 @@ void begin() {
                                      (int)TriggerAction::Count - 1);
     gCfg.triggerDepth = clampT<int>(gPrefs.getInt("trigdep", (int)(d.triggerDepth * 100)), 0, 100) / 100.f;
     gCfg.triggerLatch = gPrefs.getBool("triglat", d.triggerLatch);
+
+    // Name the live working sound (status bar / Save default). If it matches the
+    // current slot's sound, show the slot's name — so factory GLIDE reads
+    // "GLIDE", not a content name; otherwise it's a persisted live edit and gets
+    // its own canonical name. Done once, here, after the live sound is loaded.
+    {
+        dsp::GenPatch lg;
+        lg.synth = gCfg.synth;
+        lg.tiltRoute = (uint8_t)gCfg.tiltRoute;
+        lg.tiltDepth = gCfg.tiltDepth;
+        lg.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
+        lg.tiltDepthB = gCfg.tiltDepthB;
+        PatchData sp;
+        loadPatchData(gCfg.currentPatch, sp);
+        dsp::GenPatch sg;
+        sg.synth = sp.synth;
+        sg.tiltRoute = sp.tiltRoute;
+        sg.tiltDepth = sp.tiltDepth;
+        sg.tiltRouteB = sp.tiltRouteB;
+        sg.tiltDepthB = sp.tiltDepthB;
+        if (dsp::patchHash(lg) == dsp::patchHash(sg))
+            setLiveName(patchName(gCfg.currentPatch));
+        else
+            dsp::soundName(dsp::patchHash(lg), gLiveName, sizeof gLiveName);
+    }
 }
 
 void persistNow() {
@@ -650,6 +713,8 @@ void applyPatch(int slot) {
     loadPatchData(slot, pd);  // pd = the override if saved, else the factory seed
     applyPatchData(pd);
     gCfg.currentPatch = (uint8_t)slot;
+    setLiveName(patchName(slot));  // factory slots show their instrument name,
+                                   // custom slots their stored/canonical name
     markDirty();
 }
 
@@ -666,6 +731,9 @@ bool savePatch(int slot) {
     pd.tiltDepth = gCfg.tiltDepth;
     pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
     pd.tiltDepthB = gCfg.tiltDepthB;
+    int ni = 0;  // the slot keeps the live sound's name (what the status bar showed)
+    for (; gLiveName[ni] && ni < (int)sizeof pd.name - 1; ++ni) pd.name[ni] = gLiveName[ni];
+    pd.name[ni] = '\0';
 
     uint8_t buf[512];
     const size_t n = encodePatch(pd, buf, sizeof buf);
@@ -682,6 +750,18 @@ bool savePatch(int slot) {
     return ok;
 }
 
+// Write an arbitrary patch (not the live sound) onto a slot — used to promote a
+// library sound into the performance kit. Mirrors savePatch's NVS write, but the
+// source is `pd` (its carried name and all), so the slot shows the same name the
+// library did. Does NOT change the live working sound or currentPatch.
+bool saveToSlot(int slot, const PatchData& pd) {
+    if (slot < 0 || slot >= dsp::kPatchCount) return false;
+    if (!writeOverride(slot, pd)) return false;  // encode + putBytes + set mask
+    cacheSlotName(slot);                          // reads pd.name if present
+    markDirty();
+    return true;
+}
+
 void clearOverride(int slot) {
     if (slot < 0 || slot >= dsp::kPatchCount) return;
     char key[3];
@@ -696,6 +776,24 @@ const char* patchName(int slot) {
     // cached content name for custom slots, factory name otherwise (empty cache
     // entry — shouldn't happen post-begin — falls back to the factory name)
     return gSlotNames[slot][0] ? gSlotNames[slot] : dsp::factoryPatches()[slot].name;
+}
+
+const char* liveName() {
+    return gLiveName[0] ? gLiveName : patchName(gCfg.currentPatch);
+}
+
+// Recompute the live sound's name from its current contents (canonical adj-noun).
+// For paths that change the synth without going through applyPatchData (e.g.
+// Init sound), so the status bar / Save name stays honest.
+void refreshLiveName() {
+    PatchData pd;
+    pd.synth = gCfg.synth;
+    pd.tiltRoute = (uint8_t)gCfg.tiltRoute;
+    pd.tiltDepth = gCfg.tiltDepth;
+    pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
+    pd.tiltDepthB = gCfg.tiltDepthB;
+    pd.name[0] = '\0';  // force canonical derivation from the sound
+    setLiveNameFromPatch(pd);
 }
 
 // ---- generative sound -------------------------------------------------------

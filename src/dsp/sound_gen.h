@@ -64,4 +64,11 @@ void nameForSeed(uint32_t seed, char* out, int cap);
 // slot labelled "haze" and its SD file "warm-haze-3f2a" read as the same sound.
 void shortNameForSeed(uint32_t seed, char* out, int cap);
 
+// THE canonical auto-name: adjective-noun, e.g. "warm-haze" — no hex tag. This
+// is the ONE name a sound shows everywhere (slot, status bar, SD library, the
+// Save default), so what you see is always what you save. Uniqueness across the
+// library is handled by rename + a save-time collision suffix, not a hex tag.
+// Same words as nameForSeed()/shortNameForSeed(); deterministic from the seed.
+void soundName(uint32_t seed, char* out, int cap);
+
 }  // namespace dsp

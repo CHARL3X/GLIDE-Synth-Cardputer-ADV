@@ -11,6 +11,7 @@
 #include "dsp/pitch.h"
 #include "dsp/sound_gen.h"
 #include "dsp/synth.h"
+#include "storage/patch_codec.h"  // host-safe codec (in env:native build_src_filter)
 
 using namespace dsp;
 
@@ -697,6 +698,58 @@ int main() {
         for (const char* c = sh; *c; ++c)
             CHECK(*c >= 'a' && *c <= 'z', "short name is a single lowercase word");
         CHECK(strstr(nm, sh) != nullptr, "short name's noun appears in the full name");
+    }
+
+    // ---- patch codec: the tagged save format (names + forward-compat) -------
+    {
+        using store::PatchData;
+        uint8_t buf[512];
+
+        // (a) a human name and a scalar field both round-trip
+        PatchData a;
+        a.synth.cutoffHz = 1234.f;
+        std::strcpy(a.name, "my-bass");
+        const size_t na = store::encodePatch(a, buf, sizeof buf);
+        CHECK(na > 0, "encode produced a stream");
+        PatchData out;
+        out.synth.cutoffHz = 999.f;  // seeded different -> proves overwrite
+        CHECK(store::decodePatch(buf, na, out), "decode accepts the stream");
+        CHECK(fabsf(out.synth.cutoffHz - 1234.f) < 0.5f, "scalar field round-trips");
+        CHECK(strcmp(out.name, "my-bass") == 0, "name round-trips");
+
+        // (b) an empty name emits NO extra bytes and decodes back empty
+        PatchData b;
+        b.synth.cutoffHz = 1234.f;
+        const size_t nb = store::encodePatch(b, buf, sizeof buf);
+        CHECK(nb > 0 && nb < na, "empty name adds no record (shorter stream)");
+        PatchData out2;
+        CHECK(store::decodePatch(buf, nb, out2) && out2.name[0] == '\0',
+              "empty name decodes empty (status quo)");
+
+        // (c) an over-long name truncates to the field cap, never overruns
+        PatchData c;
+        memset(c.name, 'x', sizeof c.name - 1);
+        c.name[sizeof c.name - 1] = '\0';
+        const size_t nc = store::encodePatch(c, buf, sizeof buf);
+        PatchData out3;
+        CHECK(store::decodePatch(buf, nc, out3) && strlen(out3.name) <= 20,
+              "long name truncated to <=20");
+
+        // (d) forward-compat: an UNKNOWN string record is skipped, scalars before
+        // it survive. The name is emitted last, so flipping its tag to an unknown
+        // value models an OLD firmware meeting a NEW string field.
+        PatchData d;
+        d.synth.cutoffHz = 1234.f;
+        const size_t nd0 = store::encodePatch(d, buf, sizeof buf);  // no name yet
+        std::strcpy(d.name, "test");
+        const size_t nd1 = store::encodePatch(d, buf, sizeof buf);  // name record at [nd0..]
+        CHECK(nd1 > nd0 && buf[nd0] == 110, "name record is last (tag 110)");
+        buf[nd0] = 200;  // unknown tag, still the T_STR type byte
+        PatchData out4;
+        out4.synth.cutoffHz = 999.f;
+        CHECK(store::decodePatch(buf, nd1, out4), "stream with an unknown string tag decodes");
+        CHECK(fabsf(out4.synth.cutoffHz - 1234.f) < 0.5f, "scalars before the unknown tag applied");
+        CHECK(out4.name[0] == '\0', "unknown string tag skipped, name left unset");
     }
 
     if (failures == 0) {

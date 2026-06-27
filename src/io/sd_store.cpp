@@ -14,21 +14,11 @@ bool gAvail = false;
 const char* gErr = "not started";
 void setErr(const char* e) { gErr = e; }
 
-// Build "<kSdDir>/<sanitised name><kSdExt>" into out. The name is reduced to
-// filename-safe chars (a..z 0..9 - _), lowercased, truncated to kMaxNameLen,
-// and never empty. Returns false if it couldn't fit.
+// Build "<kSdDir>/<sanitised name><kSdExt>" into out (uses sanitize()).
+// Returns false if it couldn't fit.
 bool makePath(const char* name, char* out, int cap) {
     char safe[kMaxNameLen + 1];
-    int n = 0;
-    for (const char* c = name; *c && n < kMaxNameLen; ++c) {
-        char ch = *c;
-        if (ch >= 'A' && ch <= 'Z') ch = (char)(ch - 'A' + 'a');
-        const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
-                        ch == '-' || ch == '_';
-        if (ok) safe[n++] = ch;
-    }
-    if (n == 0) { safe[n++] = 'p'; safe[n++] = 'a'; safe[n++] = 't'; safe[n++] = 'c'; safe[n++] = 'h'; }
-    safe[n] = '\0';
+    sanitize(name, safe, sizeof safe);
     const int need = (int)(strlen(cfg::kSdDir) + 1 + strlen(safe) + strlen(cfg::kSdExt) + 1);
     if (need > cap) return false;
     strcpy(out, cfg::kSdDir);
@@ -74,6 +64,29 @@ bool begin() {
 
 bool available() { return gAvail; }
 const char* lastError() { return gErr; }
+
+void sanitize(const char* name, char* out, int cap) {
+    int n = 0;
+    const int lim = cap - 1 < kMaxNameLen ? cap - 1 : kMaxNameLen;
+    for (const char* c = name; *c && n < lim; ++c) {
+        char ch = *c;
+        if (ch >= 'A' && ch <= 'Z') ch = (char)(ch - 'A' + 'a');
+        const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+                        ch == '-' || ch == '_';
+        if (ok) out[n++] = ch;
+    }
+    if (n == 0 && cap > 5) {  // never empty -> "patch"
+        out[n++] = 'p'; out[n++] = 'a'; out[n++] = 't'; out[n++] = 'c'; out[n++] = 'h';
+    }
+    out[n] = '\0';
+}
+
+bool exists(const char* name) {
+    if (!gAvail && !begin()) return false;
+    char path[64];
+    if (!makePath(name, path, sizeof path)) return false;
+    return SD.exists(path);
+}
 
 bool save(const char* name, const store::PatchData& pd) {
     if (!gAvail && !begin()) return false;

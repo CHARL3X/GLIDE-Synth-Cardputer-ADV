@@ -162,9 +162,13 @@ void drawStatus(M5Canvas& c) {
 
     c.fillRect(0, 0, cfg::kScreenW, kStatusH, theme::kPanel);
     char buf[32];
-    // the active sound owns the wordmark spot; * = user-saved over factory
-    snprintf(buf, sizeof buf, "%s%s", store::patchName(cf.currentPatch),
+    // the LIVE sound owns the wordmark spot — its name is exactly what Save
+    // writes (no second name). * = the current slot is your own override.
+    snprintf(buf, sizeof buf, "%s%s", store::liveName(),
              store::patchHasOverride(cf.currentPatch) ? "*" : "");
+    // truncate to fit the cramped slot before the scale readout (x56); the full
+    // name always lives in the SD library / Save dialog
+    while (buf[0] && c.textWidth(buf) > 50) buf[strlen(buf) - 1] = '\0';
     c.setTextColor(theme::kAmber, theme::kPanel);
     c.drawString(buf, 4, 2);
     c.drawString(buf, 5, 2);  // faux bold
@@ -177,12 +181,12 @@ void drawStatus(M5Canvas& c) {
     snprintf(buf, sizeof buf, "OCT%d", cf.layout.octave);
     c.drawString(buf, 108, 2);  // ends 132: clears HOLD (right edge 134-158)
 
-    // solo/backing split engaged: the backing is held on its own sound while
-    // this patch/octave is the solo. Steel "LK" (the backing's colour) so you
-    // know why a sound switch isn't changing the bed.
+    // solo/backing split engaged: the backing holds its own sound while this
+    // patch / octave / volume is the solo. Steel "SOLO" (the backing's colour)
+    // so you know why a sound switch isn't changing the bed.
     if (store::backingLocked()) {
         c.setTextColor(theme::kSteel, theme::kPanel);
-        c.drawString("LK", 138, 2);
+        c.drawString("SOLO", 138, 2);
     }
 
     // annunciators, right side
@@ -697,14 +701,15 @@ void drawIntro(M5Canvas& c) {
     c.drawRoundRect(x, y, w, h, 5, theme::kAmber);
     c.setFont(&fonts::Font0);
     c.setTextColor(theme::kAmber, theme::kPanel);
-    c.drawString("GLIDE", x + 8, y + 6);
+    c.drawString("GLIDE - sounds made for you", x + 8, y + 6);
     c.setTextColor(theme::kIdle, theme::kPanel);
-    c.drawString("play  : letter + number keys", x + 8, y + 20);
-    c.drawString("slide : new key on the same row", x + 8, y + 31);
-    c.drawString("[ ]   : bend    shift : chromatic", x + 8, y + 42);
-    c.drawString("fn+q-p: sounds  ctrl/opt: volume", x + 8, y + 53);
+    c.drawString("your sounds are unique to this", x + 8, y + 20);
+    c.drawString("device. q is always home (GLIDE).", x + 8, y + 31);
+    c.drawString("make your own anytime:", x + 8, y + 42);
+    c.setTextColor(theme::kAmber, theme::kPanel);
+    c.drawString("tab > SOUND > Randomize / Mutate", x + 8, y + 53);
     c.setTextColor(theme::kGreen, theme::kPanel);
-    c.drawString("press any note key to play", x + 8, y + 72);
+    c.drawString("undo anything - press a key to play", x + 8, y + 72);
 }
 
 }  // namespace

@@ -471,18 +471,19 @@ void octaveShift(int dir) {
 
 // Master volume on the left-thumb keys (ctrl/opt). Octave stays on -/=, so no
 // control is lost — the thumb pair was a redundant second octave mapping.
-// When the backing is locked it moves with the solo, so this stays a true
-// master, not just a solo trim.
+// Volume rides the SOLO layer only. When a jam is locked, the backing keeps the
+// level it was frozen at — so you can set a quiet backing, swap to a new synth,
+// and ride the new sound's volume independently over the held bed. With no split
+// (backing unlocked), the solo IS the whole sound, so this is the master volume.
 void adjustVolume(int dir) {
     auto& g = store::get();
     const float step = dir * 0.05f;
     auto clamp01 = [](float x) { return x < 0.f ? 0.f : (x > 1.f ? 1.f : x); };
     g.synth.masterVol = clamp01(g.synth.masterVol + step);
-    if (g.backingLocked) g.backingSynth.masterVol = clamp01(g.backingSynth.masterVol + step);
     store::markDirty();
     char v[12];
     snprintf(v, sizeof v, "%d%%", (int)(g.synth.masterVol * 100));
-    hud::show("VOLUME", v, g.synth.masterVol);
+    hud::show(g.backingLocked ? "SOLO VOL" : "VOLUME", v, g.synth.masterVol);
 }
 
 // ---- tilt mode cycle --------------------------------------------------------
@@ -766,6 +767,27 @@ void tickBacking(uint32_t nowMs) {
     jamTick(nowMs);  // keep the living backing advancing while settings owns the loop
 }
 
+// --- solo/backing split on a sound change (fn+q..p AND SD load/preview) ------
+// Changing the live (solo) sound over a running jam freezes the backing on the
+// sound it was playing, so only the solo changes — the bed holds its OG sound.
+// Call begin() BEFORE applying the new sound, end() AFTER. Shared so the slot
+// path and the SD path behave identically. begin() returns true if it locked the
+// backing on this call (the caller may want to undo that on a cancel).
+bool soundSwitchBegin() {
+    bool lockedNow = false;
+    if (!store::backingLocked() && backingActive()) {
+        store::lockBacking();
+        lockedNow = true;
+    }
+    clearLeadNotes();  // the new sound starts clean; drones/loop/progression survive
+    return lockedNow;
+}
+
+void soundSwitchEnd() {
+    auto& g = store::get();
+    audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+}
+
 Actions poll(uint32_t nowMs) {
     Actions act;
     auto& cfgr = store::get();
@@ -849,11 +871,10 @@ Actions poll(uint32_t nowMs) {
                         // switching sound over a running jam keeps the backing
                         // on its own sound: freeze it, then this patch is the
                         // solo voice only (own register + own effect on top)
-                        if (!store::backingLocked() && backingActive()) store::lockBacking();
-                        clearLeadNotes();  // new sound, same jam: backing rings on
+                        soundSwitchBegin();
                         store::applyPatch(slot);
+                        soundSwitchEnd();
                         auto& g = store::get();
-                        audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
                         snprintf(v, sizeof v, "%s%s", store::patchName(slot),
                                  store::patchHasOverride(slot) ? "*" : "");
                         hud::show(g.backingLocked ? "SOLO" : "SOUND", v, (slot + 1) / 10.f);

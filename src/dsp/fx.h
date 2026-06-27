@@ -58,6 +58,15 @@ private:
     float  rvHpLp_ = 0.f;                      // one-pole LP state -> high-pass
                                                // the reverb SEND (no boomy tail)
 
+    // FX params, smoothed at block rate, so switching the solo patch MORPHS the
+    // shared room instead of slamming the backing already sitting in the
+    // delay/reverb (an abrupt jump built the delay feedback past the clipper =
+    // the "crunchy backing on a synth swap"). Snapped to target on the first
+    // block / after a reset so a fresh sound has its full FX immediately.
+    float  chDepthSm_ = 0.f, dlMixSm_ = 0.f, dlFbSm_ = 0.f, dlSampSm_ = 1.f;
+    float  rvMixSm_ = 0.f, combFbSm_ = 0.72f;
+    bool   fxPrimed_ = false;
+
     float sr_ = 32000.f;
     bool  rvReady_ = false;
 };

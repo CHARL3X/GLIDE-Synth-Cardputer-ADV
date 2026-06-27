@@ -1,6 +1,8 @@
 #include "help.h"
 
 #include "../config.h"
+#include "../io/keys.h"
+#include "../io/looper.h"
 #include "theme.h"
 
 namespace help {
@@ -27,6 +29,16 @@ const Line kLines[] = {
     {"same row = legato SLIDE (hammer-on).", false},
     {"Release back onto a held key = slide", false},
     {"down (pull-off). That glide is it.", false},
+
+    {"YOUR SOUNDS ARE YOURS", true},
+    {"9 of your 10 sounds were rolled just", false},
+    {"for THIS device - nobody else's. q is", false},
+    {"home (GLIDE), always safe to return to.", false},
+    {"Don't like one? You are NOT stuck:", false},
+    {"settings > SOUND > Randomize rolls a", false},
+    {"new one (hear it instantly), Mutate", false},
+    {"evolves it, Undo steps back. Keep the", false},
+    {"ones you love (KEEP A SOUND, below).", false},
 
     {"PLAY KEYS", true},
     {"shift (hold): chromatic (off-scale)", false},
@@ -138,6 +150,9 @@ void run(M5Canvas& canvas) {
             if (top < 0) top = 0;
             lastScroll = nowMs;
         }
+
+        looper::tick(nowMs);       // keep a loop / chord progression alive while
+        keys::tickBacking(nowMs);  // reading help — the backing never freezes
 
         canvas.fillScreen(theme::kBg);
         canvas.fillRect(0, 0, cfg::kScreenW, 14, theme::kPanel);

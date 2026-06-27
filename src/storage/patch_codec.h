@@ -28,6 +28,10 @@ struct PatchData {
     float   tiltDepth  = 0.6f;
     uint8_t tiltRouteB = 0;
     float   tiltDepthB = 0.6f;
+    char    name[21]   = {};  // optional human name (≤20 chars). Empty => the
+                              // caller derives one from the sound's hash (status
+                              // quo). When set, it's what shows in the slot/status
+                              // bar and what Save-to-SD names the file.
 };
 
 // Encode `in` into buf as a tagged stream. Returns bytes written, or 0 if the

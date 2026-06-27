@@ -5,10 +5,14 @@
 namespace store {
 namespace {
 
-// Wire types. The type byte doubles as the value width in bytes, so the decoder
-// can skip a record it doesn't recognize without a separate length field.
+// Wire types. For SCALAR records the type byte doubles as the value width in
+// bytes, so the decoder can skip an unknown record without a separate length.
+// T_STR is the one exception: a variable-length string whose 3-byte record
+// header is followed by a 1-byte length, then that many raw bytes. A decoder
+// that doesn't know T_STR must read the length byte to skip it (handled below).
 constexpr uint8_t T_U8  = 1;
 constexpr uint8_t T_F32 = 4;
+constexpr uint8_t T_STR = 5;  // [tag_lo][tag_hi][T_STR][len][bytes...]
 
 constexpr uint8_t kMagic0 = 'G';
 constexpr uint8_t kMagic1 = 'P';
@@ -35,6 +39,7 @@ enum Tag : uint16_t {
     // the kModSlots routing slots: tag = kSlotTagBase + slot*3 + {0=src,1=dest,2=depth}
 
     T_tiltRoute = 100, T_tiltDepth, T_tiltRouteB, T_tiltDepthB,
+    T_name = 110,  // human name (T_STR). Emitted LAST in the stream — see below.
 };
 constexpr uint16_t kSlotTagBase = 50;
 
@@ -120,6 +125,19 @@ size_t encodePatch(const PatchData& in, uint8_t* buf, size_t cap) {
         memcpy(buf + pos, f[i].ptr, w);
         pos += w;
     }
+    // The name (T_STR) is written LAST, and only when non-empty. Last is
+    // load-bearing for forward-compat: an OLDER firmware (which doesn't know
+    // T_STR) parses every scalar field it knows first, then trips on this
+    // trailing record and stops — it loses only the name, never a real param.
+    const size_t nameLen = strnlen(in.name, sizeof in.name - 1);  // ≤20
+    if (nameLen > 0 && pos + 4u + nameLen <= cap) {
+        buf[pos++] = (uint8_t)(T_name & 0xFF);
+        buf[pos++] = (uint8_t)(T_name >> 8);
+        buf[pos++] = T_STR;
+        buf[pos++] = (uint8_t)nameLen;
+        memcpy(buf + pos, in.name, nameLen);
+        pos += nameLen;
+    }
     return pos;
 }
 
@@ -133,7 +151,21 @@ bool decodePatch(const uint8_t* buf, size_t len, PatchData& out) {
         const uint16_t tag = (uint16_t)(buf[pos] | (buf[pos + 1] << 8));
         const uint8_t type = buf[pos + 2];
         pos += 3;
-        const uint8_t w = type;       // width == type code
+        if (type == T_STR) {  // variable-length: a length byte then the bytes
+            if (pos + 1 > len) break;            // truncated: no length byte
+            const uint8_t slen = buf[pos++];
+            if (pos + slen > len) break;         // truncated payload
+            if (tag == T_name) {
+                const uint8_t cpy = slen < (uint8_t)(sizeof out.name - 1)
+                                        ? slen : (uint8_t)(sizeof out.name - 1);
+                memcpy(out.name, buf + pos, cpy);
+                out.name[cpy] = '\0';
+            }
+            // unknown T_STR tag: skipped by its length (forward-compat)
+            pos += slen;
+            continue;
+        }
+        const uint8_t w = type;       // scalar: width == type code
         if (pos + w > len) break;     // truncated tail record -> keep what we have
         for (int i = 0; i < nf; ++i) {
             if (f[i].tag == tag && f[i].type == type) {

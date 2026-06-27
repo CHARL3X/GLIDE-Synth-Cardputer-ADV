@@ -62,4 +62,13 @@ void resync();
 // keeps playing instead of freezing on one chord until the screen closes.
 void tickBacking(uint32_t nowMs);
 
+// Solo/backing split on a live-sound change. Call begin() BEFORE applying a new
+// sound (store::applyPatch / applyStoredPatch) and end() AFTER: if a jam is
+// running, the backing freezes on the old sound so only the solo changes — the
+// same hot-swap behaviour for fn+q..p and for loading/previewing from SD.
+// begin() returns true if it locked the backing on this call (so a cancel can
+// restore the prior state via store::unlockBacking()).
+bool soundSwitchBegin();
+void soundSwitchEnd();
+
 }  // namespace keys

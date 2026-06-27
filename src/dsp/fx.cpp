@@ -68,12 +68,51 @@ void Fx::reset() {
     }
     rvHpLp_ = 0.f;
     for (int i = 0; i < kNAllpass; ++i) apIdx_[i] = 0;
+    fxPrimed_ = false;  // next block snaps the smoothers to their target
 }
 
 void Fx::process(float* buf, int n, const SynthParams& p) {
-    const bool doChorus = p.chorusDepth > 0.001f;
-    const bool doDelay  = p.delayMix   > 0.001f;
-    const bool doReverb = p.reverbMix  > 0.001f;
+    // ---- targets (always computed) ---------------------------------------
+    auto clampf = [](float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); };
+    const float chDepthT = clampf(p.chorusDepth, 0.f, 1.f);
+    const float dlMixT   = clampf(p.delayMix, 0.f, 1.f);
+    const float dlFbT    = clampf(p.delayFb, 0.f, 0.9f);
+    const float rvMixT   = clampf(p.reverbMix, 0.f, 1.f);
+    float dlSampT;
+    {   // tempo-synced echo time, folded down an octave at a time until it fits
+        float t = p.delayTimeS;
+        const float beats = delaySyncBeats(p.delaySync);
+        if (beats > 0.f) {
+            const float bpm = clampf(p.tempoBpm, 20.f, 300.f);
+            t = beats * 60.f / bpm;
+            const float maxT = (float)(kDelayMax - 1) / sr_;
+            while (t > maxT) t *= 0.5f;
+        }
+        dlSampT = clampf(t * sr_, 1.f, (float)(kDelayMax - 1));
+    }
+    const float combFbT = 0.72f + 0.26f * clampf(p.reverbSize, 0.f, 1.f);  // .72..98
+
+    // ---- smooth at block rate: a synth swap MORPHS the room, never slams it.
+    // The backing already sitting in the delay/reverb used to get crunched when
+    // these jumped (feedback past the clipper); a ~80 ms glide fixes it.
+    if (!fxPrimed_) {
+        chDepthSm_ = chDepthT; dlMixSm_ = dlMixT; dlFbSm_ = dlFbT;
+        dlSampSm_ = dlSampT; rvMixSm_ = rvMixT; combFbSm_ = combFbT;
+        fxPrimed_ = true;
+    } else {
+        const float g = 0.12f;  // ~80-100 ms toward target
+        chDepthSm_ += (chDepthT - chDepthSm_) * g;
+        dlMixSm_   += (dlMixT   - dlMixSm_)   * g;
+        dlFbSm_    += (dlFbT    - dlFbSm_)    * g;
+        dlSampSm_  += (dlSampT  - dlSampSm_)  * g;
+        rvMixSm_   += (rvMixT   - rvMixSm_)   * g;
+        combFbSm_  += (combFbT  - combFbSm_)  * g;
+    }
+
+    // gate on the SMOOTHED sends, so a fade-out keeps processing the tail down
+    const bool doChorus = chDepthSm_ > 0.002f;
+    const bool doDelay  = dlMixSm_   > 0.002f;
+    const bool doReverb = rvMixSm_   > 0.002f && rvReady_;
     if (!doChorus && !doDelay && !doReverb) return;  // fully dry: leave untouched
 
     // ---- chorus: per-block LFO, intra-block interpolated tap offsets -----
@@ -92,36 +131,13 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
         tapBStart = base + depth * sinf(p0 + qtr);
         tapAStep = (depth * sinf(p1)       - (tapAStart - base)) / n;  // glide A across block
         tapBStep = (depth * sinf(p1 + qtr) - (tapBStart - base)) / n;  // glide B across block
-        chMixWet = 0.5f * p.chorusDepth;
-        chMixDry = 1.f - 0.5f * p.chorusDepth;
+        chMixWet = 0.5f * chDepthSm_;
+        chMixDry = 1.f - 0.5f * chDepthSm_;
     }
 
-    // ---- delay setup -----------------------------------------------------
-    float dlSamp = 0.f, dlFb = 0.f;
-    if (doDelay) {
-        // tempo-synced: lock the echo time to a beat fraction of tempoBpm so a
-        // solo over the jam sits in the pocket. Fold long divisions down an
-        // octave at a time until they fit the line — still on the grid.
-        float t = p.delayTimeS;
-        const float beats = delaySyncBeats(p.delaySync);
-        if (beats > 0.f) {
-            const float bpm = p.tempoBpm < 20.f ? 20.f : (p.tempoBpm > 300.f ? 300.f : p.tempoBpm);
-            t = beats * 60.f / bpm;
-            const float maxT = (float)(kDelayMax - 1) / sr_;
-            while (t > maxT) t *= 0.5f;
-        }
-        dlSamp = t * sr_;
-        if (dlSamp < 1.f) dlSamp = 1.f;
-        if (dlSamp > (float)(kDelayMax - 1)) dlSamp = (float)(kDelayMax - 1);
-        dlFb = p.delayFb < 0.f ? 0.f : (p.delayFb > 0.9f ? 0.9f : p.delayFb);
-    }
-
-    // ---- reverb setup ----------------------------------------------------
-    float combFb = 0.f;
-    if (doReverb && rvReady_) {
-        const float room = p.reverbSize < 0.f ? 0.f : (p.reverbSize > 1.f ? 1.f : p.reverbSize);
-        combFb = 0.72f + 0.26f * room;       // 0.72 (short) .. 0.98 (long hall)
-    }
+    const float dlSamp = dlSampSm_;
+    const float dlFb = dlFbSm_;
+    const float combFb = combFbSm_;
 
     float tapA = tapAStart;
     float tapB = tapBStart;
@@ -147,7 +163,7 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
             dlDamp_ += (echo - dlDamp_) * 0.30f;
             dlBuf_[dlW_] = wet + dlDamp_ * dlFb;
             if (++dlW_ >= kDelayMax) dlW_ = 0;
-            wet += echo * p.delayMix;
+            wet += echo * dlMixSm_;
         }
 
         // reverb -----------------------------------------------------------
@@ -173,7 +189,7 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
                 if (++apIdx_[ap] >= kApLen[ap]) apIdx_[ap] = 0;
                 acc = out;
             }
-            wet += acc * (0.6f * p.reverbMix);
+            wet += acc * (0.6f * rvMixSm_);
         }
 
         // safety clamp: the dry mix already passed the soft clipper near ±1;
