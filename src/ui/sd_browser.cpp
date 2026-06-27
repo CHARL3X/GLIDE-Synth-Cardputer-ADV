@@ -180,11 +180,13 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                     if (!hit(cd)) continue;
                     const int slot = cd - kSlotQ;
                     store::PatchData pd;
-                    if (loadFile(gNames[sel], pd) && store::saveToSlot(slot, pd))
-                        snprintf(flash, sizeof flash, "put on slot %c", kSlotLetters[slot]);
+                    if (!loadFile(gNames[sel], pd))
+                        snprintf(flash, sizeof flash, "load: %s", sdstore::lastError());
+                    else if (!store::saveToSlot(slot, pd))
+                        snprintf(flash, sizeof flash, "slot write failed (nvs?)");
                     else
-                        snprintf(flash, sizeof flash, "slot save failed");
-                    flashUntil = now + 1300;
+                        snprintf(flash, sizeof flash, "put on slot %c", kSlotLetters[slot]);
+                    flashUntil = now + 1800;
                     mode = Mode::List;
                     break;
                 }

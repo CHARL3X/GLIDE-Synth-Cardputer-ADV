@@ -60,6 +60,21 @@ std::atomic<uint8_t> gSounding{0};
 const char* gError = nullptr;
 bool gRunning = false;
 
+// Master soft limiter on the final mix. The lead and backing buses are each
+// soft-clipped to ~±0.93 on their own, but they SUM — soloing a loud/bright
+// synth over a full backing pushes the mix past ±1, which the int16 conversion
+// hard-clipped (the "crunch"). This is linear below ±0.9, then a soft knee
+// asymptoting to ±1: normal levels pass untouched (no volume loss), only the
+// overlap peaks round off gracefully.
+inline float softLimit(float x) {
+    const float t = 0.9f;
+    const float a = x < 0.f ? -x : x;
+    if (a <= t) return x;
+    const float over = a - t;
+    const float k = t + (1.f - t) * (over / (over + (1.f - t)));
+    return x < 0.f ? -k : k;
+}
+
 void renderTask(void*) {
     auto& spk = M5Cardputer.Speaker;
 
@@ -117,8 +132,8 @@ void renderTask(void*) {
 
         int16_t* blk = gBlocks[b];
         for (int i = 0; i < cfg::kBlockSamples; ++i) {
-            float s = gMix[i] * 32767.f;
-            if (s > 32767.f) s = 32767.f;
+            float s = softLimit(gMix[i]) * 32767.f;  // tame solo+backing peaks
+            if (s > 32767.f) s = 32767.f;             // belt-and-suspenders clamp
             else if (s < -32768.f) s = -32768.f;
             blk[i] = (int16_t)s;
         }

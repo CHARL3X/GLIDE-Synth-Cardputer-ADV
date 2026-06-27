@@ -122,10 +122,15 @@ bool loadBlob(const char* key, PatchBlob& out) {
     return false;
 }
 
-// Load a slot into a PatchData, seeding from the factory patch first so any
-// field the stored blob predates keeps its factory default. Handles BOTH the
-// new tagged format and the legacy binary blob (so un-migrated saves still
-// load). Returns true iff an override blob exists for the slot.
+void genToPatchData(const dsp::GenPatch& g, PatchData& pd);  // defined below
+uint32_t slotSeed(uint32_t seed, int slot);                 // defined below
+
+// Load a slot into a PatchData. Order: a USER override blob wins; else slot 0 is
+// the GLIDE factory anchor; else (w..p) the unit's generative bank, REGENERATED
+// from the seed on demand — not stored, because it's deterministic and the
+// shared NVS partition is tiny. Seeds from the factory patch first so any field
+// a stored blob predates keeps its default. Handles the new tagged format and
+// legacy binary blobs. Returns true iff a user override blob exists.
 bool loadPatchData(int slot, PatchData& out) {
     const dsp::Patch& fp = dsp::factoryPatches()[slot];
     out.synth = fp.synth;  // seed: defaults for anything the blob doesn't carry
@@ -137,7 +142,11 @@ bool loadPatchData(int slot, PatchData& out) {
     char key[3];
     patchKey(slot, key);
     const size_t len = gPrefs.getBytesLength(key);
-    if (len == 0) return false;  // no override saved
+    if (len == 0) {  // no user override
+        if (slot > 0)  // w..p: regenerate this unit's bank sound from the seed
+            genToPatchData(dsp::generateSound(slotSeed(gSeed, slot)), out);
+        return false;  // q (slot 0) keeps the factory GLIDE seed already set above
+    }
 
     uint8_t buf[512];
     if (len >= 3 && len <= sizeof buf) {
@@ -256,29 +265,15 @@ void cacheSlotName(int slot) {
     if (slot < 0 || slot >= dsp::kPatchCount) return;
     char* dst = gSlotNames[slot];
     const int cap = (int)sizeof gSlotNames[slot];
-    if ((gOverrideMask >> slot) & 1u) {
-        PatchData pd;
-        loadPatchData(slot, pd);
-        if (pd.name[0]) {  // a named (generated / saved / renamed) sound shows YOUR name
-            int i = 0;
-            for (; pd.name[i] && i < cap - 1; ++i) dst[i] = pd.name[i];
-            dst[i] = '\0';
-            return;
-        }
-        // legacy override with no stored name: derive the canonical content name
-        dsp::GenPatch g;
-        g.synth = pd.synth;
-        g.tiltRoute = pd.tiltRoute;
-        g.tiltDepth = pd.tiltDepth;
-        g.tiltRouteB = pd.tiltRouteB;
-        g.tiltDepthB = pd.tiltDepthB;
-        dsp::soundName(dsp::patchHash(g), dst, cap);
-    } else {
-        const char* fn = dsp::factoryPatches()[slot].name;
-        int i = 0;
-        for (; fn[i] && i < cap - 1; ++i) dst[i] = fn[i];
-        dst[i] = '\0';
-    }
+    PatchData pd;
+    loadPatchData(slot, pd);  // user override, regenerated bank sound, or factory
+    // a generated / saved / renamed sound carries its own name; only the bare
+    // factory anchor (q) and rare nameless legacy saves fall back to the
+    // instrument name.
+    const char* src = pd.name[0] ? pd.name : dsp::factoryPatches()[slot].name;
+    int i = 0;
+    for (; src[i] && i < cap - 1; ++i) dst[i] = src[i];
+    dst[i] = '\0';
 }
 void cacheAllSlotNames() {
     for (int i = 0; i < dsp::kPatchCount; ++i) cacheSlotName(i);
@@ -384,28 +379,36 @@ void begin() {
         if (allOk) gPrefs.putBool("tlv1", true);
     }
 
-    // First-boot unique bank. On a FRESH device, fill the nine non-anchor slots
-    // (w..p) with patches rolled from this unit's seed, so the instrument is
-    // already nobody else's the moment you press fn+w. Slot 0 (q) is left as the
-    // GLIDE factory anchor — the boot/home sound never changes under you, and a
-    // brand-new device still powers straight into the signature tone.
+    // The unique bank (w..p) is REGENERATED from the seed on demand (see
+    // loadPatchData), not stored — it's deterministic, and the NVS partition is
+    // tiny and SHARED with every other Launcher app, so storing 9 patch blobs
+    // (~3.5 KB) would crowd it out and make real saves fail. Slot 0 (q) stays the
+    // GLIDE factory anchor. So there's nothing to write at first boot.
     //
-    // Guards (Hard Rule #3 — never wipe a save): runs once (the "bankgen"
-    // sentinel), only on a fresh NVS (prevBoot == 0), and skips any slot that
-    // already carries an override. An existing device updating to this firmware
-    // keeps its factory bank and every saved sound untouched — it opts into the
-    // generative world deliberately, via settings -> Re-roll bank.
-    if (gNvsOk && !gPrefs.getBool("bankgen", false)) {
-        if (freshDevice) {
-            for (int i = 1; i < dsp::kPatchCount; ++i) {
-                if ((gOverrideMask >> i) & 1u) continue;  // never clobber a save
-                PatchData pd;
-                genToPatchData(dsp::generateSound(slotSeed(gSeed, i)), pd);
-                if (writeOverride(i, pd))
-                    Serial.printf("[glide] seeded slot %d from %08x\n", i, gSeed);
+    // Self-heal: older builds DID store the bank as blobs. Reclaim that space —
+    // drop any stored slot blob whose sound still EXACTLY matches its regenerated
+    // default (a sound you actually saved has a different hash and is left
+    // untouched). Runs once (the "regen1" sentinel). (void)freshDevice — the bank
+    // no longer depends on first-boot.
+    (void)freshDevice;
+    if (gNvsOk && !gPrefs.getBool("regen1", false)) {
+        for (int i = 1; i < dsp::kPatchCount; ++i) {
+            if (!((gOverrideMask >> i) & 1u)) continue;  // no stored blob here
+            PatchData pd;
+            loadPatchData(i, pd);
+            dsp::GenPatch stored;
+            stored.synth = pd.synth;
+            stored.tiltRoute = pd.tiltRoute;
+            stored.tiltDepth = pd.tiltDepth;
+            stored.tiltRouteB = pd.tiltRouteB;
+            stored.tiltDepthB = pd.tiltDepthB;
+            const dsp::GenPatch rolled = dsp::generateSound(slotSeed(gSeed, i));
+            if (dsp::patchHash(stored) == dsp::patchHash(rolled)) {
+                clearOverride(i);  // identical to the regenerated default -> reclaim it
+                Serial.printf("[glide] reclaimed slot %d (matches seed)\n", i);
             }
         }
-        gPrefs.putBool("bankgen", true);  // even on an existing device: mark done
+        gPrefs.putBool("regen1", true);
     }
 
     // Display names: generated/saved slots read as their evocative content name,
@@ -820,14 +823,12 @@ void reRollBank() {
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
     if (gNvsOk) gPrefs.putUInt("seed", gSeed);
-    clearOverride(0);  // q back to factory GLIDE (also refreshes its name)
-    for (int i = 1; i < dsp::kPatchCount; ++i) {
-        PatchData pd;
-        genToPatchData(dsp::generateSound(slotSeed(gSeed, i)), pd);
-        writeOverride(i, pd);
-        cacheSlotName(i);  // each new slot reads as its own sound's name
-    }
-    applyPatch(gCfg.currentPatch);  // reload whatever slot is current, live
+    // Drop every override (q back to GLIDE; w..p revert to the new seed's bank).
+    // No blobs are written — the new bank is regenerated on demand, so this also
+    // FREES whatever NVS the old saves held.
+    for (int i = 0; i < dsp::kPatchCount; ++i) clearOverride(i);
+    cacheAllSlotNames();                // names now reflect the regenerated bank
+    applyPatch(gCfg.currentPatch);      // reload whatever slot is current, live
 }
 
 // ---- non-destructive live-sound history ------------------------------------
