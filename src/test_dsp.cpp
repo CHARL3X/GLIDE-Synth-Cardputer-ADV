@@ -9,6 +9,7 @@
 #include <cstring>
 #include "dsp/patches.h"
 #include "dsp/pitch.h"
+#include "dsp/sound_gen.h"
 #include "dsp/synth.h"
 
 using namespace dsp;
@@ -534,6 +535,139 @@ int main() {
             sf.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
             peakOf(sf, 60);
         }
+    }
+
+    // ---- generative sound engine (sound_gen) ------------------------------
+    // The soul of the "your instrument is yours" feature: every field a roll
+    // produces must be in range and playable, the roll must be deterministic
+    // (so a per-device seed gives a stable unique bank), and a mutate must stay
+    // in bounds while amount==0 is an exact identity.
+    {
+        // validate every field of a generated patch is inside the engine's
+        // musical/persisted bounds — a roll must NEVER make a dead or blown sound.
+        auto validParams = [](const SynthParams& s) -> bool {
+            return s.cutoffHz >= 80.f && s.cutoffHz <= 12000.f &&
+                   s.resonance >= 0.f && s.resonance <= 0.95f &&
+                   s.attackS >= 0.f && s.attackS <= 2.f &&
+                   s.decayS >= 0.f && s.decayS <= 2.f &&
+                   s.sustain >= 0.f && s.sustain <= 1.f &&
+                   s.releaseS >= 0.f && s.releaseS <= 3.f &&
+                   s.glideS >= 0.f && s.glideS <= 2.f &&
+                   s.detuneCents >= 0.f && s.detuneCents <= 50.f &&
+                   s.fenvOct >= 0.f && s.fenvOct <= 6.f &&
+                   s.fenvDecS >= 0.01f && s.fenvDecS <= 2.f &&
+                   s.subLevel >= 0.f && s.subLevel <= 1.f &&
+                   s.noiseLevel >= 0.f && s.noiseLevel <= 1.f &&
+                   s.drive >= 1.f && s.drive <= 8.f &&
+                   s.reverbMix >= 0.f && s.reverbMix <= 1.f &&
+                   s.delayMix >= 0.f && s.delayMix <= 1.f &&
+                   s.chorusDepth >= 0.f && s.chorusDepth <= 1.f &&
+                   s.delaySync < kDelaySyncCount &&
+                   s.lfo1RateHz > 0.f && s.lfo2RateHz > 0.f &&
+                   (int)s.wave < (int)Waveform::Count &&
+                   s.filterMode < (uint8_t)FilterMode::Count &&
+                   s.lfo1Shape < (uint8_t)LfoShape::Count &&
+                   s.lfo2Shape < (uint8_t)LfoShape::Count;
+        };
+        auto validSlots = [](const SynthParams& s) -> bool {
+            for (int i = 0; i < kModSlots; ++i) {
+                if (s.slots[i].src >= (uint8_t)ModSource::Count) return false;
+                if (s.slots[i].dest >= (uint8_t)ModDest::Count) return false;
+                if (s.slots[i].depth < -1.f || s.slots[i].depth > 1.f) return false;
+            }
+            return true;
+        };
+        auto validTilt = [](const GenPatch& g) -> bool {
+            return g.tiltRoute < (uint8_t)TiltRoute::Count &&
+                   g.tiltRouteB < (uint8_t)TiltRoute::Count &&
+                   g.tiltDepth >= 0.f && g.tiltDepth <= 1.f &&
+                   g.tiltDepthB >= 0.f && g.tiltDepthB <= 1.f;
+        };
+        // field-wise equality (NOT memcmp — GenPatch has padding bytes between
+        // its uint8/float members that two separate constructions needn't match)
+        auto genEq = [](const GenPatch& a, const GenPatch& b) -> bool {
+            const SynthParams& x = a.synth;
+            const SynthParams& y = b.synth;
+            bool eq = x.wave == y.wave && x.glideMode == y.glideMode &&
+                      x.attackS == y.attackS && x.decayS == y.decayS && x.sustain == y.sustain &&
+                      x.releaseS == y.releaseS && x.glideS == y.glideS && x.cutoffHz == y.cutoffHz &&
+                      x.resonance == y.resonance && x.filterMode == y.filterMode &&
+                      x.detuneCents == y.detuneCents && x.fenvOct == y.fenvOct && x.fenvDecS == y.fenvDecS &&
+                      x.subLevel == y.subLevel && x.noiseLevel == y.noiseLevel && x.drive == y.drive &&
+                      x.chorusDepth == y.chorusDepth && x.delayMix == y.delayMix && x.delayFb == y.delayFb &&
+                      x.delaySync == y.delaySync && x.reverbMix == y.reverbMix && x.reverbSize == y.reverbSize &&
+                      x.lfo1RateHz == y.lfo1RateHz && x.lfo1Shape == y.lfo1Shape &&
+                      x.lfo2RateHz == y.lfo2RateHz && x.lfo2Shape == y.lfo2Shape &&
+                      x.modEnvAtkS == y.modEnvAtkS && x.modEnvDecS == y.modEnvDecS &&
+                      a.tiltRoute == b.tiltRoute && a.tiltDepth == b.tiltDepth &&
+                      a.tiltRouteB == b.tiltRouteB && a.tiltDepthB == b.tiltDepthB;
+            for (int i = 0; i < kModSlots; ++i)
+                eq = eq && x.slots[i].src == y.slots[i].src && x.slots[i].dest == y.slots[i].dest &&
+                     x.slots[i].depth == y.slots[i].depth;
+            return eq;
+        };
+
+        // determinism: same seed -> identical patch (the per-device-bank
+        // contract — a unit's slots are reproducible from its stored seed).
+        GenPatch a1 = generateSound(0xC0FFEEu);
+        GenPatch a2 = generateSound(0xC0FFEEu);
+        CHECK(genEq(a1, a2), "generateSound is deterministic");
+        GenPatch b1 = generateSound(0xC0FFEFu);
+        CHECK(!genEq(a1, b1), "different seeds -> different patch");
+
+        // sweep many seeds: every roll is in range and renders finite & bounded
+        Synth sg;
+        sg.init(kSr);
+        bool sawGlideAlways = false, sawMod = false;
+        for (uint32_t seed = 1; seed <= 200; ++seed) {
+            GenPatch g = generateSound(seed * 2654435761u + 1u);
+            CHECK(validParams(g.synth), "generated params in range");
+            CHECK(validSlots(g.synth), "generated mod slots in range");
+            CHECK(validTilt(g), "generated tilt in range");
+            if (g.synth.glideMode == GlideMode::Always) sawGlideAlways = true;
+            for (int i = 0; i < kModSlots; ++i)
+                if (g.synth.slots[i].src != (uint8_t)ModSource::None) sawMod = true;
+            sg.setParams(g.synth);
+            sg.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(seed & 0x7F), 0, false, 64.f));
+            const float pk = peakOf(sg, 24);
+            CHECK(pk >= 0.f && pk < 1.6f, "generated patch renders finite & bounded");
+            sg.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+            peakOf(sg, 40);
+        }
+        CHECK(sawGlideAlways, "some rolls are always-glide");
+        CHECK(sawMod, "some rolls wire the mod matrix");
+
+        // mutate: amount 0 is an exact identity
+        GenPatch base = generateSound(42u);
+        GenPatch m0 = mutateSound(base, 0.f, 123u);
+        CHECK(genEq(base, m0), "mutate amount=0 is identity");
+
+        // mutate stays in range + renders bounded, at gentle and wild amounts
+        for (uint32_t seed = 1; seed <= 100; ++seed) {
+            const float amt = (seed % 2) ? 0.15f : 0.9f;  // gentle vs wild
+            GenPatch m = mutateSound(base, amt, seed * 40503u + 7u);
+            CHECK(validParams(m.synth), "mutated params in range");
+            CHECK(validSlots(m.synth), "mutated mod slots in range");
+            CHECK(validTilt(m), "mutated tilt in range");
+            sg.setParams(m.synth);
+            sg.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(seed & 0x7F), 0, false, 62.f));
+            const float pk = peakOf(sg, 24);
+            CHECK(pk >= 0.f && pk < 1.6f, "mutated patch renders finite & bounded");
+            sg.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+            peakOf(sg, 40);
+        }
+
+        // a gentle mutate keeps the patch's character: most continuous params
+        // should stay close to the base (it's a neighbour, not a new roll).
+        GenPatch gentle = mutateSound(base, 0.12f, 999u);
+        int near = 0, tot = 0;
+        auto rel = [&](float a, float b, float span) { ++tot; if (fabsf(a - b) <= 0.35f * span) ++near; };
+        rel(gentle.synth.cutoffHz, base.synth.cutoffHz, 11000.f);
+        rel(gentle.synth.resonance, base.synth.resonance, 0.9f);
+        rel(gentle.synth.sustain, base.synth.sustain, 1.f);
+        rel(gentle.synth.drive, base.synth.drive, 5.f);
+        rel(gentle.synth.releaseS, base.synth.releaseS, 2.f);
+        CHECK(near >= tot - 1, "a gentle mutate preserves character (neighbour, not a new roll)");
     }
 
     if (failures == 0) {
