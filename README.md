@@ -80,9 +80,17 @@ it's already a tiny fretboard. So GLIDE treats it like one:
 
 ## The sounds
 
-Ten instruments on `fn`+`q`..`p`, each with its own tilt personality.
-A `*` in the status bar means you've saved your own version over the slot
-(`fn`+`shift`+letter); *Sound reset* in settings restores factory.
+Ten sounds on `fn`+`q`..`p`, each with its own tilt personality — but **not the
+same ten on every device.** Slot `q` is always **GLIDE** (the home/boot sound);
+slots `w`..`p` are **rolled unique to your unit at first boot**, from a seed only
+your device has. Two people holding the same Cardputer don't start from the same
+nine sounds. A `*` by a name means it's your own sound — made or saved — rather
+than the stock factory voice; *Sound reset* restores that slot's factory voice,
+and *Reset all sounds* brings the whole named factory bank back.
+
+The table below is that **named factory bank** — the "roots" you can always
+return to, and the character the engine ships with. Out of the box you'll be
+playing your device's own rolled variations of it; see *Your own sounds* below.
 
 | key | sound | character | tilt does |
 |-----|-------|-----------|-----------|
@@ -297,18 +305,62 @@ next knob — or the one after that — will never again wipe the sounds you've
 already saved. Expansion is the point: the further you can get from the
 default, the more the instrument is *yours*.
 
+## Your own sounds: roll, mutate, keep
+
+The deep engine above is the *how*; this is the *point*. The randomizer isn't a
+buried novelty any more — it's the center of gravity, and it's built so finding
+a sound feels like play. Everything lives in settings → *SOUND*, and every
+action auditions on the spot (a short fixed lick, so you can A/B two rolls):
+
+- **Randomize** — roll a whole new patch in one tap. Oscillator, filter,
+  envelopes, drive, FX, the LFOs and a few mod-matrix routings, all painted
+  within musical bounds so a roll is always playable, never dead or blown out.
+  Roll till you love one.
+- **Mutate** (with **Mutate amt**) — don't start over: *evolve the sound you
+  have.* A gentle mutate is a neighbour — same character, nudged; a wild one
+  rewrites it. This is sculpting toward a vibe instead of pulling a slot machine.
+- **Undo / Redo** — the safety net that makes the whole thing fearless. Every
+  roll, mutate and init checkpoints first, so you can always step back to the
+  sound you just had. *You can experiment without ever trashing a keeper.*
+- **Init** — a blank, neutral sound to build up by hand.
+
+**Keeping what you find — two ways:**
+
+- **Fast:** `fn`+`shift`+`q`..`p` saves the live sound onto one of the ten slots,
+  exactly as before. Your quick-access favourites.
+- **Unlimited:** **Save to SD** writes the sound to the microSD as a `.gpat`
+  file, auto-named from the sound itself — `warm-haze-3f`, `frost-choir-1a`.
+  **Load from SD** browses your whole library back. The card holds as many
+  sounds as you'll ever roll, they're named so they're recognisably *yours*, and
+  because every file is the same tagged format the slots use, the library
+  survives firmware updates and travels card-to-card. (The instrument plays
+  perfectly with no card in it — SD only *grows* the library past the ten slots.)
+
+And **Re-roll bank** is the big red button: nine brand-new slots from a fresh
+seed in one tap (`q` stays GLIDE). A whole new instrument when you want to start
+over. *Reset all sounds* is the way back to the named factory bank.
+
+> The seeded generator lives in `dsp/sound_gen` — pure, deterministic and
+> host-tested, the same as the synth voice. See
+> [docs/random-sound-generation.md](docs/random-sound-generation.md) for the
+> design (and the note on the hardware-unverified SD pins).
+
 ## The philosophy, encoded
 
-- **One device, your sound.** Everyone who buys a Cardputer holds the same 56
-  keys and the same one-watt speaker — but the engine is deep enough that no two
-  players' instruments need sound alike. A modulation matrix (two LFOs, a second
-  envelope, tilt and per-note random as sources, routable to pitch, filter, amp,
-  drive and the FX), a multimode filter, and a full send-FX rack — all saveable,
-  and thanks to the tagged patch format, **never wiped by a future update.** The
-  defaults get you playing in minutes; the depth is there so the sound becomes
-  unmistakably *yours*. Owning one shouldn't mean sounding like everyone else who
-  owns one — the instrument is a starting point, not a preset. Every knob added
-  widens the distance one player can put between their sound and the next.
+- **One device, your sound — literally, from first boot.** Everyone who buys a
+  Cardputer holds the same 56 keys and the same one-watt speaker, so the engine
+  was built deep enough that no two players' instruments need sound alike: a
+  modulation matrix (two LFOs, a second envelope, tilt and per-note random as
+  sources, routable to pitch, filter, amp, drive and the FX), a multimode filter,
+  and a full send-FX rack. But depth you *could* reach isn't the same as a device
+  that's *already* yours — so the instrument now seeds its own bank. Every unit
+  rolls its nine non-anchor slots from a seed only it has; two people unboxing the
+  same hardware don't even start from the same sounds. From there the randomizer
+  is the instrument: **roll** a new patch, **mutate** toward a vibe, **undo** back
+  to the one you liked, **keep** it on a slot or to an unlimited SD library named
+  in your own words. Owning one was never meant to mean sounding like everyone
+  else who owns one — and now it doesn't, by default. Thanks to the tagged patch
+  format, none of it is ever wiped by a future update.
 - **The skill gap is the product.** Basic play takes minutes (scale lock +
   degree mapping = first session sounds good). Mastery — clean legato
   overlaps, accurate shape re-fingering, controlled bends into chromatic
@@ -443,7 +495,9 @@ firmware never touches raw I2S and why the library versions are pinned.
 | jam tempo / chord length | 40–240 bpm / 1–8 beats | 100 / 4 | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
 | trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0–100% / momentary, latch | muffle / 70% / momentary | settings (G0 button) |
-| sound slots | 10, factory + user overrides | GLIDE | fn+q..p, fn+shift+q..p |
+| sound slots | 10 (q=GLIDE anchor, w..p rolled unique per device) | per device | fn+q..p, fn+shift+q..p |
+| generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | — | settings (SOUND) |
+| SD library | save / load / delete named .gpat patches (unlimited) | — | settings (SOUND), browser |
 | filter env (atk/dec/depth) | 1ms–2s / 10ms–2s / 0–3+ oct | per sound | settings*/saved in sound |
 | sub / noise / drive / auto-vib | 0–1 / 0–1 / 1–8 / cents | per sound | saved in sound |
 | chorus / delay / reverb send | 0–100% each | per sound | settings (live) |

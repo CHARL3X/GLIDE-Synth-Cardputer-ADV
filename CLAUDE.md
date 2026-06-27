@@ -42,6 +42,37 @@ native env needs `~\.platformio\packages\toolchain-gccmingw32\bin` on PATH.
   keys ≤15 chars, Preferences namespace "glide", dist binary via
   support/copy_dist.py.
 
+## The generative sound system (the "your instrument is yours" core)
+
+The randomizer is a first-class engine feature, not a UI gimmick. It lives in
+`dsp/sound_gen.{h,cpp}` (pure, seeded, deterministic, host-tested):
+- `generateSound(seed)` rolls a complete `GenPatch` (synth + tilt). Deterministic
+  so a per-device seed gives every unit a unique-but-reproducible bank.
+- `mutateSound(base, amount, seed)` evolves a patch within its neighbourhood.
+- `patchHash` + `nameForSeed` give a sound an evocative, content-derived name.
+- All bounds live in one place (the `Range` table) so generate and mutate can't
+  drift a value out of the playable window. If you add a `SynthParams` field,
+  add it to `generateSound`/`mutateSound` too (and a `Range` if continuous).
+
+Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS), a first-boot
+unique bank (fresh devices seed slots w..p; q stays the GLIDE anchor; existing
+devices are never auto-touched — guarded by `bankgen` + `prevBoot==0`),
+`reRollBank()`, and a RAM-only undo/redo history (`historyCheckpoint/Undo/Redo`)
+so a roll never trashes a sound the player liked.
+
+SD library (`io/sd_store.{h,cpp}` + `ui/sd_browser.{h,cpp}`): one `.gpat` file
+per patch, **the same tagged codec as NVS slots**, so cards and slots are
+byte-compatible. Optional + failure-visible: the instrument is fully playable
+with no card. **The SD/SPI pins in `config.h` are HARDWARE-UNVERIFIED** — confirm
+on a real ADV before trusting SD (Phase 0 spirit); nothing about playing the
+instrument depends on the card.
+
+`env:native` compiles `dsp/` only, so `sound_gen` IS host-tested but
+`glide_config` / `sd_store` / `sd_browser` are NOT. After touching those, keep
+the native tests green and review carefully — there's no on-device build here.
+(No `pio` in this environment; reproduce the native gate with
+`g++ -std=gnu++14 -DGLIDE_HOST_BUILD -I src src/test_dsp.cpp src/dsp/*.cpp`.)
+
 ## Adding a sound parameter (the expansion-safe way)
 
 Patches are a **tagged format** (`storage/patch_codec.{h,cpp}`), so adding a
