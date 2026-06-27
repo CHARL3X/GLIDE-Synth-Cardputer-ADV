@@ -137,15 +137,15 @@ bool saveToSlot(int slot, const PatchData& pd);  // write a patch (e.g. an SD-li
                                        // does not disturb the live sound
 
 // ---- generative sound: "your instrument is yours" -----------------------
-// Every unit gets a stable, unique seed at first boot. On a FRESH device the
-// nine non-anchor slots (w..p) are filled with random patches rolled from that
-// seed, so no two players' instruments sound alike out of the box; slot 0 (q)
-// stays GLIDE as the home/boot anchor. Existing devices are never touched
-// automatically — they opt in via reRollBank().
+// The bank is curated (q=GLIDE, w=ACID, e..i = the baked SD presets), but the
+// last two slots (o,p — slot >= dsp::kFirstGenSlot) are GENERATIVE: filled with
+// patches rolled from the unit's stable unique seed, so no two players' o,p
+// sound alike. The seed is created once at first boot and persisted. reRollBank()
+// resets the bank to stock and rolls fresh randoms for o,p.
 uint32_t deviceSeed();                 // this unit's stable unique seed
-void reRollBank();                     // a whole new instrument: regenerate w..p
-                                       // from a fresh seed (q stays GLIDE), then
-                                       // reload the current slot live
+void reRollBank();                     // reset the bank to the curated presets and
+                                       // roll fresh randoms for o,p, then reload
+                                       // the current slot live
 void applyStoredPatch(const PatchData& pd);   // load an SD-library patch -> live
 void applyGenerated(const dsp::GenPatch& g);  // load a rolled/mutated sound ->
                                        // live working sound (keeps master vol;

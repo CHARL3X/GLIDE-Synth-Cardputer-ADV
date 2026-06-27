@@ -9,8 +9,17 @@ namespace dsp {
 
 constexpr int kPatchCount = 10;
 
+// The bank is CURATED, not random: q (slot 0) is GLIDE, w (slot 1) is ACID,
+// and slots 2..kFirstGenSlot-1 are hand-picked preset instruments. Only the
+// slots from kFirstGenSlot up are the per-device generative slots — they ignore
+// their factory definition below (which is just a fallback) and are regenerated
+// from the unit's seed on demand (see glide_config loadPatchData). So o,p are
+// the unique-per-device "roll" slots; everything else is the same on every unit.
+constexpr int kFirstGenSlot = 8;  // o,p (8,9) are generative; q..i are curated
+
 struct Patch {
-    char name[8];        // shown in the status bar and HUD
+    char name[16];       // shown in the status bar and HUD (room for the SD
+                         // preset names, e.g. "Fatter square")
     SynthParams synth;
     TiltRoute tiltRoute;       // axis A (forward/back) route
     float tiltDepth;           // axis A depth, 0..1

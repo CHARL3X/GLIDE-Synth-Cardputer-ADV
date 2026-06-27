@@ -125,11 +125,13 @@ bool loadBlob(const char* key, PatchBlob& out) {
 void genToPatchData(const dsp::GenPatch& g, PatchData& pd);  // defined below
 uint32_t slotSeed(uint32_t seed, int slot);                 // defined below
 
-// Load a slot into a PatchData. Order: a USER override blob wins; else slot 0 is
-// the GLIDE factory anchor; else (w..p) the unit's generative bank, REGENERATED
-// from the seed on demand — not stored, because it's deterministic and the
-// shared NVS partition is tiny. Seeds from the factory patch first so any field
-// a stored blob predates keeps its default. Handles the new tagged format and
+// Load a slot into a PatchData. Order: a USER override blob wins; else the
+// CURATED factory patch for this slot (q=GLIDE, w=ACID, e..i = the player's
+// baked SD presets) — EXCEPT the two generative slots (o,p, i.e. slot >=
+// kFirstGenSlot), which have no fixed identity and are REGENERATED from the
+// unit's seed on demand (deterministic, so nothing is stored and the tiny
+// shared NVS stays free). Seeds from the factory patch first so any field a
+// stored blob predates keeps its default. Handles the new tagged format and
 // legacy binary blobs. Returns true iff a user override blob exists.
 bool loadPatchData(int slot, PatchData& out) {
     const dsp::Patch& fp = dsp::factoryPatches()[slot];
@@ -143,9 +145,9 @@ bool loadPatchData(int slot, PatchData& out) {
     patchKey(slot, key);
     const size_t len = gPrefs.getBytesLength(key);
     if (len == 0) {  // no user override
-        if (slot > 0)  // w..p: regenerate this unit's bank sound from the seed
+        if (slot >= dsp::kFirstGenSlot)  // o,p: regenerate this unit's sound from the seed
             genToPatchData(dsp::generateSound(slotSeed(gSeed, slot)), out);
-        return false;  // q (slot 0) keeps the factory GLIDE seed already set above
+        return false;  // q..i keep their curated factory patch (already seeded above)
     }
 
     uint8_t buf[512];
@@ -379,13 +381,15 @@ void begin() {
         if (allOk) gPrefs.putBool("tlv1", true);
     }
 
-    // The unique bank (w..p) is REGENERATED from the seed on demand (see
-    // loadPatchData), not stored — it's deterministic, and the NVS partition is
-    // tiny and SHARED with every other Launcher app, so storing 9 patch blobs
-    // (~3.5 KB) would crowd it out and make real saves fail. Slot 0 (q) stays the
-    // GLIDE factory anchor. So there's nothing to write at first boot.
+    // The bank is CURATED now: q..i are fixed factory sounds (GLIDE, ACID, and
+    // the player's baked SD presets), and only the two generative slots (o,p)
+    // are REGENERATED from the seed on demand (see loadPatchData). Nothing is
+    // stored at boot — the curated slots are compiled in, the generative two are
+    // deterministic from the seed — so the tiny shared NVS partition stays free
+    // for real saves. A slot only holds an NVS blob once the player overrides it.
     //
-    // Self-heal: older builds DID store the bank as blobs. Reclaim that space —
+    // Self-heal: older builds stored the (then fully random) bank as blobs.
+    // Reclaim that space —
     // drop any stored slot blob whose sound still EXACTLY matches its regenerated
     // default (a sound you actually saved has a different hash and is left
     // untouched). Runs once (the "regen1" sentinel). (void)freshDevice — the bank
@@ -815,19 +819,18 @@ void applyStoredPatch(const PatchData& pd) {
 }
 
 void reRollBank() {
-    // A whole new instrument. Roll a fresh seed so this is genuinely different
-    // from last time (not a repeat of the boot bank), then regenerate every
-    // non-anchor slot. Slot 0 (q) is reset to the pure GLIDE factory anchor so
-    // "q is home" always holds. Deliberately destructive — like Reset all
-    // sounds, it's a choice the player makes, not something that happens to them.
+    // Reset the bank to stock AND roll fresh randoms for the two generative
+    // slots. A new seed makes o,p genuinely different from last time; clearing
+    // every override drops any saved sound and returns q..i to their curated
+    // factory presets (q=GLIDE ... i=the SD presets). Deliberately destructive —
+    // like Reset all sounds, it's a choice the player makes, not something that
+    // happens to them. No blobs are written (curated slots are compiled in, o,p
+    // regenerate on demand), so this also FREES whatever NVS the old saves held.
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
     if (gNvsOk) gPrefs.putUInt("seed", gSeed);
-    // Drop every override (q back to GLIDE; w..p revert to the new seed's bank).
-    // No blobs are written — the new bank is regenerated on demand, so this also
-    // FREES whatever NVS the old saves held.
     for (int i = 0; i < dsp::kPatchCount; ++i) clearOverride(i);
-    cacheAllSlotNames();                // names now reflect the regenerated bank
+    cacheAllSlotNames();                // names now reflect the reset bank + new o,p
     applyPatch(gCfg.currentPatch);      // reload whatever slot is current, live
 }
 

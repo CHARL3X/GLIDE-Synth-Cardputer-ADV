@@ -11,12 +11,20 @@ void setName(Patch& p, const char* n) {
     p.name[sizeof p.name - 1] = '\0';
 }
 
-// The factory bank, rebuilt as ten genuine instruments rather than ten raw
-// waveforms. Each leans on the engine's real character makers — fat-saw
-// detune, the paraphonic filter envelope (motion = the difference between
-// "alive" and "cheap"), tube-ish drive, and the chorus/delay/reverb send
-// block — so every slot is something you'd actually reach for. ACID and ORGAN
-// are kept verbatim (the player asked); the other eight are new.
+// The factory bank — a CURATED set the player hand-picked, not random sounds:
+//   q  GLIDE   the signature / boot tone (the engine default)
+//   w  ACID    the resonant 303 squelch (kept verbatim — the player's favourite)
+//   e  Bass        |
+//   r  Solo        |
+//   t  Ethereal    | six presets the player designed with the generative engine
+//   y  Fat Square  | and saved to the SD card, baked in here verbatim (decoded
+//   u  Fatter sq.  | from the .gpat files) so they ship in the box, card or not
+//   i  FattySlider |
+//   o  (generative)  the two per-device "roll" slots — see kFirstGenSlot. The
+//   p  (generative)  BRASS/GLASS definitions below are just a fallback; these
+//                    slots are regenerated from the unit's seed at runtime.
+// The six preset values came straight off the card via the patch codec, so the
+// in-box bank is exactly what the player heard when they saved them.
 void buildBank(Patch* P) {
     // q — GLIDE: the signature, AND the literal power-on sound. It is therefore
     // the engine's default tone, deliberately: a clean, dry saw — 4 kHz cutoff,
@@ -49,99 +57,11 @@ void buildBank(Patch* P) {
     //   s.chorusDepth = 0.55f; s.delayMix = 0.12f; s.delayFb = 0.26f; s.delaySync = 3;
     //   s.reverbMix = 0.28f; s.reverbSize = 0.62f;
     //   tiltRoute = Vibrato (0.55), tiltRouteB = Cutoff (0.6)
-    // w — EPIANO: a mellow electric piano. Triangle body (few harmonics =
-    // soft), a light tube drive for the Rhodes "bark," a faint env-gated
-    // noise knock on the attack, and a short bright filter ping that decays
-    // into the body. The classic chorus + plate make it sing under chords.
+    // w — ACID: resonant squelch; tilt IS the wah. Lean into it. A dub delay
+    // with heavy regen and a little room give the 303 line space to breathe
+    // between squelches. (Kept verbatim — the player's favourite, moved to w.)
     {
         Patch& p = P[1];
-        setName(p, "EPIANO");
-        auto& s = p.synth;
-        s.wave = Waveform::Triangle;   // soft, few harmonics — the EP body
-        s.drive = 1.4f;                // a little Rhodes "bark"
-        s.cutoffHz = 2800.f;
-        s.resonance = 0.06f;           // smooth, no whistle
-        s.fenvAtkS = 0.001f;
-        s.fenvOct = 1.8f;              // the bright "tine" strike...
-        s.fenvDecS = 0.18f;            // ...a quick ping settling into the body
-        s.attackS = 0.003f;
-        s.decayS = 0.7f;
-        s.sustain = 0.22f;             // EPs ring down, they don't hold flat
-        s.releaseS = 0.45f;
-        s.noiseLevel = 0.03f;          // key knock
-        s.glideS = 0.04f;
-        s.chorusDepth = 0.35f;         // the classic EP chorus — width, kept in tune
-        s.reverbMix = 0.20f;
-        s.reverbSize = 0.5f;           // a small plate
-        p.tiltRoute = TiltRoute::Cutoff;
-        p.tiltDepth = 0.4f;
-        p.tiltRouteB = TiltRoute::Vibrato;  // roll = a Rhodes wobble
-        p.tiltDepthB = 0.35f;
-    }
-    // e — HARP: a bright, articulate plucked string. Full pluck (sustain 0),
-    // a snappy filter attack that decays to a round body, and a cascading
-    // delay into a long hall — runs and arpeggios bloom, and the short glide
-    // gives grace-note slides between strings.
-    {
-        Patch& p = P[2];
-        setName(p, "HARP");
-        auto& s = p.synth;
-        s.wave = Waveform::Saw;
-        s.drive = 1.2f;                // clean and clear
-        s.cutoffHz = 1800.f;
-        s.resonance = 0.18f;
-        s.fenvAtkS = 0.001f;
-        s.fenvOct = 2.0f;              // bright pluck attack...
-        s.fenvDecS = 0.35f;            // ...mellowing to a round body
-        s.attackS = 0.001f;
-        s.decayS = 0.6f;
-        s.sustain = 0.f;               // a true pluck
-        s.releaseS = 0.4f;
-        s.glideS = 0.04f;
-        s.chorusDepth = 0.18f;         // a hint of width
-        s.delayMix = 0.28f;
-        s.delayFb = 0.34f;
-        s.delaySync = 2;               // dotted-eighth: runs and arpeggios lock up
-        s.reverbMix = 0.30f;
-        s.reverbSize = 0.72f;          // a concert hall
-        p.tiltRoute = TiltRoute::Cutoff;
-        p.tiltDepth = 0.4f;
-        p.tiltRouteB = TiltRoute::Volume;  // roll = pluck dynamics / swell
-        p.tiltDepthB = 0.4f;
-    }
-    // r — BASS: a fat, modern analog bass. Saw over a square sub for weight,
-    // pushed into the clipper for growl, with a snappy filter-env pluck (the
-    // Moog "tuumph"). Tight envelope, kept dry so the low end stays punchy,
-    // and a slow glide for sliding basslines — exactly the GLIDE move.
-    {
-        Patch& p = P[3];
-        setName(p, "BASS");
-        auto& s = p.synth;
-        s.wave = Waveform::Saw;
-        s.subLevel = 0.6f;             // square sub-octave for weight
-        s.drive = 2.2f;                // growl, short of mud
-        s.cutoffHz = 650.f;
-        s.resonance = 0.26f;
-        s.fenvAtkS = 0.001f;
-        s.fenvOct = 2.2f;              // the percussive filter pluck (Moog "tuumph")
-        s.fenvDecS = 0.13f;
-        s.attackS = 0.002f;
-        s.decayS = 0.16f;
-        s.sustain = 0.5f;
-        s.releaseS = 0.12f;
-        s.glideS = 0.07f;              // sliding basslines — the GLIDE move
-        // NO chorus / reverb: bass stays mono, dry and tight. Chorus on the low
-        // end is pitch-smear — the "too detuned" trap — so it gets none.
-        p.tiltRoute = TiltRoute::Cutoff;
-        p.tiltDepth = 0.5f;
-        p.tiltRouteB = TiltRoute::Volume;  // roll = subtle dynamics (no bass wobble)
-        p.tiltDepthB = 0.3f;
-    }
-    // t — ACID: resonant squelch; tilt IS the wah. Lean into it. A dub delay
-    // with heavy regen and a little room give the 303 line space to breathe
-    // between squelches. (Kept — the player likes this one.)
-    {
-        Patch& p = P[4];
         setName(p, "ACID");
         auto& s = p.synth;
         s.wave = Waveform::Saw;
@@ -162,112 +82,174 @@ void buildBank(Patch* P) {
         p.tiltRoute = TiltRoute::Cutoff;
         p.tiltDepth = 1.f;
     }
-    // y — PAD: a crisp, animated PWM wash (Juno lineage). A single pulse whose
-    // width breathes under the engine's built-in 0.6 Hz LFO gives constant
-    // motion; a brighter, resonant filter with a per-note bloom keeps it
-    // articulate instead of mushy; deep chorus widens the mono oscillator into
-    // a real ensemble, and an eighth-note shimmer + hall add air. Always-glides,
-    // so chords slide between changes — the pad you solo a progression over.
+    // e — Bass: a fat pulse bass — a square sub-octave for weight, pushed into
+    // the clipper for growl, with a snappy filter-env pluck. Tilt opens the
+    // cutoff (the wah/squelch), roll adds a touch of vibrato. (SD preset.)
     {
-        Patch& p = P[5];
-        setName(p, "PAD");
+        Patch& p = P[2];
+        setName(p, "Bass");
         auto& s = p.synth;
-        s.wave = Waveform::Pulse;        // PWM: the breathing width IS the motion
-        s.drive = 1.3f;
-        s.cutoffHz = 3400.f;             // bright -> crisp, not a dark mush
-        s.resonance = 0.20f;             // a vocal sheen at the corner
-        s.fenvOct = 1.6f;                // each note blooms open...
-        s.fenvAtkS = 0.04f;
-        s.fenvDecS = 0.8f;               // ...then settles: slow filter motion
-        s.attackS = 0.16f;               // present and articulate, not a slow swell
-        s.decayS = 0.6f;
-        s.sustain = 0.78f;
-        s.releaseS = 1.2f;
-        s.autoVibCents = 1.2f;           // a breath of life (was a touch much)
-        s.glideS = 0.07f;                 // fluid between chords but quick enough to
-                                          // play fast runs (0.28 trapped notes mid-slide)
-        s.glideMode = GlideMode::Always;  // fluid between chords — less "stepped"
-        s.chorusDepth = 0.5f;            // ensemble width — pulled back, less wobble
-        s.delayMix = 0.18f;
-        s.delayFb = 0.30f;
-        s.delaySync = 3;                 // 1/8 shimmer locked to the jam tempo
-        s.reverbMix = 0.40f;
-        s.reverbSize = 0.82f;
-        p.tiltRoute = TiltRoute::Cutoff;   // lean = open it up brighter still
-        p.tiltDepth = 0.5f;
-        p.tiltRouteB = TiltRoute::Volume;  // roll = swell the wash
-        p.tiltDepthB = 0.5f;
+        s.wave = Waveform::Pulse;
+        s.attackS = 0.0061f;
+        s.decayS = 0.1802f;
+        s.sustain = 0.745f;
+        s.releaseS = 0.6701f;
+        s.glideS = 0.0774f;
+        s.cutoffHz = 516.8f;
+        s.resonance = 0.092f;
+        s.detuneCents = 10.49f;
+        s.fenvDecS = 0.1566f;
+        s.fenvOct = 1.542f;
+        s.subLevel = 0.644f;
+        s.drive = 3.176f;
+        p.tiltRoute = TiltRoute::Cutoff;
+        p.tiltDepth = 0.842f;
+        p.tiltRouteB = TiltRoute::Vibrato;
+        p.tiltDepthB = 0.393f;
     }
-    // u — LEAD: the expressive solo voice. Fat driven saws with a touch of
-    // filter bite on the attack, a subtle singing vibrato (kept small so it
-    // breathes, never seasick), and a DOTTED-EIGHTH delay locked to the jam
-    // tempo — the Edge/Gilmour trick — so the solo sits in the groove over a
-    // progression or latched backing.
+    // r — Solo: a bright square lead, always-gliding, with a 1/8-triplet delay,
+    // a touch of chorus and a singing vibrato tilt — sits over a progression.
+    // (SD preset.)
     {
-        Patch& p = P[6];
-        setName(p, "LEAD");
-        auto& s = p.synth;
-        s.wave = Waveform::FatSaw;
-        s.detuneCents = 8.f;       // gentle, in-tune fatness (14 read as detuned)
-        s.drive = 2.4f;
-        s.cutoffHz = 3400.f;
-        s.resonance = 0.16f;
-        s.fenvOct = 1.0f;
-        s.fenvDecS = 0.25f;
-        s.attackS = 0.01f;
-        s.decayS = 0.2f;
-        s.sustain = 0.8f;
-        s.releaseS = 0.3f;
-        s.autoVibCents = 2.5f;     // a singing vibrato, never seasick
-        s.glideS = 0.09f;
-        s.glideMode = GlideMode::Always;  // a singing lead that glides between notes
-        s.chorusDepth = 0.22f;     // subtle width
-        s.delayMix = 0.28f;
-        s.delayFb = 0.34f;
-        s.delaySync = 2;           // dotted-eighth, locked to the jam tempo
-        s.reverbMix = 0.22f;
-        s.reverbSize = 0.6f;
-        p.tiltRoute = TiltRoute::Vibrato;
-        p.tiltDepth = 0.6f;
-        p.tiltRouteB = TiltRoute::Cutoff;  // sing on f/b, brighten on roll
-        p.tiltDepthB = 0.6f;
-    }
-    // i — ORGAN: a soulful tonewheel/drawbar organ. Square + a 16' sub for the
-    // drawbar body, a fast bright filter PING on every key (the B3 "percussion"
-    // drawbar) with a touch of key-click noise, a little tube growl for grit,
-    // and a Leslie standing in as deep chorus + a slow pitch warble. Instant
-    // on/off keeps it articulate; tilt is the swell pedal, roll leans the Leslie.
-    {
-        Patch& p = P[7];
-        setName(p, "ORGAN");
+        Patch& p = P[3];
+        setName(p, "Solo");
         auto& s = p.synth;
         s.wave = Waveform::Square;
-        s.subLevel = 0.7f;             // 16' drawbar body
-        s.attackS = 0.004f;
-        s.decayS = 0.12f;
-        s.sustain = 1.f;
-        s.releaseS = 0.09f;
-        s.cutoffHz = 6000.f;           // brighter drawbars -> richer
-        s.resonance = 0.10f;
-        s.fenvAtkS = 0.001f;           // instant...
-        s.fenvOct = 1.5f;              // ...bright percussive PING on each key...
-        s.fenvDecS = 0.10f;            // ...decaying into the sustained body (B3 perc)
-        s.noiseLevel = 0.022f;         // key click
-        s.drive = 1.9f;                // tonewheel/Leslie-amp growl = the soul
-        s.autoVibCents = 2.2f;         // Leslie pitch warble — tighter, classier
-        s.glideS = 0.04f;              // tight
-        s.chorusDepth = 0.55f;         // rotary shimmer, not seasick
-        s.reverbMix = 0.22f;           // a little chapel
-        s.reverbSize = 0.58f;
-        p.tiltRoute = TiltRoute::Volume;    // swell pedal (kept — it's great)
-        p.tiltDepth = 0.8f;
-        p.tiltRouteB = TiltRoute::Vibrato;  // roll = lean into the Leslie warble
-        p.tiltDepthB = 0.45f;
+        s.glideMode = GlideMode::Always;
+        s.attackS = 0.1437f;
+        s.decayS = 0.5243f;
+        s.sustain = 0.491f;
+        s.releaseS = 0.5278f;
+        s.glideS = 0.0209f;
+        s.cutoffHz = 3943.9f;
+        s.resonance = 0.181f;
+        s.detuneCents = 17.24f;
+        s.fenvDecS = 0.2571f;
+        s.fenvOct = 0.626f;
+        s.drive = 3.814f;
+        s.chorusDepth = 0.194f;
+        s.delayMix = 0.355f;
+        s.delayFb = 0.361f;
+        s.delaySync = 4;               // 1/8 triplet, locked to the jam tempo
+        s.slots[0] = ModSlot::make(ModSource::LFO2, ModDest::Drive, 0.037f);
+        s.slots[1] = ModSlot::make(ModSource::LFO2, ModDest::Reverb, -0.020f);
+        p.tiltRoute = TiltRoute::Vibrato;
+        p.tiltDepth = 0.474f;
+        p.tiltDepthB = 0.368f;
     }
-    // o — BRASS: a bold synth-brass section (Jupiter/OB lineage). Detuned saws
-    // with a deliberately slower FILTER attack (fenvAtk) so each note swells
-    // up into the "blat," pushed with drive for body. Great for stabs, chords
-    // and powerful leads; chorus + hall widen the section.
+    // t — Ethereal: a soft triangle pad, long always-glide, a roomy hall. Tilt
+    // is a deep singing vibrato; roll swells the volume. (SD preset.)
+    {
+        Patch& p = P[4];
+        setName(p, "Ethereal");
+        auto& s = p.synth;
+        s.wave = Waveform::Triangle;
+        s.glideMode = GlideMode::Always;
+        s.attackS = 0.0714f;
+        s.decayS = 0.3955f;
+        s.sustain = 0.788f;
+        s.releaseS = 0.2563f;
+        s.glideS = 0.0073f;
+        s.cutoffHz = 1235.0f;
+        s.resonance = 0.235f;
+        s.detuneCents = 0.f;
+        s.fenvDecS = 0.3814f;
+        s.fenvOct = 1.191f;
+        s.drive = 1.144f;
+        s.reverbMix = 0.320f;
+        s.reverbSize = 0.698f;
+        p.tiltRoute = TiltRoute::Vibrato;
+        p.tiltDepth = 0.831f;
+        p.tiltRouteB = TiltRoute::Volume;
+        p.tiltDepthB = 0.579f;
+    }
+    // y — Fat Square: a punchy square with a bright per-note filter bloom and a
+    // faint noise knock on the attack; tilt opens the cutoff. (SD preset — the
+    // "fat" one of the family.)
+    {
+        Patch& p = P[5];
+        setName(p, "Fat Square");
+        auto& s = p.synth;
+        s.wave = Waveform::Square;
+        s.attackS = 0.0129f;
+        s.decayS = 0.5112f;
+        s.sustain = 0.885f;
+        s.releaseS = 0.1001f;
+        s.glideS = 0.0179f;
+        s.cutoffHz = 5020.1f;
+        s.resonance = 0.065f;
+        s.detuneCents = 0.f;
+        s.fenvDecS = 0.4776f;
+        s.fenvOct = 1.814f;
+        s.subLevel = 0.007f;
+        s.noiseLevel = 0.055f;
+        s.drive = 1.025f;
+        p.tiltRoute = TiltRoute::Cutoff;
+        p.tiltDepth = 0.839f;
+        p.tiltDepthB = 0.739f;
+    }
+    // u — Hollow: a bright, driven square run through a NOTCH filter — phasey
+    // and hollow rather than dark — with a short room. Tilt swells the volume,
+    // roll opens the cutoff. (SD preset, formerly "Fatter square".)
+    {
+        Patch& p = P[6];
+        setName(p, "Hollow");
+        auto& s = p.synth;
+        s.wave = Waveform::Square;
+        s.attackS = 0.0358f;
+        s.decayS = 0.4702f;
+        s.sustain = 0.871f;
+        s.releaseS = 0.3639f;
+        s.glideS = 0.0086f;
+        s.cutoffHz = 6507.5f;
+        s.resonance = 0.027f;
+        s.filterMode = 3;          // notch: the hollow/phasey character
+        s.detuneCents = 0.f;
+        s.fenvDecS = 0.1386f;
+        s.drive = 2.700f;
+        s.reverbMix = 0.245f;
+        s.reverbSize = 0.526f;
+        p.tiltRoute = TiltRoute::Volume;
+        p.tiltDepth = 0.579f;
+        p.tiltRouteB = TiltRoute::Cutoff;
+        p.tiltDepthB = 0.712f;
+    }
+    // i — Drift: a lush, always-gliding square — slow swell, deep chorus and a
+    // 1/8 delay over a sub-fattened body, with a slow filter bloom. The most
+    // "sliding" of the set; tilt opens the cutoff. (SD preset, formerly
+    // "FattySlider".)
+    {
+        Patch& p = P[7];
+        setName(p, "Drift");
+        auto& s = p.synth;
+        s.wave = Waveform::Square;
+        s.glideMode = GlideMode::Always;
+        s.attackS = 0.2052f;
+        s.decayS = 0.3953f;
+        s.sustain = 0.743f;
+        s.releaseS = 0.3814f;
+        s.glideS = 0.0386f;
+        s.cutoffHz = 3431.0f;
+        s.resonance = 0.403f;
+        s.detuneCents = 0.f;
+        s.fenvDecS = 0.4549f;
+        s.fenvOct = 1.526f;
+        s.subLevel = 0.213f;
+        s.noiseLevel = 0.034f;
+        s.drive = 2.084f;
+        s.chorusDepth = 0.596f;
+        s.delayMix = 0.335f;
+        s.delayFb = 0.556f;
+        s.delaySync = 3;               // 1/8, locked to the jam tempo
+        p.tiltRoute = TiltRoute::Cutoff;
+        p.tiltDepth = 0.836f;
+        p.tiltDepthB = 0.719f;
+    }
+    // o — generative slot (see kFirstGenSlot): regenerated from the unit's seed
+    // at runtime, so this definition is only a fallback if generation is ever
+    // disabled. Kept as BRASS — a bold synth-brass section (Jupiter/OB lineage):
+    // detuned saws with a slower FILTER attack so each note swells into the
+    // "blat," pushed with drive for body; chorus + hall widen the section.
     {
         Patch& p = P[8];
         setName(p, "BRASS");
@@ -297,10 +279,11 @@ void buildBank(Patch* P) {
         p.tiltRouteB = TiltRoute::Vibrato;  // roll = section shake on the brass
         p.tiltDepthB = 0.4f;
     }
-    // p — GLASS: a crystalline struck bell / mallet. Triangle struck hard
-    // (sustain 0) with a fast bright ping, then a long shimmering delay + hall
-    // tail it rings out into. Ethereal and very different from the rest —
-    // celeste/glockenspiel territory; the slow glide bends the bell on slides.
+    // p — generative slot (see kFirstGenSlot): regenerated from the unit's seed
+    // at runtime; this definition is only a fallback. Kept as GLASS — a
+    // crystalline struck bell/mallet: triangle struck hard (sustain 0) with a
+    // fast bright ping, then a long shimmering delay + hall tail it rings out
+    // into; the slow glide bends the bell on slides.
     {
         Patch& p = P[9];
         setName(p, "GLASS");

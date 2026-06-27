@@ -549,14 +549,15 @@ void aSaveSd(int) {
 void fLoadSd(char* o, int c) { snprintf(o, c, "browse card ,/"); }
 void aLoadSd(int) { gOpenSdLoad = true; }  // run() opens the browser modal
 
-// A whole new instrument: regenerate the nine non-anchor slots (w..p) from a
-// fresh seed. q stays GLIDE. This OVERWRITES any sounds saved in w..p with new
-// random ones and can't be undone — so unlike Randomize/Mutate (which only
-// touch the undoable live sound), it asks for a confirming second tap.
+// Reset the bank to stock + roll fresh randoms for the two generative slots
+// (o,p). This drops every saved override — q..i return to their curated factory
+// presets and o,p get brand-new random sounds — and can't be undone, so unlike
+// Randomize/Mutate (which only touch the undoable live sound) it asks for a
+// confirming second tap.
 constexpr uint32_t kReRollArmMs = 3000;
 bool reRollArmed() { return gReRollArmed && (millis() - gReRollArmedAt < kReRollArmMs); }
 void fReRoll(char* o, int c) {
-    snprintf(o, c, "%s", reRollArmed() ? "SURE? tap again" : "re-roll bank ,/");
+    snprintf(o, c, "%s", reRollArmed() ? "SURE? tap again" : "reset bank, roll o/p ,/");
 }
 void aReRoll(int) {
     if (reRollArmed()) {

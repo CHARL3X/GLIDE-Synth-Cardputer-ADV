@@ -54,11 +54,16 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
   drift a value out of the playable window. If you add a `SynthParams` field,
   add it to `generateSound`/`mutateSound` too (and a `Range` if continuous).
 
-Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS), a first-boot
-unique bank (fresh devices seed slots w..p; q stays the GLIDE anchor; existing
-devices are never auto-touched — guarded by `bankgen` + `prevBoot==0`),
-`reRollBank()`, and a RAM-only undo/redo history (`historyCheckpoint/Undo/Redo`)
-so a roll never trashes a sound the player liked.
+Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS). The bank is
+**curated**, not random: slots q..i are fixed factory sounds (q=GLIDE, w=ACID,
+e..i = presets baked from the player's SD `.gpat` files — see `dsp/patches.cpp`),
+and only the last two slots (o,p, i.e. `slot >= dsp::kFirstGenSlot`) are
+GENERATIVE — regenerated from the seed on demand in `loadPatchData` (nothing
+stored). `reRollBank()` resets the bank to those presets and rolls fresh randoms
+for o,p. A RAM-only undo/redo history (`historyCheckpoint/Undo/Redo`) means a
+Randomize/Mutate never trashes a sound the player liked. (Earlier builds filled
+ALL of w..p generatively at first boot; the `regen1` self-heal reclaims any blobs
+those left behind.)
 
 SD library (`io/sd_store.{h,cpp}` + `ui/sd_browser.{h,cpp}`): one `.gpat` file
 per patch, **the same tagged codec as NVS slots**, so cards and slots are
