@@ -799,17 +799,20 @@ bool isCreateButton(int i) {
 }
 // Draw one stacked button filling the row at y. Selected = amber outline + text;
 // flash = filled amber (the one-shot fire confirm); idle = dim outline + text.
+// The label is MIDDLE-centred in the box — Font2 is taller than the row, so a
+// top baseline drops the letters' bottoms past the box edge (they got clipped by
+// the next row). The labels have no descenders, so centring fits cleanly.
 void drawActionButton(M5Canvas& c, int y, const char* label, bool sel, bool flash) {
-    const int x = 6, w = cfg::kScreenW - 12, h = 12;
+    const int x = 6, w = cfg::kScreenW - 12, top = y - 1, h = 12;  // fits the 13px row
     const uint16_t border = (flash || sel) ? theme::kAmber : theme::kLine;
     const uint16_t fill   = flash ? theme::kAmber : (sel ? theme::kPanel : theme::kBg);
     const uint16_t txt    = flash ? theme::kBg : (sel ? theme::kAmber : theme::kDim);
-    c.fillRoundRect(x, y - 1, w, h, 3, fill);
-    c.drawRoundRect(x, y - 1, w, h, 3, border);
+    c.fillRoundRect(x, top, w, h, 3, fill);
+    c.drawRoundRect(x, top, w, h, 3, border);
     c.setFont(&fonts::Font2);
-    c.setTextDatum(top_center);  // centred horizontally, normal baseline (no clip)
-    c.setTextColor(txt, fill);
-    c.drawString(label, cfg::kScreenW / 2, y);
+    c.setTextDatum(middle_center);  // vertical-centre so the (descenderless) label
+    c.setTextColor(txt, fill);      // sits inside the box instead of dropping out
+    c.drawString(label, cfg::kScreenW / 2, top + h / 2);
     c.setTextDatum(top_left);
 }
 
