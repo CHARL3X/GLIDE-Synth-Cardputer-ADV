@@ -59,6 +59,13 @@ struct Item {
                       // toggles/actions stay tap-only (left {} = false by default)
 };
 
+// A value string ending in this (non-printing) tag tells the row renderer to draw
+// the , and / keys' LEFT/RIGHT arrow icons after the text — the "press left/right
+// here" affordance on action rows. Those keys are silk-screened with arrows, so
+// we show the arrows, not the literal punctuation. Drawn (Font2 has no arrow
+// glyphs); Font0 contexts use the CP437 glyphs \x11 \x10 \x1e \x1f directly.
+constexpr char kLRtag = '\x01';
+
 void fRoot(char* o, int c) { snprintf(o, c, "%s", dsp::kNoteNames[store::get().layout.rootSemis]); }
 void aRoot(int d) {
     auto& l = store::get().layout;
@@ -435,7 +442,7 @@ dsp::GenPatch liveAsGen() {
     return gp;
 }
 
-void fInitSound(char* o, int c) { snprintf(o, c, "blank slate ,/"); }
+void fInitSound(char* o, int c) { snprintf(o, c, "blank slate%c", kLRtag); }
 void aInitSound(int) {
     auto& g = store::get();
     store::historyCheckpoint();                // undoable — never trash a sound
@@ -450,7 +457,7 @@ void aInitSound(int) {
 // THE button. Roll a whole new patch from a fresh hardware-random seed, land it
 // live, and audition it on the spot — hit it until it sings. Nothing is saved
 // until you shift-save onto a slot, so a roll can never wreck a sound you kept.
-void fRandomize(char* o, int c) { snprintf(o, c, "surprise me ,/"); }
+void fRandomize(char* o, int c) { snprintf(o, c, "surprise me%c", kLRtag); }
 void aRandomize(int) {
     store::historyCheckpoint();
     keys::soundSwitchBegin();  // over a jam: freeze the backing so the roll is solo-only
@@ -460,7 +467,7 @@ void aRandomize(int) {
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The
 // amount knob below sets how far it roams.
-void fMutate(char* o, int c) { snprintf(o, c, "evolve this ,/"); }
+void fMutate(char* o, int c) { snprintf(o, c, "evolve this%c", kLRtag); }
 void aMutate(int) {
     store::historyCheckpoint();
     keys::soundSwitchBegin();  // over a jam: evolve the SOLO, the backing holds
@@ -474,7 +481,7 @@ void aMutAmt(int d) { gMutateAmt = clampT(gMutateAmt + d * 0.05f, 0.05f, 1.f); }
 // Non-destructive history: step back to a sound you had, or forward again.
 void fUndo(char* o, int c) {
     const int d = store::historyUndoDepth();
-    if (d > 0) snprintf(o, c, "step back (%d) ,/", d);
+    if (d > 0) snprintf(o, c, "step back (%d)%c", d, kLRtag);
     else       snprintf(o, c, "(nothing back)");
 }
 void aUndo(int) {
@@ -484,7 +491,8 @@ void aUndo(int) {
     audition::start();
 }
 void fRedo(char* o, int c) {
-    snprintf(o, c, "%s", store::historyCanRedo() ? "step forward ,/" : "(nothing fwd)");
+    if (store::historyCanRedo()) snprintf(o, c, "step forward%c", kLRtag);
+    else                         snprintf(o, c, "(nothing fwd)");
 }
 void aRedo(int) {
     if (!store::historyCanRedo()) return;
@@ -520,7 +528,10 @@ void chooseSaveName(const char* base, const dsp::GenPatch& gp, char* out, int ca
     snprintf(out, cap, "%s", base);  // library full of this name (≥8): overwrite base
 }
 
-void fSaveSd(char* o, int c) { snprintf(o, c, "%s", gLastSaved[0] ? gLastSaved : "to SD card ,/"); }
+void fSaveSd(char* o, int c) {
+    if (gLastSaved[0]) snprintf(o, c, "%s", gLastSaved);
+    else               snprintf(o, c, "to SD card%c", kLRtag);
+}
 void aSaveSd(int) {
     const dsp::GenPatch gp = liveAsGen();
     store::PatchData pd;
@@ -546,7 +557,7 @@ void aSaveSd(int) {
     }
 }
 
-void fLoadSd(char* o, int c) { snprintf(o, c, "browse card ,/"); }
+void fLoadSd(char* o, int c) { snprintf(o, c, "browse card%c", kLRtag); }
 void aLoadSd(int) { gOpenSdLoad = true; }  // run() opens the browser modal
 
 // Reset the bank to stock + roll fresh randoms for the two generative slots
@@ -557,7 +568,8 @@ void aLoadSd(int) { gOpenSdLoad = true; }  // run() opens the browser modal
 constexpr uint32_t kReRollArmMs = 3000;
 bool reRollArmed() { return gReRollArmed && (millis() - gReRollArmedAt < kReRollArmMs); }
 void fReRoll(char* o, int c) {
-    snprintf(o, c, "%s", reRollArmed() ? "SURE? tap again" : "reset bank, roll o/p ,/");
+    if (reRollArmed()) snprintf(o, c, "SURE? tap again");
+    else               snprintf(o, c, "reset bank, roll o/p%c", kLRtag);
 }
 void aReRoll(int) {
     if (reRollArmed()) {
@@ -728,6 +740,16 @@ int jumpSection(int sel, int dir) {
     return step(last, +1);
 }
 
+// Draw the , and / keys' LEFT/RIGHT arrow icons (a ◄ ► pair) as filled
+// triangles, left edge at x, vertically centred on cy. Hand-drawn because Font2
+// (the value-cell font) has no arrow glyphs. ~kArrowsLRW px wide.
+constexpr int kArrowsLRW = 11;
+void drawArrowsLR(M5Canvas& c, int x, int cy, uint16_t col) {
+    c.fillTriangle(x,     cy,     x + 4, cy - 3, x + 4, cy + 3, col);  // ◄
+    const int r = x + 7;                                              // gap, then ►
+    c.fillTriangle(r + 4, cy,     r,     cy - 3, r,     cy + 3, col);
+}
+
 void draw(M5Canvas& c, int sel, int top) {
     c.fillScreen(theme::kBg);
     c.fillRect(0, 0, cfg::kScreenW, 14, theme::kPanel);
@@ -784,9 +806,19 @@ void draw(M5Canvas& c, int sel, int top) {
         c.setTextColor(nameCol, rowBg);
         c.drawString(kItems[i].name, 8, y);
         kItems[i].format(val, sizeof val);
+        // a trailing kLRtag => this is an action row: draw the , / keys' L/R arrow
+        // icons at the right edge and right-align the label to their left.
+        int vn = (int)strlen(val);
+        const bool lr = vn > 0 && val[vn - 1] == kLRtag;
+        if (lr) val[--vn] = '\0';
+        int rightX = cfg::kScreenW - 8;
+        if (lr) {
+            drawArrowsLR(c, rightX - kArrowsLRW, y + 6, valCol);
+            rightX -= kArrowsLRW + 4;  // leave a small gap before the text
+        }
         c.setTextDatum(top_right);
         c.setTextColor(valCol, rowBg);
-        c.drawString(val, cfg::kScreenW - 8, y);
+        c.drawString(val, rightX, y);
         c.setTextDatum(top_left);
     }
 
@@ -805,7 +837,9 @@ void draw(M5Canvas& c, int sel, int top) {
 
     c.setFont(&fonts::Font0);
     c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString(";. move  ,/ change (hold)  fn jump  ` back", 4, 125);
+    // \x1e\x1f = up/down (; .), \x11\x10 = left/right (, /) — the keys' silk-screen
+    // arrows. Font0 (GLCD) carries the CP437 glyphs, so draw them directly here.
+    c.drawString("\x1e\x1f move  \x11\x10 change (hold)  fn jump  ` back", 4, 125);
     c.pushSprite(0, 0);
 }
 

@@ -303,7 +303,7 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                 }
                 canvas.setFont(&fonts::Font0);
                 canvas.setTextColor(theme::kDim, theme::kPanel);
-                canvas.drawString(";. pick  enter ok  ` back", px + 8, py + ph - 11);
+                canvas.drawString("\x1e\x1f pick  enter ok  ` back", px + 8, py + ph - 11);
             }
         }
 

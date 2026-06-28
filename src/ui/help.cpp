@@ -163,7 +163,7 @@ void run(M5Canvas& canvas) {
         canvas.drawString("HOW TO PLAY", 5, 3);
         canvas.setTextColor(theme::kDim, theme::kPanel);
         canvas.setTextDatum(top_right);
-        canvas.drawString(top + kVisible < kLineCount ? ";/. scroll  ` back" : "` back",
+        canvas.drawString(top + kVisible < kLineCount ? "\x1e\x1f scroll  ` back" : "` back",
                           cfg::kScreenW - 4, 3);
         canvas.setTextDatum(top_left);
 
