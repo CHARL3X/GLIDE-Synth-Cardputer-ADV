@@ -298,7 +298,7 @@ two players with the same device can build sounds that share no DNA. Settings �
   backing bed stays steady underneath). Everything defaults to **off**, so a
   fresh patch is the original GLIDE tone until you wire a slot.
 
-**Filter modes** (settings → SOUND → *Filter mode*): the filter now does
+**Filter modes** (settings → TONE → *Filter mode*): the filter now does
 **lowpass** (the original voice), **highpass** (thin/airy), **bandpass**
 (vocal/telephone), and **notch** (hollow/phasey) — free, because the filter
 already computes them all.
@@ -311,20 +311,23 @@ default, the more the instrument is *yours*.
 
 ## Your own sounds: roll, mutate, keep
 
-The deep engine above is the *how*; this is the *point*. The randomizer isn't a
-buried novelty any more — it's the center of gravity, and it's built so finding
-a sound feels like play. Everything lives in settings → *SOUND*, and every
+The deep engine above is the *how*; this is the *point*. The generator isn't a
+buried novelty — it's the center of gravity, and it's built so finding a sound
+feels like play. It opens **first** in settings, as a two-button action bar at
+the top of the **CREATE** section (settings is a collapsible accordion now — only
+CREATE is unfolded on open, so the whole map fits at a glance). The two buttons
+map to the keys they sit on — **◄ (`,`) ROLL** and **EVOLVE (`/`) ►** — and every
 action auditions on the spot (a short fixed lick, so you can A/B two rolls):
 
-- **Randomize** — roll a whole new patch in one tap. Oscillator, filter,
+- **ROLL** (the ◄ key) — a whole new patch in one tap. Oscillator, filter,
   envelopes, drive, FX, the LFOs and a few mod-matrix routings, all painted
   within musical bounds so a roll is always playable, never dead or blown out.
   Roll till you love one.
-- **Mutate** (with **Mutate amt**) — don't start over: *evolve the sound you
-  have.* A gentle mutate is a neighbour — same character, nudged; a wild one
-  rewrites it. This is sculpting toward a vibe instead of pulling a slot machine.
+- **EVOLVE** (the ► key, with **Evolve amt**) — don't start over: *evolve the
+  sound you have.* A gentle evolve is a neighbour — same character, nudged; a wild
+  one rewrites it. This is sculpting toward a vibe instead of pulling a slot machine.
 - **Undo / Redo** — the safety net that makes the whole thing fearless. Every
-  roll, mutate and init checkpoints first, so you can always step back to the
+  roll, evolve and init checkpoints first, so you can always step back to the
   sound you just had. *You can experiment without ever trashing a keeper.*
 - **Init** — a blank, neutral sound to build up by hand.
 
@@ -501,8 +504,8 @@ firmware never touches raw I2S and why the library versions are pinned.
 | octave keys | sweep (glide) / re-strike | sweep | settings |
 | trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0–100% / momentary, latch | muffle / 70% / momentary | settings (G0 button) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated presets, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
-| generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | — | settings (SOUND) |
-| SD library | save / load / delete named .gpat patches (unlimited) | — | settings (SOUND), browser |
+| generate | roll / evolve (+amount) / undo-redo / init / re-roll bank | — | settings (CREATE) |
+| SD library | save / load / delete named .gpat patches (unlimited) | — | settings (LIBRARY), browser |
 | filter env (atk/dec/depth) | 1ms–2s / 10ms–2s / 0–3+ oct | per sound | settings*/saved in sound |
 | sub / noise / drive / auto-vib | 0–1 / 0–1 / 1–8 / cents | per sound | saved in sound |
 | chorus / delay / reverb send | 0–100% each | per sound | settings (live) |

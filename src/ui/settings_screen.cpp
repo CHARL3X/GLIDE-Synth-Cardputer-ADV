@@ -29,6 +29,8 @@ bool gOpenHelp = false;   // set by the Help item; run() opens the modal (it own
 bool gOpenSdLoad = false; // set by "Load from SD"; run() opens the browser modal
 int gFlashRow = -1;       // a one-shot row blink confirming an action fired
 uint32_t gFlashUntil = 0;
+int gCreateFlash = 0;     // CREATE button bar: -1 = ROLL just fired, +1 = EVOLVE
+uint32_t gCreateFlashUntil = 0;
 float gMutateAmt = 0.30f; // how far each Mutate roams (session pref; 0..1)
 char gLastSaved[24] = ""; // name of the most recent Save to SD (shown in its row)
 bool gReRollArmed = false;     // Re-roll bank is irreversible -> two-tap confirm
@@ -475,6 +477,17 @@ void aMutate(int) {
     audition::start();
 }
 
+// The CREATE action bar — two buttons on one row, mapped to the two arrow keys
+// the row sits on: ◄ (the , key) ROLLs a fresh sound, ► (the / key) EVOLVEs the
+// current one. enter also rolls (the headline action). Drawn specially (see the
+// row renderer); this adjust() is the fire path. A non-null format keeps it a
+// normal selectable row (not a header), but the text it produces is unused.
+void aCreateBar(int dir) {
+    if (dir < 0) aRandomize(0);   // ◄ / , -> roll a new sound
+    else         aMutate(0);      // ► / / -> evolve the current one
+}
+void fCreateBar(char* o, int) { o[0] = '\0'; }  // drawn as buttons, no value text
+
 void fMutAmt(char* o, int c) { snprintf(o, c, "%d %%", (int)(gMutateAmt * 100 + 0.5f)); }
 void aMutAmt(int d) { gMutateAmt = clampT(gMutateAmt + d * 0.05f, 0.05f, 1.f); }
 
@@ -584,51 +597,32 @@ void aReRoll(int) {
 }
 
 const Item kItems[] = {
-    // Sections (a null format = a non-selectable header the cursor skips).
-    // fn+up/down jumps header-to-header so the deep list stays navigable.
+    // Sections are COLLAPSIBLE (enter on a header expands/collapses; ◄/► too).
+    // Settings opens with CREATE expanded and everything else collapsed, so the
+    // whole map (~10 headers) is visible at a glance instead of one endless scroll.
+    // fn+up/down still jumps header-to-header. Order = make -> keep -> shape ->
+    // play -> system.
     //
-    // SOUND leads on purpose: opening settings lands the cursor on Randomize, so
-    // the generative loop (roll -> hear -> mutate -> keep) is the first thing
-    // every player meets — never buried, never a feature you stumble onto. A
-    // rough rolled bank is never a dead end: Randomize/Mutate are right here.
-    {"SOUND (make your own)", nullptr, nullptr},
-    {"Randomize", fRandomize, aRandomize},
-    {"Mutate", fMutate, aMutate},
-    {"Mutate amt", fMutAmt, aMutAmt, true},
+    // CREATE leads on purpose: opening settings lands the cursor on the ROLL/EVOLVE
+    // button bar, so the generative loop (roll -> hear -> evolve -> keep) is the
+    // first thing every player meets — never buried. A rough sound is never a dead
+    // end: ROLL and EVOLVE are right here.
+    {"CREATE (make your own)", nullptr, nullptr},
+    {"", fCreateBar, aCreateBar},   // the ◄ ROLL | EVOLVE ► button bar (drawn specially)
+    {"Evolve amt", fMutAmt, aMutAmt, true},
     {"Undo", fUndo, aUndo},
     {"Redo", fRedo, aRedo},
     {"Init sound", fInitSound, aInitSound},
+    {"LIBRARY", nullptr, nullptr},
     {"Save to SD", fSaveSd, aSaveSd},
     {"Load from SD", fLoadSd, aLoadSd},
     {"Re-roll bank", fReRoll, aReRoll},
     {"Sound reset", fPatchReset, aPatchReset},
     {"Reset all sounds", fAllSoundsReset, aAllSoundsReset},
-    {"Bend time", fBendMs, aBendMs, true},
-    {"Fat detune", fDetune, aDetune, true},
+    {"TONE", nullptr, nullptr},
     {"Filter mode", fFilterMode, aFilterMode},
     {"Resonance", fRes, aRes, true},
-    {"HELP", nullptr, nullptr},
-    {"How to play", fHelp, aHelp},
-    {"LAYOUT", nullptr, nullptr},
-    {"Root key", fRoot, aRoot},
-    {"Scale", fScale, aScale},
-    {"Row interval", fRowInt, aRowInt},
-    {"Glide mode", fGlideMode, aGlideMode},
-    {"Allocation", fStringMode, aStringMode},
-    {"Octave keys", fOctGlide, aOctGlide},
-    {"JAM / BACKING", nullptr, nullptr},
-    {"Jam rows (drones)", fJamRows, aJamRows},
-    {"Drone voicing", fDroneVoice, aDroneVoice},
-    {"Jam motion", fJamMotion, aJamMotion},
-    {"Jam tempo", fJamBpm, aJamBpm, true},
-    {"Tap tempo", fTapTempo, aTapTempo},
-    {"Chord length", fJamChord, aJamChord},
-    {"TILT", nullptr, nullptr},
-    {"Tilt f/b route", fTilt, aTilt},
-    {"Tilt f/b depth", fTiltDepth, aTiltDepth, true},
-    {"Tilt l/r route", fTiltB, aTiltB},
-    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
-    {"Tilt center", fTiltCenter, aTiltCenter},
+    {"Fat detune", fDetune, aDetune, true},
     {"EFFECTS", nullptr, nullptr},
     {"Chorus", fChorus, aChorus, true},
     {"Delay send", fDelaySend, aDelaySend, true},
@@ -637,7 +631,7 @@ const Item kItems[] = {
     {"Delay fb", fDelayFb, aDelayFb, true},
     {"Reverb send", fReverbSend, aReverbSend, true},
     {"Reverb size", fReverbSize, aReverbSize, true},
-    {"MOD SOURCES", nullptr, nullptr},
+    {"MODULATION", nullptr, nullptr},
     {"LFO1 rate", fLfo1Rate, aLfo1Rate, true},
     {"LFO1 shape", fLfo1Shape, aLfo1Shape},
     {"LFO1 sync", fLfo1Sync, aLfo1Sync},
@@ -646,10 +640,8 @@ const Item kItems[] = {
     {"LFO2 sync", fLfo2Sync, aLfo2Sync},
     {"Mod env atk", fModEnvAtk, aModEnvAtk, true},
     {"Mod env dec", fModEnvDec, aModEnvDec, true},
-    {"MOD MATRIX", nullptr, nullptr},
-    // Each slot reads as a routing: "Mod N = <source>" then indented "to <dest>"
-    // and "amount". An unused slot (source off) collapses to its one line — set a
-    // source and its `to`/`amount` rows appear.
+    // The 6 routing slots. Each reads as "Mod N = <source>" then indented "to
+    // <dest>" and "amount"; an unused slot (source off) collapses to its one line.
     {"Mod 1", fSlot0Src, aSlot0Src},
     {"   to", fSlot0Dst, aSlot0Dst},
     {"   amount", fSlot0Amt, aSlot0Amt, true},
@@ -668,6 +660,27 @@ const Item kItems[] = {
     {"Mod 6", fSlot5Src, aSlot5Src},
     {"   to", fSlot5Dst, aSlot5Dst},
     {"   amount", fSlot5Amt, aSlot5Amt, true},
+    {"LAYOUT", nullptr, nullptr},
+    {"Root key", fRoot, aRoot},
+    {"Scale", fScale, aScale},
+    {"Row interval", fRowInt, aRowInt},
+    {"Glide mode", fGlideMode, aGlideMode},
+    {"Allocation", fStringMode, aStringMode},
+    {"Octave keys", fOctGlide, aOctGlide},
+    {"Bend time", fBendMs, aBendMs, true},
+    {"JAM / BACKING", nullptr, nullptr},
+    {"Jam rows (drones)", fJamRows, aJamRows},
+    {"Drone voicing", fDroneVoice, aDroneVoice},
+    {"Jam motion", fJamMotion, aJamMotion},
+    {"Jam tempo", fJamBpm, aJamBpm, true},
+    {"Tap tempo", fTapTempo, aTapTempo},
+    {"Chord length", fJamChord, aJamChord},
+    {"TILT", nullptr, nullptr},
+    {"Tilt f/b route", fTilt, aTilt},
+    {"Tilt f/b depth", fTiltDepth, aTiltDepth, true},
+    {"Tilt l/r route", fTiltB, aTiltB},
+    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
+    {"Tilt center", fTiltCenter, aTiltCenter},
     {"TRIGGER (G0 button)", nullptr, nullptr},
     {"Trigger action", fTrigAct, aTrigAct},
     {"Trigger depth", fTrigDepth, aTrigDepth, true},
@@ -676,12 +689,38 @@ const Item kItems[] = {
     {"Display", fScopeMode, aScopeMode},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
+    {"How to play", fHelp, aHelp},
     {"Reset defaults", fReset, aReset},
 };
 constexpr int kItemCount = (int)(sizeof(kItems) / sizeof(kItems[0]));
 constexpr int kVisible = 8;
 
 inline bool isHeader(int i) { return kItems[i].format == nullptr; }
+
+// ---- collapsible sections (accordion) -------------------------------------
+// Each section (a header + its rows) can be folded. gExpanded[sec] is its state;
+// a collapsed section hides all its non-header rows. sectionOf maps a row to its
+// section index (count of headers at or before it). Built once — the layout is
+// static. Default: only CREATE (section 0) open (set in run()).
+constexpr int kMaxSections = 16;
+bool gExpanded[kMaxSections];
+
+const int* sectionOfTbl() {
+    static int tbl[kItemCount];
+    static bool built = false;
+    if (!built) {
+        int s = -1;
+        for (int i = 0; i < kItemCount; ++i) { if (isHeader(i)) ++s; tbl[i] = s < 0 ? 0 : s; }
+        built = true;
+    }
+    return tbl;
+}
+inline int sectionOf(int i) { return sectionOfTbl()[i]; }
+int sectionCount() {
+    int n = 0;
+    for (int i = 0; i < kItemCount; ++i) if (isHeader(i)) ++n;
+    return n;
+}
 
 // An unused mod slot collapses to one line: its `to`/`amount` rows are hidden
 // until a source is chosen. Map a row's adjust fn back to its slot to decide.
@@ -695,8 +734,9 @@ int slotOfSub(void (*adj)(int)) {  // slot index if adj is a dest/amount thunk, 
     return -1;
 }
 bool isHidden(int i) {
-    if (isHeader(i)) return false;  // headers always show
-    const int s = slotOfSub(kItems[i].adjust);
+    if (isHeader(i)) return false;                  // headers always show (they're the map)
+    if (!gExpanded[sectionOf(i)]) return true;      // section folded -> all its rows hidden
+    const int s = slotOfSub(kItems[i].adjust);      // within MODULATION: unused slot sub-rows
     return s >= 0 && store::get().synth.slots[s].src == (uint8_t)dsp::ModSource::None;
 }
 int buildVisible(int* vis) {  // indices of currently-shown rows (headers + non-collapsed)
@@ -716,28 +756,26 @@ bool isActionRow(int i) {
            a == aAllSoundsReset || a == aReset;
 }
 
-// Next selectable row in `dir`, skipping headers AND collapsed rows, wrapping.
+// Next selectable row in `dir`, skipping only HIDDEN (collapsed) rows, wrapping.
+// Headers ARE selectable now — you land on one to expand/collapse its section.
 int step(int from, int dir) {
     int i = from;
     for (int n = 0; n < kItemCount; ++n) {
         i = (i + dir + kItemCount) % kItemCount;
-        if (!isHeader(i) && !isHidden(i)) return i;
+        if (!isHidden(i)) return i;  // headers + visible rows both selectable
     }
     return from;
 }
 
-// First selectable item of the previous/next section (fn+up/down).
+// The header of the prev/next section (fn+up/down jumps section-to-section). With
+// headers selectable, landing ON the header is the right target — it's the
+// section's handle (and where you expand it).
 int jumpSection(int sel, int dir) {
-    int h = sel;  // find this item's header
-    while (h >= 0 && !isHeader(h)) --h;
+    int h = sel;  // find this row's header
+    while (h > 0 && !isHeader(h)) --h;
     for (int j = h + dir; j >= 0 && j < kItemCount; j += dir)
-        if (isHeader(j)) return step(j, +1);
-    // wrapped past an end: land on the first item of the last/first section
-    if (dir > 0) return step(0, +1);
-    int last = 0;
-    for (int j = 0; j < kItemCount; ++j)
-        if (isHeader(j)) last = j;
-    return step(last, +1);
+        if (isHeader(j)) return j;
+    return h;  // already at the first/last section: stay put
 }
 
 // Draw the , and / keys' LEFT/RIGHT arrow icons (a ◄ ► pair) as filled
@@ -748,6 +786,35 @@ void drawArrowsLR(M5Canvas& c, int x, int cy, uint16_t col) {
     c.fillTriangle(x,     cy,     x + 4, cy - 3, x + 4, cy + 3, col);  // ◄
     const int r = x + 7;                                              // gap, then ►
     c.fillTriangle(r + 4, cy,     r,     cy - 3, r,     cy + 3, col);
+}
+
+// A one-line preview of a collapsed section's contents, shown dim on its header
+// so the folded map still tells you what's inside. nullptr = no hint.
+const char* headerHint(const char* name) {
+    if (!strcmp(name, "LIBRARY"))    return "save/load/reset";
+    if (!strcmp(name, "TONE"))       return "filter/reso/detune";
+    if (!strcmp(name, "EFFECTS"))    return "chorus/delay/reverb";
+    if (!strcmp(name, "MODULATION")) return "2 LFOs/matrix";
+    if (!strcmp(name, "LAYOUT"))     return "key/scale/glide";
+    if (!strcmp(name, "JAM / BACKING")) return "drones/chords";
+    if (!strcmp(name, "TILT"))       return "gyro routes";
+    return nullptr;
+}
+
+// One CREATE button (ROLL or EVOLVE). Boxed so it reads as a button, not a list
+// row. Font0 (carries the ◄ ► glyphs) so the label can name its key.
+void drawCreateButton(M5Canvas& c, int x, int y, int w, int h, const char* label,
+                      bool sel, bool flash) {
+    const uint16_t border = (flash || sel) ? theme::kAmber : theme::kLine;
+    const uint16_t fill   = flash ? theme::kAmber : theme::kBg;
+    const uint16_t txt    = flash ? theme::kBg : (sel ? theme::kAmber : theme::kDim);
+    c.fillRoundRect(x, y, w, h, 3, fill);
+    c.drawRoundRect(x, y, w, h, 3, border);
+    c.setFont(&fonts::Font0);
+    c.setTextDatum(middle_center);
+    c.setTextColor(txt, fill);
+    c.drawString(label, x + w / 2, y + h / 2 + 1);
+    c.setTextDatum(top_left);
 }
 
 void draw(M5Canvas& c, int sel, int top) {
@@ -788,11 +855,39 @@ void draw(M5Canvas& c, int sel, int top) {
         const int i = vis[vidx];
         const int y = 18 + row * 13;
 
-        if (isHeader(i)) {  // section label + a divider rule under it
+        if (isHeader(i)) {  // collapsible section handle: ▾ open / ▸ closed
+            const bool exp = gExpanded[sectionOf(i)];
+            const bool hsel = (i == sel);
             c.setFont(&fonts::Font0);
-            c.setTextColor(theme::kAmber, theme::kBg);
-            c.drawString(kItems[i].name, 6, y + 3);
-            c.drawFastHLine(6, y + 12, cfg::kScreenW - 16, theme::kLine);
+            const uint16_t hbg = hsel ? theme::kPanel : theme::kBg;
+            if (hsel) c.fillRect(0, y - 1, cfg::kScreenW, 12, hbg);
+            c.setTextColor(theme::kAmber, hbg);
+            char hdr[40];
+            // \x1f = ▼ (expanded), \x10 = ► (collapsed) — Font0 CP437 glyphs
+            snprintf(hdr, sizeof hdr, "%c %s", exp ? '\x1f' : '\x10', kItems[i].name);
+            c.drawString(hdr, 4, y + 3);
+            if (!exp) {  // folded: show a dim hint of what's inside
+                const char* h = headerHint(kItems[i].name);
+                if (h) {
+                    c.setTextDatum(top_right);
+                    c.setTextColor(theme::kDim, hbg);
+                    c.drawString(h, cfg::kScreenW - 6, y + 3);
+                    c.setTextDatum(top_left);
+                }
+            }
+            c.drawFastHLine(4, y + 12, cfg::kScreenW - 12, theme::kLine);
+            continue;
+        }
+
+        // CREATE action bar: two boxed buttons (◄ ROLL | EVOLVE ►) on one row.
+        if (kItems[i].adjust == aCreateBar) {
+            const bool selRow = (i == sel);
+            const bool fl = millis() < gCreateFlashUntil;
+            const int pad = 6, gap = 6, bh = 12, by = y - 1;
+            const int bw = (cfg::kScreenW - pad * 2 - gap) / 2;
+            drawCreateButton(c, pad, by, bw, bh, "\x11 ROLL", selRow, fl && gCreateFlash < 0);
+            drawCreateButton(c, pad + bw + gap, by, bw, bh, "EVOLVE \x10", selRow,
+                             fl && gCreateFlash > 0);
             continue;
         }
 
@@ -839,7 +934,10 @@ void draw(M5Canvas& c, int sel, int top) {
     c.setTextColor(theme::kDim, theme::kBg);
     // \x1e\x1f = up/down (; .), \x11\x10 = left/right (, /) — the keys' silk-screen
     // arrows. Font0 (GLCD) carries the CP437 glyphs, so draw them directly here.
-    c.drawString("\x1e\x1f move  \x11\x10 change (hold)  fn jump  ` back", 4, 125);
+    // Context-aware: a header folds/unfolds, a row changes its value.
+    c.drawString(isHeader(sel) ? "\x1e\x1f move  enter folds  fn jump  ` back"
+                               : "\x1e\x1f move  \x11\x10 change  fn jump  ` back",
+                 4, 125);
     c.pushSprite(0, 0);
 }
 
@@ -851,7 +949,14 @@ void run(M5Canvas& canvas) {
     audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::LeadsOff, 0));
     gReRollArmed = false;  // never enter settings with a stale re-roll confirm armed
 
-    int sel = step(kItemCount - 1, +1);  // first selectable item (skip the header)
+    // Open with only CREATE unfolded, so the whole section map is visible and the
+    // cursor lands on the ROLL/EVOLVE bar — the generative loop, front and centre.
+    for (int s = 0; s < kMaxSections; ++s) gExpanded[s] = false;
+    gExpanded[0] = true;
+    gCreateFlash = 0; gCreateFlashUntil = 0;
+
+    int sel = step(kItemCount - 1, +1);  // -> CREATE header (first selectable)
+    sel = step(sel, +1);                 // -> the ROLL / EVOLVE button bar
     int top = 0;
     uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
 
@@ -891,19 +996,22 @@ void run(M5Canvas& canvas) {
         }
         if (!(held(kUp) || held(kDown)) || fnHeld) navRep = 0;  // released -> disarm
 
-        // --- adjust: ,// change; hold repeats only on `repeatable` numeric rows ---
+        // --- adjust: ,// change; hold repeats only on `repeatable` numeric rows.
+        // enter is handled separately (activate an item / fold a header / roll the
+        // CREATE bar) so it isn't part of the repeating dir. ---
+        const bool enterHit = !fnHeld && hit(kEnter);
         int dir = 0;
         if (!fnHeld) {
             if (hit(kLeft) || hit(kDecAlt)) { dir = -1; adjRep = -1; adjStart = adjLast = now; }
-            else if (hit(kRight) || hit(kIncAlt) || hit(kEnter)) { dir = +1; adjRep = +1; adjStart = adjLast = now; }
+            else if (hit(kRight) || hit(kIncAlt)) { dir = +1; adjRep = +1; adjStart = adjLast = now; }
             else if (!isHeader(sel) && kItems[sel].repeatable && adjRep != 0 &&
                      now - adjStart >= cfg::kRepeatDelayMs && now - adjLast >= cfg::kRepeatRateMs) {
                 const bool stillDown = adjRep < 0 ? (held(kLeft) || held(kDecAlt))
-                                                  : (held(kRight) || held(kIncAlt) || held(kEnter));
+                                                  : (held(kRight) || held(kIncAlt));
                 if (stillDown) { dir = adjRep; adjLast = now; }
             }
         }
-        const bool anyAdj = held(kLeft) || held(kDecAlt) || held(kRight) || held(kIncAlt) || held(kEnter);
+        const bool anyAdj = held(kLeft) || held(kDecAlt) || held(kRight) || held(kIncAlt);
         if (!anyAdj || fnHeld) adjRep = 0;  // released -> disarm
 
         if (gOpenHelp) {  // the Help item asked to open the cheat-sheet modal
@@ -930,16 +1038,41 @@ void run(M5Canvas& canvas) {
             continue;
         }
 
-        if (dir != 0 && !isHeader(sel)) {
-            if (isActionRow(sel)) { gFlashRow = sel; gFlashUntil = now + 160; }  // confirm the tap
-            kItems[sel].adjust(dir);
+        // Persist immediately, not just on exit: a pocket device gets its power
+        // flicked mid-edit; a debounced write would be lost. NVS skips unchanged
+        // keys so a write per step (incl. auto-repeat) is cheap.
+        auto applyEdit = [&]() {
             auto& g = store::get();
             g.synth.tempoBpm = (float)g.jamBpm;  // synced-delay preview
-            // Persist immediately, not just on exit: a pocket device gets its
-            // power flicked mid-edit; a debounced write would be lost. NVS skips
-            // unchanged keys so a write per step (incl. auto-repeat) is cheap.
             store::persistNow();
             audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+        };
+
+        if (isHeader(sel)) {
+            // fold / unfold the section: enter toggles, ► opens, ◄ closes.
+            const int sec = sectionOf(sel);
+            if (enterHit) gExpanded[sec] = !gExpanded[sec];
+            else if (dir > 0) gExpanded[sec] = true;
+            else if (dir < 0) gExpanded[sec] = false;
+        } else if (kItems[sel].adjust == aCreateBar) {
+            // the button bar: ◄ rolls, ► evolves, enter rolls (the headline).
+            int fire = 0;
+            if (dir < 0 || enterHit) fire = -1;  // ROLL
+            else if (dir > 0) fire = +1;         // EVOLVE
+            if (fire) {
+                gCreateFlash = fire;
+                gCreateFlashUntil = now + 160;
+                kItems[sel].adjust(fire);  // aCreateBar: <0 roll, >0 evolve
+                applyEdit();
+            }
+        } else {
+            int d2 = dir;
+            if (enterHit && d2 == 0) d2 = +1;  // enter activates an item (= ►)
+            if (d2 != 0) {
+                if (isActionRow(sel)) { gFlashRow = sel; gFlashUntil = now + 160; }  // confirm
+                kItems[sel].adjust(d2);
+                applyEdit();
+            }
         }
 
         // scroll in visible-row space (collapsed mod slots aren't counted)
@@ -952,7 +1085,8 @@ void run(M5Canvas& canvas) {
         if (vsel >= top + kVisible) top = vsel - kVisible + 1;
         if (vsel > 0 && isHeader(vis[vsel - 1]) && top > vsel - 1)
             top = vsel - 1;  // keep the section header in view atop its first item
-        if (top < 0) top = 0;
+        if (top > nv - kVisible) top = nv - kVisible;  // collapsing shrank the list:
+        if (top < 0) top = 0;                          // don't leave blank rows below
 
         draw(canvas, sel, top);
         store::tick(now);
