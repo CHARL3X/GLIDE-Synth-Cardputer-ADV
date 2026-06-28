@@ -709,7 +709,7 @@ void drawIntro(M5Canvas& c) {
     c.drawString("device. q is always home (GLIDE).", x + 8, y + 31);
     c.drawString("make your own anytime:", x + 8, y + 42);
     c.setTextColor(theme::kAmber, theme::kPanel);
-    c.drawString("tab > CREATE > ROLL / EVOLVE", x + 8, y + 53);
+    c.drawString("tab > CREATE > Randomize / Mutate", x + 8, y + 53);
     c.setTextColor(theme::kGreen, theme::kPanel);
     c.drawString("undo anything - press a key to play", x + 8, y + 72);
 }

@@ -29,8 +29,6 @@ bool gOpenHelp = false;   // set by the Help item; run() opens the modal (it own
 bool gOpenSdLoad = false; // set by "Load from SD"; run() opens the browser modal
 int gFlashRow = -1;       // a one-shot row blink confirming an action fired
 uint32_t gFlashUntil = 0;
-int gCreateFlash = 0;     // CREATE button bar: -1 = ROLL just fired, +1 = EVOLVE
-uint32_t gCreateFlashUntil = 0;
 float gMutateAmt = 0.30f; // how far each Mutate roams (session pref; 0..1)
 char gLastSaved[24] = ""; // name of the most recent Save to SD (shown in its row)
 bool gReRollArmed = false;     // Re-roll bank is irreversible -> two-tap confirm
@@ -477,17 +475,6 @@ void aMutate(int) {
     audition::start();
 }
 
-// The CREATE action bar — two buttons on one row, mapped to the two arrow keys
-// the row sits on: ◄ (the , key) ROLLs a fresh sound, ► (the / key) EVOLVEs the
-// current one. enter also rolls (the headline action). Drawn specially (see the
-// row renderer); this adjust() is the fire path. A non-null format keeps it a
-// normal selectable row (not a header), but the text it produces is unused.
-void aCreateBar(int dir) {
-    if (dir < 0) aRandomize(0);   // ◄ / , -> roll a new sound
-    else         aMutate(0);      // ► / / -> evolve the current one
-}
-void fCreateBar(char* o, int) { o[0] = '\0'; }  // drawn as buttons, no value text
-
 void fMutAmt(char* o, int c) { snprintf(o, c, "%d %%", (int)(gMutateAmt * 100 + 0.5f)); }
 void aMutAmt(int d) { gMutateAmt = clampT(gMutateAmt + d * 0.05f, 0.05f, 1.f); }
 
@@ -603,13 +590,15 @@ const Item kItems[] = {
     // fn+up/down still jumps header-to-header. Order = make -> keep -> shape ->
     // play -> system.
     //
-    // CREATE leads on purpose: opening settings lands the cursor on the ROLL/EVOLVE
-    // button bar, so the generative loop (roll -> hear -> evolve -> keep) is the
-    // first thing every player meets — never buried. A rough sound is never a dead
-    // end: ROLL and EVOLVE are right here.
+    // CREATE leads on purpose: opening settings lands the cursor on RANDOMIZE, so
+    // the generative loop (randomize -> hear -> mutate -> keep) is the first thing
+    // every player meets — never buried. A rough sound is never a dead end:
+    // Randomize and Mutate are right here, drawn as boxed buttons (see the row
+    // renderer) so they read as primary actions, not value rows.
     {"CREATE (make your own)", nullptr, nullptr},
-    {"", fCreateBar, aCreateBar},   // the ◄ ROLL | EVOLVE ► button bar (drawn specially)
-    {"Evolve amt", fMutAmt, aMutAmt, true},
+    {"Randomize", fRandomize, aRandomize},   // boxed button (select, then ,///enter)
+    {"Mutate", fMutate, aMutate},            // boxed button
+    {"Mutate amt", fMutAmt, aMutAmt, true},
     {"Undo", fUndo, aUndo},
     {"Redo", fRedo, aRedo},
     {"Init sound", fInitSound, aInitSound},
@@ -801,19 +790,26 @@ const char* headerHint(const char* name) {
     return nullptr;
 }
 
-// One CREATE button (ROLL or EVOLVE). Boxed so it reads as a button, not a list
-// row. Font0 (carries the ◄ ► glyphs) so the label can name its key.
-void drawCreateButton(M5Canvas& c, int x, int y, int w, int h, const char* label,
-                      bool sel, bool flash) {
+// The CREATE actions (Randomize, Mutate) render as full-width BOXED buttons,
+// stacked one per row, so they read as primary "do something" actions rather
+// than value rows — but they're ordinary selectable rows (;/. to pick, ,///enter
+// to fire), no special L/R handling. Detected by their adjust fn.
+bool isCreateButton(int i) {
+    return kItems[i].adjust == aRandomize || kItems[i].adjust == aMutate;
+}
+// Draw one stacked button filling the row at y. Selected = amber outline + text;
+// flash = filled amber (the one-shot fire confirm); idle = dim outline + text.
+void drawActionButton(M5Canvas& c, int y, const char* label, bool sel, bool flash) {
+    const int x = 6, w = cfg::kScreenW - 12, h = 12;
     const uint16_t border = (flash || sel) ? theme::kAmber : theme::kLine;
-    const uint16_t fill   = flash ? theme::kAmber : theme::kBg;
+    const uint16_t fill   = flash ? theme::kAmber : (sel ? theme::kPanel : theme::kBg);
     const uint16_t txt    = flash ? theme::kBg : (sel ? theme::kAmber : theme::kDim);
-    c.fillRoundRect(x, y, w, h, 3, fill);
-    c.drawRoundRect(x, y, w, h, 3, border);
-    c.setFont(&fonts::Font0);
-    c.setTextDatum(middle_center);
+    c.fillRoundRect(x, y - 1, w, h, 3, fill);
+    c.drawRoundRect(x, y - 1, w, h, 3, border);
+    c.setFont(&fonts::Font2);
+    c.setTextDatum(top_center);  // centred horizontally, normal baseline (no clip)
     c.setTextColor(txt, fill);
-    c.drawString(label, x + w / 2, y + h / 2 + 1);
+    c.drawString(label, cfg::kScreenW / 2, y);
     c.setTextDatum(top_left);
 }
 
@@ -879,15 +875,11 @@ void draw(M5Canvas& c, int sel, int top) {
             continue;
         }
 
-        // CREATE action bar: two boxed buttons (◄ ROLL | EVOLVE ►) on one row.
-        if (kItems[i].adjust == aCreateBar) {
+        // CREATE actions: stacked boxed buttons (Randomize / Mutate).
+        if (isCreateButton(i)) {
             const bool selRow = (i == sel);
-            const bool fl = millis() < gCreateFlashUntil;
-            const int pad = 6, gap = 6, bh = 12, by = y - 1;
-            const int bw = (cfg::kScreenW - pad * 2 - gap) / 2;
-            drawCreateButton(c, pad, by, bw, bh, "\x11 ROLL", selRow, fl && gCreateFlash < 0);
-            drawCreateButton(c, pad + bw + gap, by, bw, bh, "EVOLVE \x10", selRow,
-                             fl && gCreateFlash > 0);
+            const bool fl = (i == gFlashRow) && (millis() < gFlashUntil);
+            drawActionButton(c, y, kItems[i].name, selRow, fl);
             continue;
         }
 
@@ -950,13 +942,12 @@ void run(M5Canvas& canvas) {
     gReRollArmed = false;  // never enter settings with a stale re-roll confirm armed
 
     // Open with only CREATE unfolded, so the whole section map is visible and the
-    // cursor lands on the ROLL/EVOLVE bar — the generative loop, front and centre.
+    // cursor lands on the RANDOMIZE button — the generative loop, front and centre.
     for (int s = 0; s < kMaxSections; ++s) gExpanded[s] = false;
     gExpanded[0] = true;
-    gCreateFlash = 0; gCreateFlashUntil = 0;
 
     int sel = step(kItemCount - 1, +1);  // -> CREATE header (first selectable)
-    sel = step(sel, +1);                 // -> the ROLL / EVOLVE button bar
+    sel = step(sel, +1);                 // -> the RANDOMIZE button
     int top = 0;
     uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
 
@@ -1054,20 +1045,11 @@ void run(M5Canvas& canvas) {
             if (enterHit) gExpanded[sec] = !gExpanded[sec];
             else if (dir > 0) gExpanded[sec] = true;
             else if (dir < 0) gExpanded[sec] = false;
-        } else if (kItems[sel].adjust == aCreateBar) {
-            // the button bar: ◄ rolls, ► evolves, enter rolls (the headline).
-            int fire = 0;
-            if (dir < 0 || enterHit) fire = -1;  // ROLL
-            else if (dir > 0) fire = +1;         // EVOLVE
-            if (fire) {
-                gCreateFlash = fire;
-                gCreateFlashUntil = now + 160;
-                kItems[sel].adjust(fire);  // aCreateBar: <0 roll, >0 evolve
-                applyEdit();
-            }
         } else {
+            // ordinary row (incl. the Randomize/Mutate buttons): ◄/► adjust,
+            // enter activates. The button rows ignore the sign — either fires.
             int d2 = dir;
-            if (enterHit && d2 == 0) d2 = +1;  // enter activates an item (= ►)
+            if (enterHit && d2 == 0) d2 = +1;
             if (d2 != 0) {
                 if (isActionRow(sel)) { gFlashRow = sel; gFlashUntil = now + 160; }  // confirm
                 kItems[sel].adjust(d2);
