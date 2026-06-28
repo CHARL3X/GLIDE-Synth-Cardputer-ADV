@@ -7,6 +7,15 @@
 **A continuous-pitch polyphonic slide instrument that lives in your pocket.**
 Firmware for the M5Stack Cardputer ADV — by **[CHARL3X](https://github.com/CHARL3X)**.
 
+### ▶️ See it in action
+
+<p align="center">
+  <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">
+    <img src="https://img.youtube.com/vi/tIkbVL5VmnQ/hqdefault.jpg" alt="Watch GLIDE in action" width="300">
+  </a>
+  <br><em>▶️ <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">Watch the demo</a></em>
+</p>
+
 This is the second incarnation of the instrument from the brainstorm — the
 "pitch touch bar," the "digital slide whistle," STRATA-1's little sibling.
 The touchscreen prototype proved that sliding chords on a continuous-pitch
