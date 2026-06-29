@@ -477,7 +477,7 @@ void octaveShift(int dir) {
 // (backing unlocked), the solo IS the whole sound, so this is the master volume.
 void adjustVolume(int dir) {
     auto& g = store::get();
-    const float step = dir * 0.05f;
+    const float step = dir * 0.01f;  // 1% taps; hold ctrl/opt to ramp
     auto clamp01 = [](float x) { return x < 0.f ? 0.f : (x > 1.f ? 1.f : x); };
     g.synth.masterVol = clamp01(g.synth.masterVol + step);
     store::markDirty();
