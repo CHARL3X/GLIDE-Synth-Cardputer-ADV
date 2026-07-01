@@ -20,6 +20,7 @@
 #include "help.h"
 #include "sd_browser.h"
 #include "sound_card.h"
+#include "sound_viz.h"
 #include "theme.h"
 
 namespace settings {
@@ -56,8 +57,11 @@ struct Item {
     const char* name;
     void (*format)(char* out, int cap);
     void (*adjust)(int dir);
-    bool repeatable;  // true = hold ,/ to ramp (continuous numerics); enums/
-                      // toggles/actions stay tap-only (left {} = false by default)
+    bool repeatable;   // true = hold ,/ to ramp (continuous numerics); enums/
+                       // toggles/actions stay tap-only (left {} = false by default)
+    float (*fill)();   // 0..1 for a value gauge drawn mid-row (nullptr = none;
+                       // return <0 to skip this frame, e.g. a synced delay time)
+    bool bipolar;      // fill() is -1..1, drawn from a centre-zero tick
 };
 
 // A value string ending in this (non-printing) tag tells the row renderer to draw
@@ -407,7 +411,8 @@ void aModEnvDec(int d) {
     void aSlot##N##Amt(int d) {                                                            \
         auto& s = store::get().synth.slots[N];                                             \
         s.depth = clampT(s.depth + d * 0.05f, -1.f, 1.f);                                  \
-    }
+    }                                                                                      \
+    float gSlot##N##Amt() { return store::get().synth.slots[N].depth; }
 MOD_SLOT_THUNKS(0)
 MOD_SLOT_THUNKS(1)
 MOD_SLOT_THUNKS(2)
@@ -418,6 +423,32 @@ MOD_SLOT_THUNKS(5)
 
 void fHelp(char* o, int c) { snprintf(o, c, "open ->"); }
 void aHelp(int) { gOpenHelp = true; }  // run() does the actual modal open
+
+// ---- value gauges: 0..1 fills for the continuous sound rows ---------------
+// (same mixer-strip idea as the quick-edit layer, so a page of numbers reads
+// at a glance; ranges mirror each row's adjust clamp)
+float gRes()       { return store::get().synth.resonance / 0.95f; }
+float gDetune()    { return store::get().synth.detuneCents / 50.f; }
+float gChorus()    { return store::get().synth.chorusDepth; }
+float gDelaySend() { return store::get().synth.delayMix; }
+float gDelayTime() {  // synced: the ms value is dormant — no gauge
+    const auto& s = store::get().synth;
+    return s.delaySync ? -1.f : (s.delayTimeS * 1000.f - 10.f) / 590.f;
+}
+float gDelayFb()   { return store::get().synth.delayFb / 0.9f; }
+float gRevSend()   { return store::get().synth.reverbMix; }
+float gRevSize()   { return store::get().synth.reverbSize; }
+float gLfoRate(float hz) { return logf(hz / 0.05f) / logf(30.f / 0.05f); }  // log axis
+float gLfo1Rate()  { return gLfoRate(store::get().synth.lfo1RateHz); }
+float gLfo2Rate()  { return gLfoRate(store::get().synth.lfo2RateHz); }
+float gModAtk()    { return store::get().synth.modEnvAtkS / 2.f; }
+float gModDec()    { return store::get().synth.modEnvDecS / 4.f; }
+float gMutAmtF()   { return gMutateAmt; }
+float gTiltDep()   { return store::get().tiltDepth; }
+float gTiltDepB()  { return store::get().tiltDepthB; }
+float gTrigDep()   { return store::get().triggerDepth; }
+float gBendMsF()   { return (store::get().bendMs - 50.f) / 950.f; }
+float gJamBpmF()   { return (store::get().jamBpm - 40.f) / 200.f; }
 
 // ---- sound-design starting points -----------------------------------------
 void pushLiveSound() {  // apply the working sound to the engine + persist
@@ -605,7 +636,7 @@ const Item kItems[] = {
     {"CREATE (make your own)", nullptr, nullptr},
     {"Randomize", fRandomize, aRandomize},   // boxed button (select, then ,///enter)
     {"Mutate", fMutate, aMutate},            // boxed button
-    {"Mutate amt", fMutAmt, aMutAmt, true},
+    {"Mutate amt", fMutAmt, aMutAmt, true, gMutAmtF},
     {"Undo", fUndo, aUndo},
     {"Redo", fRedo, aRedo},
     {"Init sound", fInitSound, aInitSound},
@@ -617,45 +648,45 @@ const Item kItems[] = {
     {"Reset all sounds", fAllSoundsReset, aAllSoundsReset},
     {"TONE", nullptr, nullptr},
     {"Filter mode", fFilterMode, aFilterMode},
-    {"Resonance", fRes, aRes, true},
-    {"Fat detune", fDetune, aDetune, true},
+    {"Resonance", fRes, aRes, true, gRes},
+    {"Fat detune", fDetune, aDetune, true, gDetune},
     {"EFFECTS", nullptr, nullptr},
-    {"Chorus", fChorus, aChorus, true},
-    {"Delay send", fDelaySend, aDelaySend, true},
-    {"Delay time", fDelayTime, aDelayTime, true},
+    {"Chorus", fChorus, aChorus, true, gChorus},
+    {"Delay send", fDelaySend, aDelaySend, true, gDelaySend},
+    {"Delay time", fDelayTime, aDelayTime, true, gDelayTime},
     {"Delay sync", fDelaySync, aDelaySync},
-    {"Delay fb", fDelayFb, aDelayFb, true},
-    {"Reverb send", fReverbSend, aReverbSend, true},
-    {"Reverb size", fReverbSize, aReverbSize, true},
+    {"Delay fb", fDelayFb, aDelayFb, true, gDelayFb},
+    {"Reverb send", fReverbSend, aReverbSend, true, gRevSend},
+    {"Reverb size", fReverbSize, aReverbSize, true, gRevSize},
     {"MODULATION", nullptr, nullptr},
-    {"LFO1 rate", fLfo1Rate, aLfo1Rate, true},
+    {"LFO1 rate", fLfo1Rate, aLfo1Rate, true, gLfo1Rate},
     {"LFO1 shape", fLfo1Shape, aLfo1Shape},
     {"LFO1 sync", fLfo1Sync, aLfo1Sync},
-    {"LFO2 rate", fLfo2Rate, aLfo2Rate, true},
+    {"LFO2 rate", fLfo2Rate, aLfo2Rate, true, gLfo2Rate},
     {"LFO2 shape", fLfo2Shape, aLfo2Shape},
     {"LFO2 sync", fLfo2Sync, aLfo2Sync},
-    {"Mod env atk", fModEnvAtk, aModEnvAtk, true},
-    {"Mod env dec", fModEnvDec, aModEnvDec, true},
+    {"Mod env atk", fModEnvAtk, aModEnvAtk, true, gModAtk},
+    {"Mod env dec", fModEnvDec, aModEnvDec, true, gModDec},
     // The 6 routing slots. Each reads as "Mod N = <source>" then indented "to
     // <dest>" and "amount"; an unused slot (source off) collapses to its one line.
     {"Mod 1", fSlot0Src, aSlot0Src},
     {"   to", fSlot0Dst, aSlot0Dst},
-    {"   amount", fSlot0Amt, aSlot0Amt, true},
+    {"   amount", fSlot0Amt, aSlot0Amt, true, gSlot0Amt, true},
     {"Mod 2", fSlot1Src, aSlot1Src},
     {"   to", fSlot1Dst, aSlot1Dst},
-    {"   amount", fSlot1Amt, aSlot1Amt, true},
+    {"   amount", fSlot1Amt, aSlot1Amt, true, gSlot1Amt, true},
     {"Mod 3", fSlot2Src, aSlot2Src},
     {"   to", fSlot2Dst, aSlot2Dst},
-    {"   amount", fSlot2Amt, aSlot2Amt, true},
+    {"   amount", fSlot2Amt, aSlot2Amt, true, gSlot2Amt, true},
     {"Mod 4", fSlot3Src, aSlot3Src},
     {"   to", fSlot3Dst, aSlot3Dst},
-    {"   amount", fSlot3Amt, aSlot3Amt, true},
+    {"   amount", fSlot3Amt, aSlot3Amt, true, gSlot3Amt, true},
     {"Mod 5", fSlot4Src, aSlot4Src},
     {"   to", fSlot4Dst, aSlot4Dst},
-    {"   amount", fSlot4Amt, aSlot4Amt, true},
+    {"   amount", fSlot4Amt, aSlot4Amt, true, gSlot4Amt, true},
     {"Mod 6", fSlot5Src, aSlot5Src},
     {"   to", fSlot5Dst, aSlot5Dst},
-    {"   amount", fSlot5Amt, aSlot5Amt, true},
+    {"   amount", fSlot5Amt, aSlot5Amt, true, gSlot5Amt, true},
     {"LAYOUT", nullptr, nullptr},
     {"Root key", fRoot, aRoot},
     {"Scale", fScale, aScale},
@@ -663,23 +694,23 @@ const Item kItems[] = {
     {"Glide mode", fGlideMode, aGlideMode},
     {"Allocation", fStringMode, aStringMode},
     {"Octave keys", fOctGlide, aOctGlide},
-    {"Bend time", fBendMs, aBendMs, true},
+    {"Bend time", fBendMs, aBendMs, true, gBendMsF},
     {"JAM / BACKING", nullptr, nullptr},
     {"Jam rows (drones)", fJamRows, aJamRows},
     {"Drone voicing", fDroneVoice, aDroneVoice},
     {"Jam motion", fJamMotion, aJamMotion},
-    {"Jam tempo", fJamBpm, aJamBpm, true},
+    {"Jam tempo", fJamBpm, aJamBpm, true, gJamBpmF},
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
     {"TILT", nullptr, nullptr},
     {"Tilt f/b route", fTilt, aTilt},
-    {"Tilt f/b depth", fTiltDepth, aTiltDepth, true},
+    {"Tilt f/b depth", fTiltDepth, aTiltDepth, true, gTiltDep},
     {"Tilt l/r route", fTiltB, aTiltB},
-    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true},
+    {"Tilt l/r depth", fTiltDepthB, aTiltDepthB, true, gTiltDepB},
     {"Tilt center", fTiltCenter, aTiltCenter},
     {"TRIGGER (G0 button)", nullptr, nullptr},
     {"Trigger action", fTrigAct, aTrigAct},
-    {"Trigger depth", fTrigDepth, aTrigDepth, true},
+    {"Trigger depth", fTrigDepth, aTrigDepth, true, gTrigDep},
     {"Trigger mode", fTrigMode, aTrigMode},
     {"SYSTEM", nullptr, nullptr},
     {"Display", fScopeMode, aScopeMode},
@@ -913,10 +944,32 @@ void draw(M5Canvas& c, int sel, int top) {
             drawArrowsLR(c, rightX - kArrowsLRW, y + 6, valCol);
             rightX -= kArrowsLRW + 4;  // leave a small gap before the text
         }
+        // mid-row value gauge (the quick-edit mixer-strip idea, brought here):
+        // continuous rows read at a glance; mod amounts get a centre-zero bar.
+        // Skipped while the row flashes solid amber.
+        if (kItems[i].fill && !flash) {
+            const float f = kItems[i].fill();
+            const uint16_t gc = isSel ? theme::scale(theme::kAmber, 150)
+                                      : theme::scale(theme::kAmber, 60);
+            if (kItems[i].bipolar)  viz::drawBipolar(c, 120, y + 2, 44, 8, f, gc);
+            else if (f >= 0.f)      viz::drawGauge(c, 120, y + 2, 44, 8, f, gc);
+        }
         c.setTextDatum(top_right);
         c.setTextColor(valCol, rowBg);
         c.drawString(val, rightX, y);
         c.setTextDatum(top_left);
+        // shape/mode rows draw the thing, not just its name
+        {
+            const auto adj = kItems[i].adjust;
+            const int ix = rightX - c.textWidth(val) - 22;
+            const auto& s = store::get().synth;
+            if (adj == aLfo1Shape)
+                viz::drawLfoIcon(c, ix, y + 2, 16, 9, (dsp::LfoShape)s.lfo1Shape, valCol);
+            else if (adj == aLfo2Shape)
+                viz::drawLfoIcon(c, ix, y + 2, 16, 9, (dsp::LfoShape)s.lfo2Shape, valCol);
+            else if (adj == aFilterMode)
+                viz::drawFilterIcon(c, ix, y + 2, 16, 9, (dsp::FilterMode)s.filterMode, valCol);
+        }
     }
 
     // scroll position map (over the currently-visible rows)
