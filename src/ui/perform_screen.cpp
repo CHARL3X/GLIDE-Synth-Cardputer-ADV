@@ -17,6 +17,7 @@
 #include "hud.h"
 #include "settings_screen.h"
 #include "sound_card.h"
+#include "sound_viz.h"
 #include "theme.h"
 
 namespace perform {
@@ -217,8 +218,11 @@ void drawStatus(M5Canvas& c) {
 }
 
 // While fn is held the scope yields to a map of the whole layer: all ten
-// parameters with live values on the left, all ten sounds on the right.
-// No more playing the edit layer blind.
+// parameters with live values on the left, and on the right either the ten
+// sounds or — when the selected parameter has a shape — a live context
+// visualization: the ADSR params draw the envelope reshaping as you adjust,
+// WAVE the actual wavetable cycle, CUTOFF the filter response. fn+q..p still
+// switches sounds either way (the keys don't need the list).
 void drawEditPanel(M5Canvas& c) {
     static const char* kShort[10] = {"GLIDE",  "ATTACK", "DECAY",  "SUSTAIN", "RELEASE",
                                      "WAVE",   "CUTOFF", "VOICES", "BEND",    "VOLUME"};
@@ -226,6 +230,8 @@ void drawEditPanel(M5Canvas& c) {
     static const char kPatchKeys[11] = "qwertyuiop";
     auto& cf = store::get();
     const int sel = keys::quickEditParam();
+    const bool vizEnv = sel >= 1 && sel <= 4, vizWave = sel == 5, vizCut = sel == 6;
+    const bool hasViz = vizEnv || vizWave || vizCut;
 
     c.setFont(&fonts::Font0);
     char buf[24], val[10];
@@ -245,6 +251,7 @@ void drawEditPanel(M5Canvas& c) {
         }
         c.setTextColor(i == sel ? theme::kAmber : theme::kDim);  // bg shows through
         c.drawString(buf, 6, y);
+        if (hasViz) continue;  // right side belongs to the context viz
         // sounds (right)
         const bool cur = (i == cf.currentPatch);
         snprintf(buf, sizeof buf, "%c %s%s", kPatchKeys[i], store::patchName(i),
@@ -256,6 +263,28 @@ void drawEditPanel(M5Canvas& c) {
             c.setTextColor(theme::kDim, theme::kBg);
         }
         c.drawString(buf, 130, y);
+    }
+
+    if (!hasViz) return;
+    // the context viz: what the selected knob is doing to the sound, live
+    const auto& s = cf.synth;
+    const int vx = 128, vy = kScopeY + 14, vw = 106, vh = 52;
+    c.setTextColor(theme::kAmber, theme::kBg);
+    if (vizEnv) {
+        c.drawString("ENVELOPE", vx, kScopeY + 3);
+        viz::drawEnv(c, vx, vy, vw, vh, s.attackS, s.decayS, s.sustain, s.releaseS,
+                     theme::kGreen);
+    } else if (vizWave) {
+        c.drawString("WAVEFORM", vx, kScopeY + 3);
+        viz::drawWave(c, vx, vy, vw, vh, s.wave, theme::kGreen);
+        c.setTextColor(theme::kDim, theme::kBg);
+        c.drawString(dsp::waveformName(s.wave), vx, vy + vh + 4);
+    } else {
+        c.drawString("FILTER", vx, kScopeY + 3);
+        viz::drawFilter(c, vx, vy, vw, vh, (dsp::FilterMode)s.filterMode, s.cutoffHz,
+                        s.resonance, theme::kGreen);
+        c.setTextColor(theme::kDim, theme::kBg);
+        c.drawString(dsp::filterModeName((dsp::FilterMode)s.filterMode), vx, vy + vh + 4);
     }
 }
 
