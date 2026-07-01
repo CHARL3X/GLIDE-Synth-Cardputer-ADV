@@ -201,7 +201,19 @@ void setLiveNameFromPatch(const PatchData& pd) {
 // same hygiene applyPatch always did (keep the player's master volume, never
 // load live-mod fields, clamp voiceCount). Shared so the (future) SD-library
 // load path and the NVS-slot path can't drift.
+// The morph source: the sound you were just on. Snapshotted at the top of
+// applyPatchData — the one choke point every sound change (slot switch, roll,
+// SD load, undo/redo) already passes through.
+dsp::SynthParams gMorphSrc;
+char gMorphSrcName[24] = "";
+bool gMorphSrcValid = false;
+
 void applyPatchData(const PatchData& pd) {
+    gMorphSrc = gCfg.synth;  // the outgoing sound becomes the morph source
+    strncpy(gMorphSrcName, gLiveName, sizeof gMorphSrcName - 1);
+    gMorphSrcName[sizeof gMorphSrcName - 1] = '\0';
+    gMorphSrcValid = true;
+
     const float keepVol = gCfg.synth.masterVol;  // volume is the player's, not the sound's
     gCfg.synth = pd.synth;
     gCfg.tiltRoute = (TiltRoute)clampT<int>(pd.tiltRoute, 0, (int)TiltRoute::Count - 1);
@@ -621,6 +633,7 @@ void begin() {
                                      (int)TriggerAction::Count - 1);
     gCfg.triggerDepth = clampT<int>(gPrefs.getInt("trigdep", (int)(d.triggerDepth * 100)), 0, 100) / 100.f;
     gCfg.triggerLatch = gPrefs.getBool("triglat", d.triggerLatch);
+    gCfg.morphMs = clampT<int>(gPrefs.getUShort("morphms", d.morphMs), 0, 2000);
 
     // Name the live working sound (status bar / Save default) and cache the
     // current slot's reference hash for liveDirty(). If the persisted live sound
@@ -717,6 +730,7 @@ void persistNow() {
     gPrefs.putUChar("trigact", gCfg.triggerAction);
     gPrefs.putInt("trigdep", (int)(gCfg.triggerDepth * 100));
     gPrefs.putBool("triglat", gCfg.triggerLatch);
+    gPrefs.putUShort("morphms", gCfg.morphMs);
     gDirty = false;
 }
 
@@ -857,6 +871,10 @@ void applyGenerated(const dsp::GenPatch& g) {
     applyPatchData(pd);  // keeps master vol, neutralises live-mods, clamps voices
     markDirty();         // the live sound changed — persist the flat keys
 }
+
+const dsp::SynthParams& morphSource() { return gMorphSrc; }
+const char* morphSourceName() { return gMorphSrcName; }
+bool morphSourceValid() { return gMorphSrcValid; }
 
 void applyStoredPatch(const PatchData& pd) {
     applyPatchData(pd);  // an SD-library load lands live, like a roll — not a

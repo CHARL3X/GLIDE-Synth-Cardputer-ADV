@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "../config.h"
+#include "../dsp/morph.h"
 #include "../dsp/pitch.h"
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
@@ -15,6 +16,7 @@
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
+#include "morph.h"
 #include "settings_screen.h"
 #include "sound_card.h"
 #include "sound_viz.h"
@@ -727,6 +729,29 @@ void drawHint(M5Canvas& c) {
         c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
 }
 
+// The morph strip, top-center of the scope: current sound on the left (green,
+// the live side), the previous sound on the right (amber), the bar filling
+// toward whichever one the blend is leaning into. Drawn whenever the blend is
+// off-center — G0 leans and switch transitions both — so the pair is always
+// named on screen and never has to be remembered.
+void drawMorphStrip(M5Canvas& c) {
+    const float p = morph::pos();
+    if (p < 0.02f || keys::quickEditActive() || !store::morphSourceValid()) return;
+    c.setFont(&fonts::Font0);
+    char cur[14], src[14];
+    snprintf(cur, sizeof cur, "%s", store::liveName());
+    snprintf(src, sizeof src, "%s", store::morphSourceName());
+    const int bw = 40, bx = cfg::kScreenW / 2 - bw / 2, by = kScopeY + 4;
+    c.setTextDatum(top_right);
+    c.setTextColor(theme::kGreen, theme::kBg);
+    c.drawString(cur, bx - 5, by);
+    c.setTextDatum(top_left);
+    c.setTextColor(theme::kAmber, theme::kBg);
+    c.drawString(src, bx + bw + 5, by);
+    c.drawRect(bx, by, bw, 7, theme::kLine);
+    c.fillRect(bx + 1, by + 1, (int)((bw - 2) * p + 0.5f), 5, theme::kAmber);
+}
+
 void drawIntro(M5Canvas& c) {
     const int w = 212, h = 92, x = (cfg::kScreenW - w) / 2, y = 20;
     c.fillRoundRect(x, y, w, h, 5, theme::kPanel);
@@ -788,11 +813,6 @@ void run() {
         }
 
         applyTilt();
-        // lead = live sound; backing = its frozen sound when the jam is locked.
-        // Both are local copies so the G0 trigger macro never bakes into the
-        // saved sound (drive especially is a real param, not a live-mod field).
-        dsp::SynthParams leadParams = cf.synth;
-        dsp::SynthParams backParams = cf.backingLocked ? cf.backingSynth : cf.synth;
 
         // G0 trigger macro: momentary reads the level; latch toggles on each
         // press (rising edge), so a tap arms it and a second tap releases.
@@ -801,7 +821,22 @@ void run() {
         if (trigRaw && !trigPrev) trigLatched = !trigLatched;
         trigPrev = trigRaw;
         const bool trigEngaged = cf.triggerLatch ? trigLatched : trigRaw;
-        if (trigEngaged)
+        const bool trigMorph =
+            (store::TriggerAction)cf.triggerAction == store::TriggerAction::Morph;
+
+        // synth morph: G0-Morph leans toward the previous sound by the trigger
+        // depth; a sound switch kicked pos to 1 and it glides home from here
+        morph::setHold(trigMorph && trigEngaged ? cf.triggerDepth : 0.f);
+        morph::tick(frameStart);
+
+        // lead = live sound; backing = its frozen sound when the jam is locked.
+        // Both are local copies so the G0 trigger macro never bakes into the
+        // saved sound (drive especially is a real param, not a live-mod field).
+        dsp::SynthParams leadParams = cf.synth;
+        dsp::SynthParams backParams = cf.backingLocked ? cf.backingSynth : cf.synth;
+        if (morph::pos() > 0.001f)  // blend the LEAD only; the bed stays steady
+            leadParams = dsp::morphParams(leadParams, store::morphSource(), morph::pos());
+        if (trigEngaged && !trigMorph)
             applyTrigger(leadParams, backParams, cf.triggerAction, cf.triggerDepth);
         audio::setParams(leadParams, backParams);
         store::tick(frameStart);
@@ -825,13 +860,15 @@ void run() {
         drawReadout(canvas);
         drawLoop(canvas, frameStart);
         drawProg(canvas, frameStart);
+        drawMorphStrip(canvas);
         drawBattery(canvas, frameStart);
         drawBottom(canvas, frameStart);
         drawHint(canvas);
         soundcard::draw(canvas, frameStart);  // under the HUD: fresh feedback wins
         hud::draw(canvas, frameStart);
         if (!cf.seenIntro) drawIntro(canvas);
-        if (trigEngaged) {  // G0 trigger macro engaged — name the action
+        if (trigEngaged && !trigMorph) {  // G0 macro engaged — name the action
+                                          // (Morph draws its own strip instead)
             char tb[12];
             snprintf(tb, sizeof tb, "%s%s", store::triggerActionTag(cf.triggerAction),
                      cf.triggerLatch ? "*" : "");

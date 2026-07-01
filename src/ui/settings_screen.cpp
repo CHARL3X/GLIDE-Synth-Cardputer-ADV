@@ -220,6 +220,19 @@ void aAllSoundsReset(int) {
 void fBendMs(char* o, int c) { snprintf(o, c, "%d ms", store::get().bendMs); }
 void aBendMs(int d) { store::get().bendMs = (uint16_t)clampT((int)store::get().bendMs + d * 50, 50, 1000); }
 
+// Synth morph: one time constant for all timbre glides — how long a sound
+// switch takes to arrive, and how fast a G0 morph (Trigger action) sweeps.
+void fMorphMs(char* o, int c) {
+    const uint16_t m = store::get().morphMs;
+    if (m == 0) snprintf(o, c, "off (snap)");
+    else        snprintf(o, c, "%d ms", m);
+}
+void aMorphMs(int d) {
+    auto& g = store::get();
+    g.morphMs = (uint16_t)clampT((int)g.morphMs + d * 50, 0, 2000);
+}
+float gMorphMsF() { return store::get().morphMs / 2000.f; }
+
 void fDetune(char* o, int c) { snprintf(o, c, "%d cents", (int)store::get().synth.detuneCents); }
 void aDetune(int d) {
     auto& s = store::get().synth;
@@ -695,6 +708,7 @@ const Item kItems[] = {
     {"Allocation", fStringMode, aStringMode},
     {"Octave keys", fOctGlide, aOctGlide},
     {"Bend time", fBendMs, aBendMs, true, gBendMsF},
+    {"Morph time", fMorphMs, aMorphMs, true, gMorphMsF},
     {"JAM / BACKING", nullptr, nullptr},
     {"Jam rows (drones)", fJamRows, aJamRows},
     {"Drone voicing", fDroneVoice, aDroneVoice},

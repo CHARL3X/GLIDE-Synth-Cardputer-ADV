@@ -10,6 +10,7 @@
 #include "../dsp/scales.h"
 #include "../storage/glide_config.h"
 #include "../ui/hud.h"
+#include "../ui/morph.h"
 #include "../ui/sound_card.h"
 #include "audio_engine.h"
 #include "looper.h"
@@ -894,6 +895,7 @@ Actions poll(uint32_t nowMs) {
                         // sound you just summoned gets a face (it carries its
                         // own SOLO tag when the backing is locked)
                         soundcard::show();
+                        morph::kick();  // arrive by glide, not by snap
                     }
                 }
                 continue;  // grid is muted while editing

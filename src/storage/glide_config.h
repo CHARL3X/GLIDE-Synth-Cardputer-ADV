@@ -20,7 +20,7 @@ using dsp::tiltRouteName;
 // a global gesture, not a per-patch personality, so it lives in GlideConfig.
 // Every action writes only into the per-frame live-mod fields (cutoffModOct,
 // bendCents) or a local param copy (drive), never into the saved sound.
-enum class TriggerAction : uint8_t { Muffle, Brighten, PitchDive, Drive, Count };
+enum class TriggerAction : uint8_t { Muffle, Brighten, PitchDive, Drive, Morph, Count };
 
 inline const char* triggerActionName(uint8_t a) {
     switch ((TriggerAction)a) {
@@ -28,6 +28,7 @@ inline const char* triggerActionName(uint8_t a) {
         case TriggerAction::Brighten:  return "brighten (filter up)";
         case TriggerAction::PitchDive: return "pitch dive";
         case TriggerAction::Drive:     return "drive grit";
+        case TriggerAction::Morph:     return "synth morph";
         default:                       return "?";
     }
 }
@@ -39,6 +40,7 @@ inline const char* triggerActionTag(uint8_t a) {
         case TriggerAction::Brighten:  return "BRIGHT";
         case TriggerAction::PitchDive: return "DIVE";
         case TriggerAction::Drive:     return "GRIT";
+        case TriggerAction::Morph:     return "MORPH";
         default:                       return "TRIG";
     }
 }
@@ -90,6 +92,11 @@ struct GlideConfig {
     uint8_t triggerAction = (uint8_t)TriggerAction::Muffle;
     float   triggerDepth  = 0.70f;  // 0..1 — how hard the action drives
     bool    triggerLatch  = false;  // false = momentary (hold), true = tap-latch
+
+    // ---- synth morph -------------------------------------------------------
+    // One time constant for all timbre glides: how long a sound switch takes to
+    // arrive, and how fast a G0 morph sweeps. 0 = instant (the old snap).
+    uint16_t morphMs = 300;
 
     // ---- solo/backing split (transient performance state, never persisted) --
     // When you switch sound (or shift octave) over a running jam, the backing
@@ -153,6 +160,16 @@ void applyStoredPatch(const PatchData& pd);   // load an SD-library patch -> liv
 void applyGenerated(const dsp::GenPatch& g);  // load a rolled/mutated sound ->
                                        // live working sound (keeps master vol;
                                        // not a slot until you save it)
+
+// ---- synth morph source (RAM only; performance state) --------------------
+// Every sound change (slot switch, roll, SD load, undo...) snapshots the
+// OUTGOING live sound as the morph source — "the sound you were just on".
+// G0's Morph action blends toward it; a switch plays the same blend in
+// reverse as its transition. Invalid until the first sound change of the
+// session, so morph can never reach for a sound that was never there.
+const dsp::SynthParams& morphSource();
+const char* morphSourceName();
+bool morphSourceValid();
 
 // ---- non-destructive live-sound history (RAM only; never persisted) -----
 // Roll / Mutate / Init checkpoint the live sound first, so a player can always
