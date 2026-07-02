@@ -86,12 +86,13 @@ struct GlideConfig {
     bool bootSound = true;
     bool seenIntro = false;
 
-    // ---- G0 trigger macro ("filter throw" and friends) ---------------------
-    // Default reproduces the original behaviour (muffle, momentary) but at a
-    // gentler depth — the old fixed throw dove a touch too far.
-    uint8_t triggerAction = (uint8_t)TriggerAction::Muffle;
+    // ---- G0 trigger macro ---------------------------------------------------
+    // Default is SYNTH MORPH, latched: tap G0 to become the previous sound,
+    // tap to come back. (The boot seeds a morph partner so this works out of
+    // the box.) Muffle — the original throw — is one menu step away.
+    uint8_t triggerAction = (uint8_t)TriggerAction::Morph;
     float   triggerDepth  = 0.70f;  // 0..1 — how hard the action drives
-    bool    triggerLatch  = false;  // false = momentary (hold), true = tap-latch
+    bool    triggerLatch  = true;   // false = momentary (hold), true = tap-latch
 
     // ---- synth morph -------------------------------------------------------
     // One time constant for all timbre glides: how long a sound switch takes to

@@ -801,20 +801,36 @@ int main() {
         int slides = 0, attacks = 0, rests = 0;
         uint32_t pos16 = 0;  // cumulative 16ths — phrases must land on bars
         bool inRange = true, sameSeq = true, barAligned = true, resolves = true;
+        bool hookHolds = true;
         int lastDeg = -1;
         uint8_t lastDur = 0;
+        uint8_t hook[64];  // first phrase's duration sequence — THE hook
+        int hookLen = 0, curLen = 0;
+        uint8_t curSeq[64];
         for (int i = 0; i < 400; ++i) {
             const DemoNote a = m1.next(5);  // pentatonic-sized scale
             const DemoNote b = m2.next(5);
             sameSeq = sameSeq && a.type == b.type && a.degree == b.degree &&
                       a.steps16 == b.steps16;
-            inRange = inRange && a.degree >= 0 && a.degree <= 10;
+            inRange = inRange && a.degree >= 0 && a.degree <= 15;
+            if (curLen < 64) curSeq[curLen++] = a.steps16;
             if (a.type == DemoNote::Rest) {
                 ++rests;
                 // the rest bar closes a phrase: it must start ON a barline and
-                // follow the long root note (the resolution)
+                // follow the long root note (the resolution; B phrases resolve
+                // to the lifted root an octave up)
                 barAligned = barAligned && (pos16 % 16) == 0;
-                resolves = resolves && lastDeg == 5 && lastDur == 12;
+                resolves = resolves && (lastDeg == 5 || lastDeg == 10) && lastDur == 12;
+                // the RHYTHM of every phrase is the same hook — that's music
+                if (hookLen == 0) {
+                    hookLen = curLen;
+                    for (int k = 0; k < curLen; ++k) hook[k] = curSeq[k];
+                } else {
+                    hookHolds = hookHolds && curLen == hookLen;
+                    for (int k = 0; k < curLen && k < hookLen; ++k)
+                        hookHolds = hookHolds && curSeq[k] == hook[k];
+                }
+                curLen = 0;
             } else if (a.type == DemoNote::Slide) {
                 ++slides;
             } else {
@@ -825,9 +841,10 @@ int main() {
             pos16 += a.steps16;
         }
         CHECK(sameSeq, "demo melody is deterministic per seed");
-        CHECK(inRange, "demo degrees stay inside two octaves");
+        CHECK(inRange, "demo degrees stay inside three octaves");
         CHECK(barAligned, "every phrase lands exactly on a bar boundary");
         CHECK(resolves, "every phrase resolves: a long root before the rest");
+        CHECK(hookHolds, "one hook per run: every phrase repeats its rhythm");
         CHECK(rests >= 3, "phrases breathe (a rest bar per phrase)");
         CHECK(slides > 20 && attacks > 20, "slides carry the line; downbeats re-attack");
     }

@@ -634,6 +634,29 @@ void begin() {
     gCfg.triggerDepth = clampT<int>(gPrefs.getInt("trigdep", (int)(d.triggerDepth * 100)), 0, 100) / 100.f;
     gCfg.triggerLatch = gPrefs.getBool("triglat", d.triggerLatch);
     gCfg.morphMs = clampT<int>(gPrefs.getUShort("morphms", d.morphMs), 0, 2000);
+    // one-time: synth morph (latched) became the G0 default — adopt it even on
+    // devices that persisted the old muffle default (the player's later choice
+    // still sticks, same pattern as the pitch-trail adoption above).
+    if (!gPrefs.getBool("trigv2", false)) {
+        gCfg.triggerAction = (uint8_t)TriggerAction::Morph;
+        gCfg.triggerLatch = true;
+        gPrefs.putUChar("trigact", gCfg.triggerAction);
+        gPrefs.putBool("triglat", gCfg.triggerLatch);
+        gPrefs.putBool("trigv2", true);
+    }
+
+    // Seed the morph partner so G0-morph sings from the very first boot: the
+    // other half of the signature pair (GLIDE <-> ACID). The first real sound
+    // change overwrites this with "the sound you were just on".
+    {
+        const int partner = gCfg.currentPatch == 0 ? 1 : 0;  // ACID, else GLIDE
+        PatchData pp;
+        loadPatchData(partner, pp);
+        gMorphSrc = pp.synth;
+        strncpy(gMorphSrcName, patchName(partner), sizeof gMorphSrcName - 1);
+        gMorphSrcName[sizeof gMorphSrcName - 1] = '\0';
+        gMorphSrcValid = true;
+    }
 
     // Name the live working sound (status bar / Save default) and cache the
     // current slot's reference hash for liveDirty(). If the persisted live sound

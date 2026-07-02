@@ -61,13 +61,15 @@ void start(uint32_t nowMs) {
     g.jamMotion = 3;                    // progression
 
     if (keys::progLen() == 0) {  // no bed spelled? lay down OUR curated one
-        g.jamChordBeats = 4;     // 4/4 bars — the phrase generator's grid
+        // each chord spelled twice at 2 beats: the same I-IV-V-IV loop over
+        // 4 bars, but the pad re-blooms every half bar — a pulse, not a wash
+        g.jamChordBeats = 2;
         if (g.jamBpm < 70 || g.jamBpm > 130) g.jamBpm = 92;  // a groove tempo
         store::applyPatch(kBedSlot);         // nothing sounds yet — no lock
         const int8_t keepOct = g.layout.octave;
         g.layout.octave = 4;                 // bed = this minus an octave: audible
-        static const int kCols[4] = {0, 3, 4, 3};  // I-IV-V-IV
-        for (int i = 0; i < 4; ++i) keys::progAppendStep(0, kCols[i], false);
+        static const int kCols[8] = {0, 0, 3, 3, 4, 4, 3, 3};  // I-IV-V-IV, pulsed
+        for (int i = 0; i < 8; ++i) keys::progAppendStep(0, kCols[i], false);
         g.layout.octave = keepOct;           // the player's register, untouched
     }
     // (an existing player-built progression is reused as-is — their bed,
