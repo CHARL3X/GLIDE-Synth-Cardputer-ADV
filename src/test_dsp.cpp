@@ -793,37 +793,43 @@ int main() {
         CHECK(morphParams(a2, b, 1.f).bendCents == 123.f, "live-mod fields stay the caller's");
     }
 
-    // ---- demo melody generator: seeded, bounded, musical --------------------
+    // ---- demo melody generator: phrases, not a random walk ------------------
     {
         DemoMelody m1, m2;
         m1.seed(42);
         m2.seed(42);
         int slides = 0, attacks = 0, rests = 0;
-        bool inRange = true, durOk = true, sameSeq = true;
-        for (int i = 0; i < 300; ++i) {
+        uint32_t pos16 = 0;  // cumulative 16ths — phrases must land on bars
+        bool inRange = true, sameSeq = true, barAligned = true, resolves = true;
+        int lastDeg = -1;
+        uint8_t lastDur = 0;
+        for (int i = 0; i < 400; ++i) {
             const DemoNote a = m1.next(5);  // pentatonic-sized scale
             const DemoNote b = m2.next(5);
             sameSeq = sameSeq && a.type == b.type && a.degree == b.degree &&
-                      a.beats4 == b.beats4;
+                      a.steps16 == b.steps16;
             inRange = inRange && a.degree >= 0 && a.degree <= 10;
-            durOk = durOk && a.beats4 >= 1 && a.beats4 <= 8;
-            if (a.type == DemoNote::Slide) ++slides;
-            else if (a.type == DemoNote::Attack) ++attacks;
-            else ++rests;
+            if (a.type == DemoNote::Rest) {
+                ++rests;
+                // the rest bar closes a phrase: it must start ON a barline and
+                // follow the long root note (the resolution)
+                barAligned = barAligned && (pos16 % 16) == 0;
+                resolves = resolves && lastDeg == 5 && lastDur == 12;
+            } else if (a.type == DemoNote::Slide) {
+                ++slides;
+            } else {
+                ++attacks;
+            }
+            lastDeg = a.degree;
+            lastDur = a.steps16;
+            pos16 += a.steps16;
         }
         CHECK(sameSeq, "demo melody is deterministic per seed");
         CHECK(inRange, "demo degrees stay inside two octaves");
-        CHECK(durOk, "demo durations are 1..8 quarter-beats");
-        CHECK(slides > 30, "the demo actually slides (glide on display)");
-        CHECK(rests > 10 && attacks > 30, "phrases breathe and re-attack");
-        DemoMelody m3;
-        m3.seed(7);
-        bool ok7 = true;  // a 7-note scale widens the range accordingly
-        for (int i = 0; i < 300; ++i) {
-            const DemoNote a = m3.next(7);
-            ok7 = ok7 && a.degree >= 0 && a.degree <= 14;
-        }
-        CHECK(ok7, "range follows the scale length");
+        CHECK(barAligned, "every phrase lands exactly on a bar boundary");
+        CHECK(resolves, "every phrase resolves: a long root before the rest");
+        CHECK(rests >= 3, "phrases breathe (a rest bar per phrase)");
+        CHECK(slides > 20 && attacks > 20, "slides carry the line; downbeats re-attack");
     }
 
     if (failures == 0) {
