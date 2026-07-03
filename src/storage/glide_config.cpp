@@ -2,6 +2,7 @@
 
 #include <Preferences.h>
 #include <esp_random.h>
+#include <nvs.h>
 #include <nvs_flash.h>
 
 #include "../config.h"
@@ -19,6 +20,33 @@ uint32_t gBootCount = 0;     // DIAGNOSTIC: boots survived in NVS (see begin())
 bool gWriteProbeOk = false;  // DIAGNOSTIC: did this boot's probe write+readback?
 bool gDirty = false;
 uint32_t gDirtySince = 0;
+char gSaveErr[20] = "";  // why the last save failed (HUD value width)
+
+// A patch blob is ~400 B and NVS stores blobs in 32 B entries — a nearly-full
+// shared partition (Launcher + every app on the card write to the SAME 16 K)
+// fails THIS write first while one-entry key updates still squeak through.
+// Name the real cause with real numbers instead of shrugging "save failed".
+void noteSaveFailure(bool nvsWrite) {
+    if (!nvsWrite) {
+        snprintf(gSaveErr, sizeof gSaveErr, "patch too big");
+        Serial.println("[store] save failed: encodePatch overflow");
+        return;
+    }
+    nvs_stats_t st;
+    if (nvs_get_stats(nullptr, &st) == ESP_OK) {
+        snprintf(gSaveErr, sizeof gSaveErr, "NVS full %u/%u",
+                 (unsigned)st.used_entries, (unsigned)st.total_entries);
+        Serial.printf(
+            "[store] save failed: NVS write. used %u free %u total %u "
+            "(namespaces %u) — the 16K partition is shared with the Launcher "
+            "and every app\n",
+            (unsigned)st.used_entries, (unsigned)st.free_entries,
+            (unsigned)st.total_entries, (unsigned)st.namespace_count);
+    } else {
+        snprintf(gSaveErr, sizeof gSaveErr, "NVS write failed");
+        Serial.println("[store] save failed: NVS write (stats unavailable)");
+    }
+}
 uint16_t gOverrideMask = 0;  // cached per-slot override flags — the UI asks
                              // every frame; NVS must not be in that path
 uint32_t gSeed = 0;          // this unit's stable unique seed (persisted)
@@ -287,10 +315,16 @@ void refreshCurSlotHash() {
 bool writeOverride(int slot, const PatchData& pd) {
     uint8_t buf[512];
     const size_t n = encodePatch(pd, buf, sizeof buf);
-    if (n == 0) return false;
+    if (n == 0) {
+        noteSaveFailure(false);
+        return false;
+    }
     char key[3];
     patchKey(slot, key);
-    if (gPrefs.putBytes(key, buf, n) != n) return false;
+    if (gPrefs.putBytes(key, buf, n) != n) {
+        noteSaveFailure(true);
+        return false;
+    }
     gOverrideMask |= (uint16_t)(1u << slot);
     return true;
 }
@@ -391,6 +425,16 @@ void begin() {
     Serial.printf("[glide] boot #%u (prev=%u) write=%uB readback=%u probe=%s\n",
                   gBootCount, prevBoot, (unsigned)wrote, readBack,
                   gWriteProbeOk ? "ok" : "FAIL");
+
+    // Partition pressure, every boot: the 16K NVS is shared with the Launcher
+    // and every app on the card, and a full partition fails the ~400 B patch
+    // blobs (save-over-slot) FIRST while one-entry writes still pass the probe
+    // above. Seeing "free 12" here explains a "save failed" before it happens.
+    nvs_stats_t st;
+    if (nvs_get_stats(nullptr, &st) == ESP_OK)
+        Serial.printf("[glide] NVS shared partition: used %u free %u total %u (%u namespaces)\n",
+                      (unsigned)st.used_entries, (unsigned)st.free_entries,
+                      (unsigned)st.total_entries, (unsigned)st.namespace_count);
 
     // This unit's stable unique seed. Created once from the hardware RNG and
     // persisted; it's what makes one device's generated bank reproducibly
@@ -847,7 +891,10 @@ bool savePatch(int slot) {
 
     uint8_t buf[512];
     const size_t n = encodePatch(pd, buf, sizeof buf);
-    if (n == 0) return false;
+    if (n == 0) {
+        noteSaveFailure(false);
+        return false;
+    }
     char key[3];
     patchKey(slot, key);
     const bool ok = gPrefs.putBytes(key, buf, n) == n;
@@ -857,8 +904,15 @@ bool savePatch(int slot) {
         cacheSlotName(slot);  // the slot now reads as its own sound's name
         gCurSlotHash = liveHash();  // live IS what we just saved -> no longer dirty
         markDirty();
+    } else {
+        noteSaveFailure(true);
     }
     return ok;
+}
+
+const char* lastSaveError() {
+    if (!gNvsOk) return "storage not open";
+    return gSaveErr[0] ? gSaveErr : "save failed";
 }
 
 // Write an arbitrary patch (not the live sound) onto a slot — used to promote a

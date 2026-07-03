@@ -914,7 +914,7 @@ Actions poll(uint32_t nowMs) {
                             snprintf(v, sizeof v, "saved -> %s", store::patchName(slot));
                             hud::show("SOUND", v, -1.f);
                         } else {
-                            hud::showError("SOUND", "save failed");
+                            hud::showError("SOUND", store::lastSaveError());
                         }
                     } else {
                         // switching sound over a running jam keeps the backing

@@ -140,6 +140,10 @@ void resetDefaults();         // restore + persist
 // firmware that changes SynthParams silently falls back to factory.
 void applyPatch(int slot);             // load slot -> working sound + tilt
 bool savePatch(int slot);              // working sound -> slot override
+const char* lastSaveError();           // WHY the last save failed, for the HUD —
+                                       // "save failed" with no reason is the same
+                                       // sin as a silently dead instrument. Names
+                                       // the shared-NVS-full case with real numbers.
 
 // ---- solo/backing split -------------------------------------------------
 // Freeze the current sound as the backing (called when the player switches
