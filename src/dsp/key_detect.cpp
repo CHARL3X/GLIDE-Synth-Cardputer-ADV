@@ -69,15 +69,16 @@ float keyScore(const float* chroma, const float* prof, int root) {
 
 }  // namespace
 
-KeyGuess detectKey(const int16_t* mono, int n, float sampleRate) {
-    KeyGuess g = KeyGuess::make();
-    if (!mono || n < (int)sampleRate / 4 || sampleRate <= 0.f) return g;
-
-    // Silence gate: don't hallucinate a key out of the noise floor.
+bool segmentAudible(const int16_t* mono, int n) {
+    if (!mono || n <= 0) return false;
     float meanAbs = 0.f;
     for (int i = 0; i < n; ++i) meanAbs += fabsf((float)mono[i]);
-    meanAbs /= (float)n;
-    if (meanAbs < kSilenceMeanAbs) return g;
+    return meanAbs / (float)n >= kSilenceMeanAbs;
+}
+
+void accumulateChroma(const int16_t* mono, int n, float sampleRate,
+                      float chroma[12]) {
+    if (!mono || n < (int)sampleRate / 4 || sampleRate <= 0.f) return;
 
     // Per-octave magnitudes. Targets start at A2: pitch class (9 + step) % 12.
     float band[kOctaves][12];
@@ -104,10 +105,15 @@ KeyGuess detectKey(const int16_t* mono, int n, float sampleRate) {
 
     // Fold into 12 bins, bass octaves weighted up (the bass carries the key).
     constexpr float kOctWeight[kOctaves] = {1.f, 0.9f, 0.7f, 0.5f};
-    float chroma[12] = {0.f};
     for (int oct = 0; oct < kOctaves; ++oct)
         for (int pc = 0; pc < 12; ++pc)
             chroma[pc] += kOctWeight[oct] * band[oct][pc];
+}
+
+KeyGuess classifyChroma(const float chromaIn[12]) {
+    KeyGuess g = KeyGuess::make();
+    float chroma[12];
+    for (int i = 0; i < 12; ++i) chroma[i] = chromaIn[i];
 
     float peak = 0.f, mean = 0.f;
     for (int i = 0; i < 12; ++i) {
@@ -143,6 +149,16 @@ KeyGuess detectKey(const int16_t* mono, int n, float sampleRate) {
     const float margin = (best - second) * 5.f;
     g.confidence = margin < 0.f ? 0.f : (margin > 1.f ? 1.f : margin);
     return g;
+}
+
+KeyGuess detectKey(const int16_t* mono, int n, float sampleRate) {
+    // Silence gate first: don't hallucinate a key out of the noise floor.
+    if (!mono || n < (int)sampleRate / 4 || sampleRate <= 0.f ||
+        !segmentAudible(mono, n))
+        return KeyGuess::make();
+    float chroma[12] = {0.f};
+    accumulateChroma(mono, n, sampleRate, chroma);
+    return classifyChroma(chroma);
 }
 
 bool scaleIsMinorish(int scaleIdx) {

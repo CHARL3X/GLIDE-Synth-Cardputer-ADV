@@ -932,6 +932,27 @@ int main() {
         g = detectKey(cap, nCap, sr);
         CHECK(!g.valid || g.confidence < 0.5f, "loud noise: invalid or low confidence");
 
+        // Incremental path (the device listens in rounds): summing a
+        // progression's chroma segment by segment must agree with the
+        // single-shot detector, and evidence must ACCUMULATE — two rounds of
+        // the same song classify at least as confidently as one.
+        renderProg(cap, nCap, cMajor, 4, 3, 1.f);
+        CHECK(segmentAudible(cap, nCap), "music rises above the silence floor");
+        {
+            float acc[12] = {0.f};
+            const int half = nCap / 2;
+            accumulateChroma(cap, half, sr, acc);
+            const KeyGuess one = classifyChroma(acc);
+            accumulateChroma(cap + half, nCap - half, sr, acc);
+            const KeyGuess two = classifyChroma(acc);
+            CHECK(two.valid && two.rootPc == 0 && !two.minor,
+                  "segment-summed chroma detects C major");
+            CHECK(two.confidence >= one.confidence - 0.05f,
+                  "a second round never erodes a clear verdict");
+        }
+        for (int i = 0; i < nCap; ++i) cap[i] = 0;
+        CHECK(!segmentAudible(cap, nCap), "silence stays under the floor");
+
         // Relative-key mapping: the player's scale decides the applied root.
         CHECK(scaleIsMinorish(SC_MIN_PENT), "minor pent is minorish");
         CHECK(scaleIsMinorish(SC_DORIAN), "dorian's parent has a minor third");

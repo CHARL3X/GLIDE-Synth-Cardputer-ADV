@@ -10,15 +10,17 @@ namespace listen {
 namespace {
 
 constexpr int kChunk = 1600;  // 100 ms at 16 kHz — the progress heartbeat
-// Preferred capture lengths, longest first; the first one the heap affords
-// wins. detectKey stays accurate down to ~1.5 s. All exact chunk multiples.
+// Preferred per-round buffer lengths, longest first; the first one the heap
+// affords wins. detectKey stays accurate down to ~1.5 s rounds. All exact
+// chunk multiples, and all divide the 9 s total evenly.
 constexpr int kTrySamples[] = {(int)(kRateHz * 3), (int)(kRateHz * 2),
                                (int)(kRateHz * 3 / 2)};
+constexpr int kMaxTotal = (int)(kRateHz * 9);  // listening budget across rounds
 
 }  // namespace
 
 Result capture(bool (*progress)(void* user, float frac), void* user,
-               void (*sink)(void* user, const int16_t* mono, int n)) {
+               bool (*segment)(void* user, const int16_t* mono, int n)) {
     // Alloc before touching the audio path: an alloc failure must leave the
     // instrument completely undisturbed.
     int16_t* buf = nullptr;
@@ -51,39 +53,44 @@ Result capture(bool (*progress)(void* user, float frac), void* user,
         return Result::NoMic;
     }
 
-    // Two chunks in flight (the mic's record queue is 2 deep, same as the
-    // speaker's) so recording stays gapless while we draw between chunks.
+    // Rounds: fill the buffer, hand it to the analyzer, repeat until it says
+    // it has heard enough or the 9 s budget runs out. The brief analysis gap
+    // between rounds costs nothing — chroma evidence is a running sum, not a
+    // continuous recording.
     const int chunks = total / kChunk;
+    const int rounds = kMaxTotal / total;
     bool cancelled = false;
-    int queued = 0, doneChunks = 0;
-    while (queued < chunks && queued < 2) {
-        mic.record(buf + queued * kChunk, (size_t)kChunk, kRateHz);
-        ++queued;
-    }
-    while (doneChunks < chunks && !cancelled) {
-        while (mic.isRecording() >= 2) delay(1);
-        ++doneChunks;  // runs ~one chunk ahead at the tail; the wait below covers it
-        if (queued < chunks) {
+    bool enough = false;
+    for (int round = 0; round < rounds && !cancelled && !enough; ++round) {
+        // Two chunks in flight (the mic's record queue is 2 deep, same as
+        // the speaker's) so recording stays gapless while we draw.
+        int queued = 0, doneChunks = 0;
+        while (queued < chunks && queued < 2) {
             mic.record(buf + queued * kChunk, (size_t)kChunk, kRateHz);
             ++queued;
         }
-        if (progress && !progress(user, (float)doneChunks / (float)chunks))
-            cancelled = true;
+        while (doneChunks < chunks && !cancelled) {
+            while (mic.isRecording() >= 2) delay(1);
+            ++doneChunks;  // ~one chunk ahead at the tail; the wait below covers it
+            if (queued < chunks) {
+                mic.record(buf + queued * kChunk, (size_t)kChunk, kRateHz);
+                ++queued;
+            }
+            const float frac =
+                (float)(round * chunks + doneChunks) / (float)(rounds * chunks);
+            if (progress && !progress(user, frac)) cancelled = true;
+        }
+        while (mic.isRecording()) delay(1);  // buffer fully written past here
+        if (!cancelled && segment) enough = !segment(user, buf, total);
     }
-    while (mic.isRecording()) delay(1);  // the buffer is fully written past here
     mic.end();
 
     if (!audio::resume()) {
         heap_caps_free(buf);
         return Result::ResumeFailed;
     }
-    if (cancelled) {
-        heap_caps_free(buf);
-        return Result::Cancelled;
-    }
-    if (sink) sink(user, buf, total);
     heap_caps_free(buf);
-    return Result::Ok;
+    return cancelled ? Result::Cancelled : Result::Ok;
 }
 
 }  // namespace listen

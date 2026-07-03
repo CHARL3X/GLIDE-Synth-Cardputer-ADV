@@ -19,12 +19,15 @@ enum class Result : uint8_t {
     ResumeFailed,  // Speaker.begin() failed after capture — FATAL, show it
 };
 
-// Records up to ~3 s of mono int16 at kRateHz (shorter if heap is tight —
-// down to 1.5 s). progress(user, frac) runs every ~100 ms chunk; return
-// false from it to cancel. On Ok, sink(user, samples, n) is called once
-// with the capture before the buffer is freed. Audio is always resumed
-// before this returns, except on ResumeFailed.
+// Records mono int16 at kRateHz in ROUNDS of ~3 s (shorter rounds if heap
+// is tight — down to 1.5 s), up to ~9 s total. After each round,
+// segment(user, samples, n) analyzes the audio and returns true to keep
+// listening or false when it has heard enough — a 3 s capture can land on
+// one chord and name ITS key, so the caller accumulates evidence and stops
+// early only once it's confident. progress(user, frac) runs every ~100 ms
+// chunk (frac spans the 9 s maximum); return false from it to cancel.
+// Audio is always resumed before this returns, except on ResumeFailed.
 Result capture(bool (*progress)(void* user, float frac), void* user,
-               void (*sink)(void* user, const int16_t* mono, int n));
+               bool (*segment)(void* user, const int16_t* mono, int n));
 
 }  // namespace listen

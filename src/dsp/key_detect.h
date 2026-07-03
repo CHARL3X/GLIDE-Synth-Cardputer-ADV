@@ -32,6 +32,18 @@ struct KeyGuess {
 // allocation. n shorter than ~1.5 s reduces accuracy but stays valid.
 KeyGuess detectKey(const int16_t* mono, int n, float sampleRate);
 
+// Incremental form, for listening in rounds: zero the accumulator, feed each
+// captured segment, classify whenever you want a verdict. Chroma evidence
+// sums across segments, so a longer listen is strictly more informed —
+// short captures risk hearing one chord and naming ITS key, not the song's.
+void accumulateChroma(const int16_t* mono, int n, float sampleRate,
+                      float chroma[12]);
+KeyGuess classifyChroma(const float chroma[12]);
+
+// Whether a segment rises above the silence floor at all (detectKey's gate,
+// exposed so a round-based listener can refuse a silent room honestly).
+bool segmentAudible(const int16_t* mono, int n);
+
 // Whether a scale is minor-flavoured: its HARMONY PARENT (kScales[i].harm,
 // the diatonic scale the backing builds triads from) contains a minor third.
 bool scaleIsMinorish(int scaleIdx);

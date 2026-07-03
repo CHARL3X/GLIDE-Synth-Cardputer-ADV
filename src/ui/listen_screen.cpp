@@ -15,8 +15,16 @@ namespace {
 struct Ctx {
     M5Canvas* c;
     dsp::KeyGuess guess;
+    float chroma[12];  // evidence, summed across listening rounds
+    int rounds;        // segments analyzed so far
+    bool heard;        // any segment rose above the silence floor
     bool btPrev;  // backtick held on the previous progress tick (edge detect)
 };
+
+// Stop listening early only when the verdict is this sure; otherwise keep
+// summing rounds up to the 9 s budget — a single 3 s round can land on one
+// chord and confidently name IT instead of the song.
+constexpr float kEnoughConfidence = 0.5f;
 
 // Direct positional read, splash-style: the modal owns the loop, so
 // keys::poll isn't draining the FIFO for us.
@@ -28,7 +36,7 @@ bool backtickHeld() {
     return false;
 }
 
-void drawListening(M5Canvas& c, float frac) {
+void drawListening(M5Canvas& c, float frac, int rounds) {
     c.fillScreen(theme::kBg);
     c.setTextDatum(middle_center);
     c.setFont(&fonts::Font4);
@@ -36,7 +44,8 @@ void drawListening(M5Canvas& c, float frac) {
     c.drawString("LISTENING", cfg::kScreenW / 2, 40);
     c.setFont(&fonts::Font0);
     c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString("play the song at me", cfg::kScreenW / 2, 62);
+    c.drawString(rounds == 0 ? "play the song at me" : "locking in...",
+                 cfg::kScreenW / 2, 62);
 
     const int bw = 168, bx = (cfg::kScreenW - bw) / 2, by = 78;
     c.drawRect(bx, by, bw, 8, theme::kLine);
@@ -51,18 +60,24 @@ void drawListening(M5Canvas& c, float frac) {
 
 bool onProgress(void* user, float frac) {
     Ctx& ctx = *(Ctx*)user;
-    drawListening(*ctx.c, frac);
+    drawListening(*ctx.c, frac, ctx.rounds);
     const bool bt = backtickHeld();
     const bool cancel = bt && !ctx.btPrev;  // newly pressed only
     ctx.btPrev = bt;
     return !cancel;
 }
 
-void onSamples(void* user, const int16_t* mono, int n) {
+// One round of evidence. Returns true to keep listening: a single round can
+// catch one chord and name ITS key, so we only stop early once the summed
+// chroma classifies with real confidence.
+bool onSegment(void* user, const int16_t* mono, int n) {
     Ctx& ctx = *(Ctx*)user;
-    // Audio is already resumed; this runs on the UI thread and the render
-    // task doesn't care how long we take.
-    ctx.guess = dsp::detectKey(mono, n, (float)listen::kRateHz);
+    ++ctx.rounds;
+    if (!dsp::segmentAudible(mono, n)) return true;  // silent round: wait for the song
+    ctx.heard = true;
+    dsp::accumulateChroma(mono, n, (float)listen::kRateHz, ctx.chroma);
+    ctx.guess = dsp::classifyChroma(ctx.chroma);
+    return !(ctx.guess.valid && ctx.guess.confidence >= kEnoughConfidence);
 }
 
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) {
@@ -144,10 +159,13 @@ void run(M5Canvas& canvas) {
     Ctx ctx;
     ctx.c = &canvas;
     ctx.guess = dsp::KeyGuess::make();
+    for (int i = 0; i < 12; ++i) ctx.chroma[i] = 0.f;
+    ctx.rounds = 0;
+    ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 
-    drawListening(canvas, 0.f);
-    const listen::Result r = listen::capture(onProgress, &ctx, onSamples);
+    drawListening(canvas, 0.f, 0);
+    const listen::Result r = listen::capture(onProgress, &ctx, onSegment);
 
     switch (r) {
         case listen::Result::ResumeFailed:
@@ -176,9 +194,9 @@ void run(M5Canvas& canvas) {
                                                g.layout.scaleIdx);
     g.layout.rootSemis = (uint8_t)applied;
     store::markDirty();
-    Serial.printf("[listen] heard %s %s conf %.2f -> root %s\n",
+    Serial.printf("[listen] heard %s %s conf %.2f (%d rounds) -> root %s\n",
                   dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
-                  ctx.guess.confidence, dsp::kNoteNames[applied]);
+                  ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied]);
 
     // Result card: ~1.6 s, backtick skips.
     drawResult(canvas, ctx.guess, applied, prevRoot);
