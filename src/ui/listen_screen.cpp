@@ -15,16 +15,18 @@ namespace {
 struct Ctx {
     M5Canvas* c;
     dsp::KeyGuess guess;
-    float chroma[12];  // evidence, summed across listening rounds
-    int rounds;        // segments analyzed so far
-    bool heard;        // any segment rose above the silence floor
+    float chroma[12];   // evidence, summed across listening rounds
+    int rounds;         // segments analyzed so far
+    int heardSamples;   // audible samples accumulated (silent rounds don't count)
+    bool heard;         // any segment rose above the silence floor
     bool btPrev;  // backtick held on the previous progress tick (edge detect)
 };
 
-// Stop listening early only when the verdict is this sure; otherwise keep
-// summing rounds up to the 9 s budget — a single 3 s round can land on one
-// chord and confidently name IT instead of the song.
+// Stop listening early only when the verdict is this sure AND at least this
+// much music has been heard — rounds can be as short as 0.5 s on a tight
+// heap, and one loud chord must not get to confidently name ITS key.
 constexpr float kEnoughConfidence = 0.5f;
+constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
 
 // Direct positional read, splash-style: the modal owns the loop, so
 // keys::poll isn't draining the FIFO for us.
@@ -75,9 +77,11 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ++ctx.rounds;
     if (!dsp::segmentAudible(mono, n)) return true;  // silent round: wait for the song
     ctx.heard = true;
+    ctx.heardSamples += n;
     dsp::accumulateChroma(mono, n, (float)listen::kRateHz, ctx.chroma);
     ctx.guess = dsp::classifyChroma(ctx.chroma);
-    return !(ctx.guess.valid && ctx.guess.confidence >= kEnoughConfidence);
+    return !(ctx.guess.valid && ctx.guess.confidence >= kEnoughConfidence &&
+             ctx.heardSamples >= kMinHeardForStop);
 }
 
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) {
@@ -161,6 +165,7 @@ void run(M5Canvas& canvas) {
     ctx.guess = dsp::KeyGuess::make();
     for (int i = 0; i < 12; ++i) ctx.chroma[i] = 0.f;
     ctx.rounds = 0;
+    ctx.heardSamples = 0;
     ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 

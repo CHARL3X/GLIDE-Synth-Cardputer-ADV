@@ -19,8 +19,9 @@ enum class Result : uint8_t {
     ResumeFailed,  // Speaker.begin() failed after capture — FATAL, show it
 };
 
-// Records mono int16 at kRateHz in ROUNDS of ~3 s (shorter rounds if heap
-// is tight — down to 1.5 s), up to ~9 s total. After each round,
+// Records mono int16 at kRateHz in ROUNDS of up to 3 s (sized to the
+// largest contiguous heap block — down to 0.5 s on a fragmented heap),
+// up to ~9 s total. After each round,
 // segment(user, samples, n) analyzes the audio and returns true to keep
 // listening or false when it has heard enough — a 3 s capture can land on
 // one chord and name ITS key, so the caller accumulates evidence and stops

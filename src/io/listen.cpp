@@ -10,32 +10,43 @@ namespace listen {
 namespace {
 
 constexpr int kChunk = 1600;  // 100 ms at 16 kHz — the progress heartbeat
-// Preferred per-round buffer lengths, longest first; the first one the heap
-// affords wins. detectKey stays accurate down to ~1.5 s rounds. All exact
-// chunk multiples, and all divide the 9 s total evenly.
-constexpr int kTrySamples[] = {(int)(kRateHz * 3), (int)(kRateHz * 2),
-                               (int)(kRateHz * 3 / 2)};
+constexpr int kMaxRound = (int)(kRateHz * 3);  // per-round ceiling
+constexpr int kMinRound = (int)(kRateHz / 2);  // floor: chroma needs only
+                                               // ~0.15 s of contiguity (A2 frame)
 constexpr int kMaxTotal = (int)(kRateHz * 9);  // listening budget across rounds
+constexpr size_t kHeapHeadroom = 16 * 1024;    // leave room for the mic's I2S driver
 
 }  // namespace
 
 Result capture(bool (*progress)(void* user, float frac), void* user,
                bool (*segment)(void* user, const int16_t* mono, int n)) {
-    // Alloc before touching the audio path: an alloc failure must leave the
-    // instrument completely undisturbed.
-    int16_t* buf = nullptr;
-    int total = 0;
-    for (size_t i = 0; i < sizeof(kTrySamples) / sizeof(kTrySamples[0]); ++i) {
-        buf = (int16_t*)heap_caps_malloc((size_t)kTrySamples[i] * sizeof(int16_t),
-                                         MALLOC_CAP_8BIT);
-        if (buf) {
-            total = kTrySamples[i];
-            break;
-        }
+    // Size the round buffer to the heap we actually have: fragmentation is
+    // real (the 65 KB canvas is resident), so ask for the largest contiguous
+    // block and take what fits, down to half-second rounds. Alloc before
+    // touching the audio path — a failure must leave the instrument
+    // completely undisturbed, and must say its numbers out loud.
+    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    int total = largest > kHeapHeadroom
+                    ? (int)((largest - kHeapHeadroom) / sizeof(int16_t))
+                    : 0;
+    if (total > kMaxRound) total = kMaxRound;
+    total -= total % kChunk;
+    if (total < kMinRound) {
+        Serial.printf("[listen] ALLOC FAILED: largest block %u B, need %u B\n",
+                      (unsigned)largest,
+                      (unsigned)(kMinRound * sizeof(int16_t) + kHeapHeadroom));
+        return Result::AllocFailed;
     }
-    if (!buf) return Result::AllocFailed;
-    Serial.printf("[listen] capture %d samples (%.1fs), free heap %u\n", total,
-                  (float)total / kRateHz, (unsigned)ESP.getFreeHeap());
+    int16_t* buf =
+        (int16_t*)heap_caps_malloc((size_t)total * sizeof(int16_t), MALLOC_CAP_8BIT);
+    if (!buf) {
+        Serial.printf("[listen] ALLOC FAILED at %u B (largest block %u B)\n",
+                      (unsigned)(total * sizeof(int16_t)), (unsigned)largest);
+        return Result::AllocFailed;
+    }
+    Serial.printf("[listen] rounds of %d samples (%.1fs), largest block %u B, free heap %u\n",
+                  total, (float)total / kRateHz, (unsigned)largest,
+                  (unsigned)ESP.getFreeHeap());
 
     audio::suspend();
 
@@ -58,7 +69,8 @@ Result capture(bool (*progress)(void* user, float frac), void* user,
     // between rounds costs nothing — chroma evidence is a running sum, not a
     // continuous recording.
     const int chunks = total / kChunk;
-    const int rounds = kMaxTotal / total;
+    int rounds = kMaxTotal / total;
+    if (rounds < 1) rounds = 1;
     bool cancelled = false;
     bool enough = false;
     for (int round = 0; round < rounds && !cancelled && !enough; ++round) {
