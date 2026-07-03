@@ -50,7 +50,12 @@ namespace {
 void setup() {
     auto mcfg = M5.config();
     mcfg.internal_spk = true;
-    mcfg.internal_mic = false;  // half-duplex codec: never bring up the mic
+    // Configuration only (verified in M5Unified source): this sets the mic
+    // pins and registers the ES8311 record-mode callback but starts NOTHING —
+    // and the callback setter is protected, so this flag is the only way in.
+    // The codec is half-duplex; the Speaker.end() -> Mic.begin() -> Mic.end()
+    // -> Speaker.begin() handoff lives solely in io/listen.cpp (LISTEN).
+    mcfg.internal_mic = true;
     mcfg.internal_imu = true;   // optional tilt modulation
     M5Cardputer.begin(mcfg, true);
 

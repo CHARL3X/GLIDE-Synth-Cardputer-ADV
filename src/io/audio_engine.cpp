@@ -60,6 +60,14 @@ std::atomic<uint8_t> gSounding{0};
 const char* gError = nullptr;
 bool gRunning = false;
 
+// LISTEN park handshake. gSuspend asks the render task to stop touching the
+// speaker; gParked is its acknowledgement. Both matter: Speaker_Class's
+// _play_raw lazily calls begin(), so a not-yet-parked render task would
+// resurrect the speaker right after Speaker.end() and clobber the mic's
+// codec mode mid-record.
+std::atomic<bool> gSuspend{false};
+std::atomic<bool> gParked{false};
+
 // Master soft limiter on the final mix. The lead and backing buses are each
 // soft-clipped to ~±0.93 on their own, but they SUM — soloing a loud/bright
 // synth over a full backing pushes the mix past ±1, which the int16 conversion
@@ -88,6 +96,15 @@ void renderTask(void*) {
     uint8_t b = 0;
     uint32_t blocksDone = 0;
     for (;;) {
+        // LISTEN park: acknowledge, then idle until resumed. Checked at the
+        // loop top so a parked task can never be mid-playRaw.
+        if (gSuspend.load(std::memory_order_acquire)) {
+            gParked.store(true, std::memory_order_release);
+            while (gSuspend.load(std::memory_order_acquire)) vTaskDelay(1);
+            gParked.store(false, std::memory_order_release);
+            blocksDone = 0;  // fresh warm-up: the refill is not starvation
+        }
+
         // Backpressure pacing: render exactly as fast as the DMA drains.
         while (spk.isPlaying(cfg::kAudioChannel) >= 2) vTaskDelay(1);
         // queue fully drained after warm-up = we were late = audible gap risk
@@ -261,6 +278,40 @@ int copyScope(float* dst, int maxN) {
 
 uint32_t starvedBlocks() {
     return gStarved.load();
+}
+
+void suspend() {
+    if (!gRunning || gSuspend.load(std::memory_order_acquire)) return;
+    // Silence first: AllOff lets releases start, the generation bump kills
+    // anything the looper had scheduled (it would burst, stale, on resume).
+    gEvents.push(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
+    flushScheduled();
+    delay(40);  // ~10 blocks: the AllOff is rendered, tails begin to fade
+    gSuspend.store(true, std::memory_order_release);
+    while (!gParked.load(std::memory_order_acquire)) vTaskDelay(1);
+    // Drain the <=2 in-flight buffers playRaw still points at, then release
+    // the codec to the mic.
+    auto& spk = M5Cardputer.Speaker;
+    const uint32_t t0 = millis();
+    while (spk.isPlaying(cfg::kAudioChannel) != 0 && millis() - t0 < 100) vTaskDelay(1);
+    spk.end();
+}
+
+bool resume() {
+    if (!gRunning) return false;
+    if (!gSuspend.load(std::memory_order_acquire)) return true;
+    auto& spk = M5Cardputer.Speaker;
+    if (!spk.begin()) {
+        gError = "Speaker.begin() failed after LISTEN";
+        return false;  // caller shows the full-screen failure
+    }
+    spk.setVolume(255);  // begin() is fresh codec state; re-pin unity gain
+    gSuspend.store(false, std::memory_order_release);
+    return true;
+}
+
+bool suspended() {
+    return gSuspend.load(std::memory_order_acquire);
 }
 
 }  // namespace audio

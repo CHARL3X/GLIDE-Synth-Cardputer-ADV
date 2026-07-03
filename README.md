@@ -52,6 +52,7 @@ The Cardputer's keyboard is a 4×14 matrix with staggered rows. Physically it's 
  fn + shift + q..p : save your current tweaks over that slot
  fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone, live
+ fn + k  (HOLD)    : LISTEN - the mic hears the song and retunes for you
 ```
 
 **How you play it:**
@@ -61,6 +62,7 @@ The Cardputer's keyboard is a 4×14 matrix with staggered rows. Physically it's 
 - **Slide a chord:** hold a shape across rows, then re-finger it elsewhere while the old notes still ring. Every voice glides. This is the thing.
 - **Hold `shift` to break out of the scale.** Pure chromatic semitones, only while held. That's the skill gate. The scale keeps beginners safe; shift is how you earn the notes in between.
 - **Match a song's key on the fly with `fn`+`k`.** Each tap walks the root up a semitone (wrapping at B), so you can step the key, play a phrase against whatever's on, and step again until it locks in — no trip to settings. The current key shows on the status bar and flashes in the HUD on every tap.
+- **Or let the instrument find it: hold `fn`+`k` and it LISTENS.** The synth goes quiet for ~3 seconds while the mic hears whatever's playing in the room, a chromagram works out the song's key (root *and* major/minor), and the root retunes itself — mapped through your current scale, so a C-major song under the default minor pentatonic correctly lands on A, the relative minor (the pentatonic-boxes trick, automated). The result card shows the twelve pitch-class bars it heard, the detected key, and the applied root; a weak or silent room says NO SIGNAL and changes nothing. Tap `fn`+`k` to nudge if it guessed a neighbour. (Cardputer ADV only — it needs the mic; no mic just means a visible "mic unavailable", never a broken instrument.)
 - **`fn` + top row** picks a parameter (glide, ADSR, wave, cutoff, voices, bend range, volume); `[` `]` adjust it live. Nothing is hardcoded. Every sound parameter has a control, and everything survives a reboot.
 - The **oscilloscope** is live. That's the actual output waveform, with a phosphor afterglow. The note readout tracks the lead voice in cents *through* glides and bends, so you can see exactly where you are between the notes.
 - Or flip the display to the **pitch trail** (settings → *Display*): the lead voice's pitch drawn over time, scrolling across ~7 seconds, with root-note gridlines as fret markers. On an instrument about the space *between* notes, this is the scope for the other axis. Every glide, hammer-on, and bend becomes a visible curve (bend-pulled segments draw amber), and with tilt-vibrato on you can watch the line shimmer.

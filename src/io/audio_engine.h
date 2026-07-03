@@ -50,4 +50,14 @@ int copyScope(float* dst, int maxN);
 // Render-task health: blocks where the DMA queue ran dry (audible gap risk).
 uint32_t starvedBlocks();
 
+// LISTEN support: park the render task and release the speaker so the mic
+// can own the half-duplex codec. suspend() silences (AllOff + scheduled
+// flush), waits for the task to park and the DMA queue to drain, then
+// Speaker.end() — blocks ~60 ms. resume() restarts the speaker and unparks;
+// false means the speaker did NOT come back and the caller must show a
+// full-screen failure (never a silently dead instrument).
+void suspend();
+bool resume();
+bool suspended();
+
 }  // namespace audio

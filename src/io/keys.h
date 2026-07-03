@@ -22,6 +22,7 @@ struct Actions {
     bool openSettings = false;
     bool exitApp = false;
     bool gridPressed = false;  // any note key went down (dismisses the intro)
+    bool listen = false;       // fn+k held: run the LISTEN key-detect modal
 };
 
 void begin();

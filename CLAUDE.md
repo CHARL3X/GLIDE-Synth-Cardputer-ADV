@@ -36,6 +36,14 @@ native env needs `~\.platformio\packages\toolchain-gccmingw32\bin` on PATH.
    `espressif32@6.12.0`) to match the verified Speaker_Class source. Don't
    bump without re-running the phase0 probe on hardware.
 
+7. **The mic is config-only at boot.** `internal_mic = true` in main.cpp sets
+   pins + the ES8311 record callback but starts nothing (verified in the
+   vendored M5Unified source). The codec is half-duplex; the entire
+   `Speaker.end() → Mic.begin() → Mic.end() → Speaker.begin()` handoff lives
+   solely in `io/listen.cpp` (LISTEN), which parks the render task first —
+   `playRaw` lazily restarts the speaker, so an unparked render task would
+   clobber the mic mid-record.
+
 ## Conventions (inherited from the sibling firmwares in ../CardPuter Custom)
 
 - `` ` `` = exit, full-frame M5Canvas pushed once per frame (~30 fps), NVS

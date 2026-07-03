@@ -152,6 +152,13 @@ uint32_t gExitDownMs = 0;
 bool gExitFired = false;
 constexpr uint32_t kExitHoldMs = 700;
 
+// fn+k: short tap cycles the root key (fired on RELEASE), long-press fires
+// LISTEN — auto key detection off the mic. Same gesture split as the tilt key.
+uint32_t gKeyCyclePressMs = 0;
+bool gKeyCyclePending = false;  // a fn+k press is in flight, undecided
+bool gKeyListenFired = false;   // long-press consumed this hold
+constexpr uint32_t kListenHoldMs = 500;
+
 // jam motion: a millis-paced beat clock on the UI thread re-strikes the
 // latched drones, turning the static bed into a living backing. Pure event
 // pushes through the existing queue — the dsp/ engine stays untouched.
@@ -786,6 +793,10 @@ void resync() {
     gTiltLatchFired = true;
     gLoopHoldFired = true;  // same guard for the loop pedal
     gExitFired = true;      // and the exit hold — needs a fresh press to fire
+    // fn+k may still be held coming back from the LISTEN modal it fired —
+    // don't let its release read as a fresh root-cycling tap.
+    gKeyCyclePending = false;
+    gKeyListenFired = false;
     // The jam clock is NOT reset here: settings now ticks the backing every
     // frame (keys::tickBacking), so the progression/arp/drones play straight
     // through and their clocks stay live — re-arming would re-strike a chord
@@ -882,8 +893,12 @@ Actions poll(uint32_t nowMs) {
 
         if (gGridString[cd] >= 0) {
             if (gQuickEdit) {
-                if (cd == kKeyKeyCycle) {  // fn+K = retune the root key (live)
-                    cycleRootKey();
+                if (cd == kKeyKeyCycle) {
+                    // fn+K: decided on release — tap retunes the root key
+                    // (live), a ~0.5 s hold fires LISTEN instead.
+                    gKeyCyclePending = true;
+                    gKeyListenFired = false;
+                    gKeyCyclePressMs = nowMs;
                     continue;
                 }
                 if (gGridString[cd] == 3) {
@@ -1009,6 +1024,13 @@ Actions poll(uint32_t nowMs) {
     for (int cd = 0; cd < 56 && released; ++cd) {
         if (!held(released, cd)) continue;
         if (gGridString[cd] >= 0) {
+            // fn+k released: if the LISTEN hold didn't consume it, it was a
+            // short tap -> cycle the root. (pending is only ever set on the
+            // quick-edit path, where the press never entered gNotes.)
+            if (cd == kKeyKeyCycle && gKeyCyclePending) {
+                if (!gKeyListenFired) cycleRootKey();
+                gKeyCyclePending = false;
+            }
             if (gNotes[cd].string >= 0) noteRelease(cd);
             continue;
         }
@@ -1083,6 +1105,15 @@ Actions poll(uint32_t nowMs) {
     if (held(cur, kKeyExit) && !gExitFired && nowMs - gExitDownMs >= kExitHoldMs) {
         gExitFired = true;
         act.exitApp = true;
+    }
+
+    // fn+k held past the threshold -> LISTEN (fires once; the release is then
+    // a no-op tap). The modal takes over the loop, so poll never sees the
+    // release — resync() clears the pending flag on the way back.
+    if (gKeyCyclePending && !gKeyListenFired && held(cur, kKeyKeyCycle) &&
+        nowMs - gKeyCyclePressMs >= kListenHoldMs) {
+        gKeyListenFired = true;
+        act.listen = true;
     }
 
     // sustain pedal lifted -> let go of everything not physically held

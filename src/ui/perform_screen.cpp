@@ -17,6 +17,7 @@
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
+#include "listen_screen.h"
 #include "morph.h"
 #include "settings_screen.h"
 #include "sound_card.h"
@@ -821,6 +822,14 @@ void run() {
             gPrevValid = false;
             gTrailInit = false;  // restart the pitch trail clean
             introShownAt = millis();
+            continue;
+        }
+        if (act.listen) {
+            demo::stop();  // same yield as settings
+            listen_screen::run(canvas);
+            keys::resync();
+            gPrevValid = false;
+            gTrailInit = false;
             continue;
         }
 
