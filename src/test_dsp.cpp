@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "dsp/demo_gen.h"
+#include "dsp/key_detect.h"
 #include "dsp/morph.h"
 #include "dsp/patches.h"
 #include "dsp/pitch.h"
@@ -852,6 +853,101 @@ int main() {
         CHECK(hookHolds, "one hook per run: every phrase repeats its rhythm");
         CHECK(rests >= 3, "phrases breathe (a rest bar per phrase)");
         CHECK(slides > 20 && attacks > 20, "slides carry the line; downbeats re-attack");
+    }
+
+    // ---- key detection (LISTEN) ------------------------------------------
+    {
+        constexpr float sr = 16000.f;
+        constexpr int nCap = (int)(sr * 3);  // 3 s, the on-device capture
+        static int16_t cap[nCap];
+
+        // Render a chord progression: each chord a sum of tones (fundamental
+        // + two harmonics), ~0.75 s per chord — a crude but honest "song".
+        auto renderProg = [](int16_t* out, int n, const int* midi, int chords,
+                             int tonesPerChord, float detune) {
+            for (int i = 0; i < n; ++i) out[i] = 0;
+            const int chordLen = n / chords;
+            for (int c = 0; c < chords; ++c) {
+                for (int t = 0; t < tonesPerChord; ++t) {
+                    const float f =
+                        440.f * powf(2.f, (midi[c * tonesPerChord + t] - 69) / 12.f) *
+                        detune;
+                    for (int i = 0; i < chordLen; ++i) {
+                        const float ph = 6.2831853f * f * (float)i / 16000.f;
+                        const float v = sinf(ph) + 0.5f * sinf(2.f * ph) +
+                                        0.25f * sinf(3.f * ph);
+                        out[c * chordLen + i] += (int16_t)(v * 2200.f);
+                    }
+                }
+            }
+        };
+
+        // C major: C-F-G-C.  A minor: Am-Dm-Em-Am (same pitch-class set as
+        // C major — the relative-pair tiebreak the K-S tonic weight decides).
+        const int cMajor[12] = {48, 52, 55, 53, 57, 60, 55, 59, 62, 48, 52, 55};
+        const int aMinor[12] = {45, 48, 52, 50, 53, 57, 52, 55, 59, 45, 48, 52};
+        const float upCents = powf(2.f, 30.f / 1200.f);
+        const float dnCents = powf(2.f, -30.f / 1200.f);
+
+        renderProg(cap, nCap, cMajor, 4, 3, 1.f);
+        KeyGuess g = detectKey(cap, nCap, sr);
+        CHECK(g.valid && g.rootPc == 0 && !g.minor, "C major progression detected");
+        CHECK(g.confidence > 0.05f, "clean progression has real confidence");
+        CHECK(g.chroma[0] > 0.99f || g.chroma[7] > 0.99f || g.chroma[4] > 0.99f,
+              "chroma peak sits on a C-major chord tone");
+
+        renderProg(cap, nCap, aMinor, 4, 3, 1.f);
+        g = detectKey(cap, nCap, sr);
+        CHECK(g.valid && g.rootPc == 9 && g.minor,
+              "A minor progression detected (relative-pair tiebreak)");
+
+        renderProg(cap, nCap, cMajor, 4, 3, upCents);
+        g = detectKey(cap, nCap, sr);
+        CHECK(g.valid && g.rootPc == 0 && !g.minor, "C major survives +30 cents");
+        renderProg(cap, nCap, aMinor, 4, 3, dnCents);
+        g = detectKey(cap, nCap, sr);
+        CHECK(g.valid && g.rootPc == 9 && g.minor, "A minor survives -30 cents");
+
+        // A short capture (the 1.5 s heap-fallback case) still detects.
+        renderProg(cap, nCap / 2, cMajor, 4, 3, 1.f);
+        g = detectKey(cap, nCap / 2, sr);
+        CHECK(g.valid && g.rootPc == 0 && !g.minor, "1.5 s capture still detects");
+
+        // Silence and near-silence must refuse, never hallucinate.
+        for (int i = 0; i < nCap; ++i) cap[i] = 0;
+        g = detectKey(cap, nCap, sr);
+        CHECK(!g.valid, "all-zero capture reports no signal");
+        uint32_t rng = 12345u;
+        for (int i = 0; i < nCap; ++i) {
+            rng = rng * 1664525u + 1013904223u;
+            cap[i] = (int16_t)((rng >> 20) & 15) - 8;  // tiny noise floor
+        }
+        g = detectKey(cap, nCap, sr);
+        CHECK(!g.valid, "noise-floor capture reports no signal");
+        // Loud noise passes the gate but must confess weak confidence.
+        for (int i = 0; i < nCap; ++i) {
+            rng = rng * 1664525u + 1013904223u;
+            cap[i] = (int16_t)((rng >> 16) & 4095) - 2048;
+        }
+        g = detectKey(cap, nCap, sr);
+        CHECK(!g.valid || g.confidence < 0.5f, "loud noise: invalid or low confidence");
+
+        // Relative-key mapping: the player's scale decides the applied root.
+        CHECK(scaleIsMinorish(SC_MIN_PENT), "minor pent is minorish");
+        CHECK(scaleIsMinorish(SC_DORIAN), "dorian's parent has a minor third");
+        CHECK(scaleIsMinorish(SC_BLUES), "blues borrows the minor parent");
+        CHECK(!scaleIsMinorish(SC_MAJ_PENT), "major pent is majorish");
+        CHECK(!scaleIsMinorish(SC_PHR_DOM), "phrygian dominant is majorish");
+        CHECK(!scaleIsMinorish(SC_CHROM), "chromatic borrows the major parent");
+        CHECK(!scaleIsMinorish(SC_WHOLE), "whole tone borrows lydian");
+        CHECK(applyRootForScale(0, false, SC_MIN_PENT) == 9,
+              "C major song + minor pent -> root A (relative minor)");
+        CHECK(applyRootForScale(9, true, SC_MAJ_PENT) == 0,
+              "A minor song + major pent -> root C (relative major)");
+        CHECK(applyRootForScale(0, false, SC_MAJOR) == 0,
+              "C major song + major scale -> root C untouched");
+        CHECK(applyRootForScale(9, true, SC_MIN_PENT) == 9,
+              "A minor song + minor pent -> root A untouched");
     }
 
     if (failures == 0) {
