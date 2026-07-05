@@ -24,6 +24,12 @@ And the sounds are yours. You roll them, evolve them, and keep the ones that hit
 
 That's the pitch. The rest of this is how it works.
 
+<p align="center">
+  <a href="https://buymeacoffee.com/charl3x">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="200">
+  </a>
+</p>
+
 > Lineage, for the curious: this is the second build of the instrument from the brainstorm, the "pitch touch bar" / "digital slide whistle," STRATA-1's little sibling. The touchscreen prototype proved sliding chords on a continuous-pitch surface is *absolutely sick*. This one answers a harder question: can that soul survive on 56 mechanical keys and a one-watt speaker? It can.
 
 ## The translation
@@ -292,6 +298,10 @@ Audio path facts (verified against M5Unified source, not vibes): `playRaw` keeps
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
 | display | waveform scope / pitch trail | pitch trail | settings |
 | solo/backing split | auto when you change sound/octave over a jam | live | live |
+
+---
+
+**If GLIDE earned a spot in your pocket** — or made a weird noise you didn't expect — you can [buy me a coffee](https://buymeacoffee.com/charl3x). It's free and open source, and it stays that way; a coffee just keeps the soldering iron warm and the next build coming. ☕
 
 ---
 
