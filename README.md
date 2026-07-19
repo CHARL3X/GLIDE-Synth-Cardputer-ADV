@@ -79,7 +79,7 @@ This is the other half of GLIDE, and arguably the bigger one. The patches aren't
 
 Ten slots live on `fn`+`q`..`p`. Eight are a curated bank, led by **GLIDE** on `q` (the home/boot sound) and **ACID** on `w`. The last two, `o` and `p`, are **generative**: rolled from a seed unique to your unit, so they're different on every device on Earth. From there you build your own.
 
-| key | sound | character | tilt does |
+| key | sound | character | tilt (per-sound mode) |
 |-----|-------|-----------|-----------|
 | q | **GLIDE** | the signature dry saw, and the literal boot tone | vibrato (roll: filter) |
 | w | **ACID** | resonant squelch. lean into it, tilt is the wah | filter (full) |
@@ -118,7 +118,7 @@ Under the hood every sound rides five engine character-makers: a paraphonic **fi
 
 The gyro debate, resolved as agreed, then promoted, because in practice it's fantastic. Tilt is an *assignable* effects modulator, toggled with `enter`, and **never pitch bend** (nobody wants to lean the instrument over again).
 
-- **Per-sound personality.** Every patch ships with its own route and depth. ACID tilts into a full wah, Hollow into a volume swell, Ethereal and Solo into vibrato. Saving a slot saves its tilt setup too.
+- **Your rig, or the sound's.** By default the tilt map is *global* — forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) and **vibrato on left/right**, both at 60% — set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Ethereal and Solo into vibrato — the table above), saved with the slot.
 - **Depth** (settings): how hard the motion drives the effect, 0 to 100%.
 - **Center calibration** (settings → *Tilt center*): "flat" becomes wherever *you* hold the thing, not wherever gravity says. Set it while holding the device in playing position.
 
@@ -293,8 +293,9 @@ Audio path facts (verified against M5Unified source, not vibes): `playRaw` keeps
 | chorus / delay / reverb send | 0-100% each | per sound | settings (live) |
 | delay time / sync / feedback | 10-600ms / free+5 divisions / 0-90% | per sound | settings (live) |
 | tap tempo | 40-240 bpm, tapped | live | settings |
-| tilt routing | off / cutoff / vibrato / volume | per sound | settings, enter toggles |
-| tilt depth | 0-100% | per sound | settings |
+| tilt map | global (follows your hands) / per sound | global | settings |
+| tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings, enter toggles |
+| tilt depth | 0-100% | 60% | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
 | display | waveform scope / pitch trail | pitch trail | settings |
 | solo/backing split | auto when you change sound/octave over a jam | live | live |
