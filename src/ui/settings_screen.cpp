@@ -190,6 +190,20 @@ void aTiltB(int d) {
         g.tiltMorphB = false;
         g.tiltRouteB = (store::TiltRoute)next;
     }
+    // The roll axis only reads when the global 2D flag is armed (perform: axis B
+    // is applied `if (tiltDual)`), and that flag defaults off + reverts off after
+    // an NVS-pressure boot. So assigning the l/r axis a job here was silently
+    // inert — "Tilt l/r route = vibrato" did nothing until you also found the
+    // hidden enter-tap 2D gesture. Mirror cycleTilt's self-heal so the menu is
+    // honest: a real route (or morph) arms the roll axis and floors its depth;
+    // cycling back to plain "off" disarms it. Tilt itself must be on to read
+    // either axis, so a live route turns it on too.
+    const bool active = g.tiltMorphB || g.tiltRouteB != store::TiltRoute::Off;
+    g.tiltDual = active;
+    if (active) {
+        g.tiltOn = true;
+        if (g.tiltDepthB < 0.05f) g.tiltDepthB = 0.6f;
+    }
 }
 
 void fTiltDepthB(char* o, int c) { snprintf(o, c, "%d %%", (int)(store::get().tiltDepthB * 100)); }
