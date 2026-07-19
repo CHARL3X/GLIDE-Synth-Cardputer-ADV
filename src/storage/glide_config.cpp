@@ -286,10 +286,13 @@ uint32_t slotSeed(uint32_t seed, int slot) {
     return seed ^ (0x9E3779B9u * (uint32_t)(slot + 1));
 }
 
-// Content hash of a sound (synth + tilt personality). Uses dsp::patchHash, which
-// deliberately ignores master volume and the live bend/tilt mod fields — so it's
-// a hash of the SOUND, not the moment. Shared by the live-name logic and the
-// unsaved-edit (liveDirty) compare.
+// Content hash of a sound (synth + tilt personality) for the unsaved-edit
+// (liveDirty) compare and same-sound checks. Uses dsp::patchHashFull: EVERY
+// persisted field counts (an edit to only delay-fb or an LFO shape must read
+// as unsaved), while master volume and the live bend/tilt mod fields stay out
+// — a hash of the SOUND, not the moment. Names stay on the frozen
+// dsp::patchHash (see setLiveNameFromPatch), so this coverage can grow without
+// renaming anyone's saved slots.
 uint32_t soundHash(const dsp::SynthParams& s, uint8_t tr, float td, uint8_t trb, float tdb) {
     dsp::GenPatch g;
     g.synth = s;
@@ -297,7 +300,7 @@ uint32_t soundHash(const dsp::SynthParams& s, uint8_t tr, float td, uint8_t trb,
     g.tiltDepth = td;
     g.tiltRouteB = trb;
     g.tiltDepthB = tdb;
-    return dsp::patchHash(g);
+    return dsp::patchHashFull(g);
 }
 
 // Tilt is a global rig setting when locked (follows your hands, not the sound),
@@ -710,6 +713,7 @@ void begin() {
     }
     gCfg.jamBpm = clampT<int>(gPrefs.getUShort("jambpm", d.jamBpm), 40, 240);
     gCfg.jamChordBeats = clampT<int>(gPrefs.getUChar("jamcbt", d.jamChordBeats), 1, 8);
+    gCfg.loopSnap = clampT<int>(gPrefs.getUChar("loopsnap", d.loopSnap), 0, 2);
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
     gCfg.scopeMode = clampT<int>(gPrefs.getUChar("scopemd", d.scopeMode), 0, 1);
@@ -768,7 +772,8 @@ void begin() {
         if (liveHash() == gCurSlotHash)
             setLiveName(patchName(gCfg.currentPatch));
         else
-            dsp::soundName(liveHash(), gLiveName, sizeof gLiveName);
+            refreshLiveName();  // canonical adj-noun from the NAME hash — liveHash
+                                // is the dirty hash now and must not seed names
     }
 }
 
@@ -844,6 +849,7 @@ void persistNow() {
     gPrefs.putUChar("jammot", gCfg.jamMotion);
     gPrefs.putUShort("jambpm", gCfg.jamBpm);
     gPrefs.putUChar("jamcbt", gCfg.jamChordBeats);
+    gPrefs.putUChar("loopsnap", gCfg.loopSnap);
     gPrefs.putUShort("bendms", gCfg.bendMs);
     gPrefs.putUChar("bendrg", gCfg.bendRange);
     gPrefs.putUChar("scopemd", gCfg.scopeMode);

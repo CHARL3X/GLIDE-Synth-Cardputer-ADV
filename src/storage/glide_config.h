@@ -98,6 +98,10 @@ struct GlideConfig {
                               // gliding between changes; you solo on top)
     uint16_t jamBpm = 100;    // jam-motion / progression tempo
     uint8_t jamChordBeats = 4;// progression: beats each chord holds (1 bar)
+    uint8_t loopSnap = 2;     // loop-close length snap to the jam clock:
+                              // 0=off (raw human length), 1=beat, 2=bar
+                              // (default — loop and progression lock out of
+                              // the box; see dsp/quantize.h)
     uint16_t bendMs = 250;    // time to reach full bend range
     uint8_t bendRange = 2;    // semitones
     uint8_t scopeMode = 1;    // 0=waveform scope, 1=pitch trail (default — the
