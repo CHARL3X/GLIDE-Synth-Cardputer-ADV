@@ -7,9 +7,9 @@
 // timing is block-accurate (~4 ms), not UI-frame-accurate (~33 ms).
 //
 //   alt tap   : record -> play (closes the loop) -> overdub -> play -> ...
-//   alt hold  : peel the last overdub layer (undo); a further hold climbs
-//               back up (redo). The base loop is protected — never peeled.
-//   fn + alt  : clear everything
+//   alt hold  : clear everything
+//   fn + alt  : peel the last overdub layer (undo); repeating climbs back up
+//               (redo). The base loop is protected — never peeled.
 //   panic     : silences playback, keeps the take (alt tap plays it again)
 #pragma once
 #include <cstdint>
@@ -24,7 +24,11 @@ enum class State : uint8_t { Empty, Recording, Playing, Overdub, Stopped };
 // types, Offs/Retargets for notes it never saw the On of).
 void record(const dsp::NoteEvent& ev);
 
-State tap(uint32_t nowMs);   // the pedal press; returns the new state
+// The pedal press; returns the new state. bpm/snapMode matter only on the tap
+// that CLOSES a recording: the raw take length snaps to the jam clock via
+// dsp::quantizeLoopMs (snapMode: 0 off, 1 beat, 2 bar), so the loop and the
+// progression share one clock instead of drifting apart.
+State tap(uint32_t nowMs, float bpm, uint8_t snapMode);
 int peel(uint32_t nowMs);    // hold: undo/redo a layer. 0 = nothing to do,
                              // 1 = peeled a layer (undo), 2 = restored (redo)
 void clear();                // erase the take entirely (fn+alt)

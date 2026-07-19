@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <cstring>
 
+#include "../dsp/quantize.h"
 #include "audio_engine.h"
 
 namespace looper {
@@ -171,7 +172,7 @@ void record(const dsp::NoteEvent& ev) {
     insertEvent(t, ev, layer);
 }
 
-State tap(uint32_t nowMs) {
+State tap(uint32_t nowMs, float bpm, uint8_t snapMode) {
     switch (gState) {
         case State::Empty:
             gCount = 0;
@@ -189,8 +190,31 @@ State tap(uint32_t nowMs) {
                 gState = State::Empty;
                 break;
             }
-            closeOpenRecNotes(len - 1, 0);
-            gLenMs = len;
+            // Snap the human tap to the jam clock (the rounding rule lives in
+            // the host-tested dsp helper; snapMode 0 keeps the raw length).
+            const uint32_t qLen = dsp::quantizeLoopMs(len, bpm, snapMode);
+            if (qLen < len) {
+                // Late close: events past the quantized end were played as the
+                // next cycle's downbeat — wrap them to the front...
+                bool wrapped = false;
+                for (int i = 0; i < gCount; ++i)
+                    if (gEv[i].tMs >= qLen) { gEv[i].tMs %= qLen; wrapped = true; }
+                // ...which breaks the time-sort insertEvent maintains. Restore
+                // it (stable insertion sort: only the small wrapped tail moves,
+                // and equal-time events keep their On-before-Off order).
+                if (wrapped) {
+                    for (int i = 1; i < gCount; ++i) {
+                        const LoopEvent e = gEv[i];
+                        int j = i - 1;
+                        while (j >= 0 && gEv[j].tMs > e.tMs) { gEv[j + 1] = gEv[j]; --j; }
+                        gEv[j + 1] = e;
+                    }
+                }
+            }
+            // Notes still held at the close ring to the (quantized) loop end —
+            // on an early tap that's the coming downbeat, which is the intent.
+            closeOpenRecNotes(qLen - 1, 0);
+            gLenMs = qLen;
             gAnchorMs = nowMs;  // first cycle starts on the pedal press
             gPlayIdx = 0;
             gTopLayer = gLiveLayer = 0;

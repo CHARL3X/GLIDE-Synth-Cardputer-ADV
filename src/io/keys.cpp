@@ -1050,7 +1050,9 @@ Actions poll(uint32_t nowMs) {
         // loop pedal released: short tap steps the rec -> play -> overdub cycle
         if (cd == kKeyAlt && !gLoopHoldFired) {
             const looper::State prev = looper::state();
-            const looper::State s = looper::tap(nowMs);
+            // the close tap snaps the take to the jam clock (Loop snap setting);
+            // same tempo source that feeds SynthParams::tempoBpm each frame
+            const looper::State s = looper::tap(nowMs, (float)cfgr.jamBpm, cfgr.loopSnap);
             char v[20];
             switch (s) {
                 case looper::State::Recording:
