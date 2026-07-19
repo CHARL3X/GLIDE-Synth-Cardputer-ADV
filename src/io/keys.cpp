@@ -139,11 +139,14 @@ uint32_t gTiltPressMs = 0;
 bool gTiltLatchFired = false;            // long-press consumed this hold
 constexpr uint32_t kTiltLongMs = 350;
 
-// loop pedal (alt): tap = rec/play/overdub cycle, long-press = clear.
-// Same release-fired gesture split as the tilt key.
+// loop pedal (alt): tap = rec/play/overdub cycle, long-press = clear the whole
+// loop, fn+alt = peel/undo one layer (redo bounces at the ends). Same release-
+// fired gesture split as the tilt key. Clear is destructive, so its hold sits a
+// touch past a tap (700 ms, like the exit hold) — a lingering overdub press
+// must not nuke the take.
 uint32_t gLoopPressMs = 0;
 bool gLoopHoldFired = false;
-constexpr uint32_t kLoopHoldMs = 600;
+constexpr uint32_t kLoopHoldMs = 700;
 
 // exit (`): reboots the device, and it sits top-left where it gets brushed
 // constantly — accidental reboots (and, via the boot splash, wiped sessions).
@@ -1003,12 +1006,17 @@ Actions poll(uint32_t nowMs) {
                 gTiltLatchFired = false;
                 break;
             case kKeyAlt:
-                if (held(cur, kKeyFn)) {  // fn+alt = clear the whole loop
-                    if (looper::state() != looper::State::Empty) {
-                        looper::clear();
-                        hud::show("LOOP", "cleared", -1.f);
+                if (held(cur, kKeyFn)) {  // fn+alt = peel/undo one loop layer
+                    const int r = looper::peel(nowMs);
+                    if (r != 0) {
+                        char v[20];
+                        snprintf(v, sizeof v, "%s  x%d", r == 1 ? "undo" : "redo",
+                                 looper::liveLayers() + 1);
+                        hud::show("LOOP", v, -1.f);
+                    } else if (looper::state() != looper::State::Empty) {
+                        hud::show("LOOP", "no layers", -1.f);
                     }
-                    gLoopHoldFired = true;  // consume: no tap on release, no hold-peel
+                    gLoopHoldFired = true;  // consume: no tap on release, no hold-clear
                 } else {
                     // loop pedal: tap vs hold decided on release / threshold
                     gLoopPressMs = nowMs;
@@ -1084,18 +1092,14 @@ Actions poll(uint32_t nowMs) {
         hud::show("TILT", gTiltLatched ? "latched" : "live", -1.f);
     }
 
-    // loop pedal held past the threshold -> peel/restore a layer (fires once
-    // per hold; hold again to keep walking the stack — it bounces at the ends)
+    // loop pedal held past the threshold -> clear the whole loop (fires once per
+    // hold). The take is performance state, so no confirm — just re-record; the
+    // 700 ms hold keeps it clear of a normal overdub tap. fn+alt peels one layer.
     if (held(cur, kKeyAlt) && !gLoopHoldFired && nowMs - gLoopPressMs >= kLoopHoldMs) {
         gLoopHoldFired = true;
-        const int r = looper::peel(nowMs);
-        if (r != 0) {
-            char v[20];
-            snprintf(v, sizeof v, "%s  x%d", r == 1 ? "undo" : "redo",
-                     looper::liveLayers() + 1);
-            hud::show("LOOP", v, -1.f);
-        } else if (looper::state() != looper::State::Empty) {
-            hud::show("LOOP", "no layers", -1.f);
+        if (looper::state() != looper::State::Empty) {
+            looper::clear();
+            hud::show("LOOP", "cleared", -1.f);
         }
     }
 

@@ -52,7 +52,7 @@ The Cardputer's keyboard is a 4×14 matrix with staggered rows. Physically it's 
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
  - / =    octave -/+          G0 (top button) = trigger macro (muffle by default)
-                                         (tap rec/play/dub, hold undo, fn+alt clear)
+                                         (tap rec/play/dub, hold clear, fn+alt undo)
 
  fn + q..p         : switch between the ten sounds, live
  fn + shift + q..p : save your current tweaks over that slot
@@ -140,10 +140,10 @@ On by default (bottom row) with the **progression** motion ready, so out of the 
 The other half of "one hand backs, the other solos": **alt** (left thumb, since space already covers sustain) is a one-button looper. What it records is the *performance*, not the audio. The note events themselves, replayed through the live engine.
 
 - **tap**: start recording. **tap again**: the loop closes and plays on that press. **tap again**: overdub a layer; once more seals it.
-- **hold** (~0.6 s): peel the last overdub (undo). Hold again and it walks back up the stack; the gesture bounces at the ends, so repeated holds undo to the base take and redo to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
-- **fn + alt**: clear the whole take in one deliberate chord.
+- **hold** (~0.7 s): clear the whole loop and start over. It's performance state, so there's no confirm — the hold just sits far enough past a normal overdub tap that a lingering thumb can't nuke the take.
+- **fn + alt**: peel the last overdub (undo). Repeat the chord and it walks back up the stack; the gesture bounces at the ends, so it undoes to the base take and redoes to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
 - **panic** (bksp) silences the loop but keeps the take. Tap alt and it plays again.
-- The hint line goes loop-aware while a take exists (`alt dub  hold undo  fn+alt clear`), so the gestures are always on screen.
+- The hint line goes loop-aware while a take exists (`alt dub  hold clear  fn+alt undo`), so the gestures are always on screen.
 - Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record a Bass line, switch to Solo, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
 - Loop playback is a protected backing layer like the drones. Its voices ride outside the voice cap, can't be robbed by chord-slide stealing, ignore live bends and tilt vibrato, never hijack the note readout, and survive sound switches and settings trips. Internally it plays on its own string lanes (4 to 7) with its own key ids, so it can never collide with your hands.
 - Timing belongs to the audio thread. Playback events are *scheduled* (block-accurate, ~4 ms), not fired from the ~33 ms UI frame, so the loop doesn't swing with the frame rate.
