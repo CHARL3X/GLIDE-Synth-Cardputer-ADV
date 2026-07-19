@@ -15,9 +15,13 @@ namespace {
 struct Ctx {
     M5Canvas* c;
     dsp::KeyGuess guess;
-    float chroma[12];   // evidence, summed across listening rounds
+    float chroma[12];   // evidence, summed across listening rounds (each
+                        // audible round normalized: one round = one vote)
     int rounds;         // segments analyzed so far
+    int audibleRounds;  // rounds that actually carried music
     int heardSamples;   // audible samples accumulated (silent rounds don't count)
+    int prevApplied;    // applied root the PREVIOUS audible round would have
+                        // locked (-1 = none yet) — the stability check
     bool heard;         // any segment rose above the silence floor
     bool btPrev;  // backtick held on the previous progress tick (edge detect)
 };
@@ -25,8 +29,15 @@ struct Ctx {
 // Stop listening early only when the verdict is this sure AND at least this
 // much music has been heard — rounds can be as short as 0.5 s on a tight
 // heap, and one loud chord must not get to confidently name ITS key.
+// Confidence is scale-AWARE (classifyChromaForScale): the relative twin maps
+// to the same applied root, so its closeness no longer blocks the lock.
 constexpr float kEnoughConfidence = 0.5f;
 constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
+// A merely-confident verdict must also be STABLE — two consecutive audible
+// rounds agreeing on the applied root — before it may stop the listen: one
+// harmonically lopsided section (a long IV vamp) can be sure and wrong.
+// Only a near-certain verdict may lock on a single round.
+constexpr float kSureConfidence = 0.85f;
 
 // Direct positional read, splash-style: the modal owns the loop, so
 // keys::poll isn't draining the FIFO for us.
@@ -70,18 +81,30 @@ bool onProgress(void* user, float frac) {
 }
 
 // One round of evidence. Returns true to keep listening: a single round can
-// catch one chord and name ITS key, so we only stop early once the summed
-// chroma classifies with real confidence.
+// catch one chord and name ITS key, so a merely-confident verdict must also
+// hold steady across two audible rounds before it stops the listen (a
+// near-certain one may stop alone). Rounds accumulate NORMALIZED — one round,
+// one vote — so a loud chorus can't out-vote quiet honest verses.
 bool onSegment(void* user, const int16_t* mono, int n) {
     Ctx& ctx = *(Ctx*)user;
     ++ctx.rounds;
     if (!dsp::segmentAudible(mono, n)) return true;  // silent round: wait for the song
     ctx.heard = true;
     ctx.heardSamples += n;
-    dsp::accumulateChroma(mono, n, (float)listen::kRateHz, ctx.chroma);
-    ctx.guess = dsp::classifyChroma(ctx.chroma);
-    return !(ctx.guess.valid && ctx.guess.confidence >= kEnoughConfidence &&
-             ctx.heardSamples >= kMinHeardForStop);
+    ++ctx.audibleRounds;
+    dsp::accumulateChromaNormalized(mono, n, (float)listen::kRateHz, ctx.chroma);
+    const int scaleIdx = store::get().layout.scaleIdx;
+    ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
+    if (!ctx.guess.valid) return true;
+
+    const int applied =
+        dsp::applyRootForScale(ctx.guess.rootPc, ctx.guess.minor, scaleIdx);
+    const bool stable = applied == ctx.prevApplied && ctx.audibleRounds >= 2;
+    ctx.prevApplied = applied;
+    if (ctx.heardSamples < kMinHeardForStop) return true;
+    const bool stop = ctx.guess.confidence >= kSureConfidence ||
+                      (ctx.guess.confidence >= kEnoughConfidence && stable);
+    return !stop;
 }
 
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) {
@@ -165,7 +188,9 @@ void run(M5Canvas& canvas) {
     ctx.guess = dsp::KeyGuess::make();
     for (int i = 0; i < 12; ++i) ctx.chroma[i] = 0.f;
     ctx.rounds = 0;
+    ctx.audibleRounds = 0;
     ctx.heardSamples = 0;
+    ctx.prevApplied = -1;
     ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 
