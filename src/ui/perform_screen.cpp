@@ -738,7 +738,7 @@ void drawHint(M5Canvas& c) {
     else if (keys::progActive())
         c.drawString("tap row = chord progression   bksp clear", 2, kHintY);
     else if (ls != looper::State::Empty)
-        c.drawString("alt dub   hold undo   fn+alt clear", 2, kHintY);
+        c.drawString("alt dub   hold clear   fn+alt undo", 2, kHintY);
     else
         c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
 }

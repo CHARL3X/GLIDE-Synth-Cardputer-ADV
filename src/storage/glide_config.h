@@ -53,24 +53,35 @@ struct GlideConfig {
                               // (guitar feel); off = free poly allocation
     bool octaveGlide = true;  // octave keys sweep held notes instead of jumping
     // Tilt is NEVER pitch bend. Two simultaneous axes: A = forward/back,
-    // B = left/right roll. Each routes to its own destination (per patch).
-    TiltRoute tiltRoute = TiltRoute::Vibrato;   // axis A route — on by default
+    // B = left/right roll. The stock rig is Morph on f/b + vibrato on l/r, both
+    // at 60% — and tiltLock (below) makes that map global, so it follows your
+    // hands across every sound instead of reloading per patch.
+    TiltRoute tiltRoute = TiltRoute::Vibrato;   // axis A physical route (masked by
+                                                // tiltMorphA below in the stock rig)
     float tiltDepth = 0.6f;   // axis A depth, 0..1
     float tiltCenter = 0.23f;  // axis A calibrated "flat" default (~20° of pitch,
                                // in angle units where 1.0 = 90°) — wherever YOU hold it
-    TiltRoute tiltRouteB = TiltRoute::Off;      // axis B (roll) route
+    TiltRoute tiltRouteB = TiltRoute::Vibrato;  // axis B (roll) route — vibrato l/r
     float tiltDepthB = 0.6f;  // axis B depth, 0..1
     float tiltCenterB = 0.f;  // axis B calibrated "flat"
-    bool tiltOn = true;       // tilt expression on by default (single-axis)
-    bool tiltDual = false;    // also use axis B (roll) — the 2D body, opt-in
+    bool tiltOn = true;       // tilt expression on by default
+    bool tiltDual = true;     // roll axis (B) live by default — the 2D body
     // Tilt->MORPH is a RIG setting, global like the G0 trigger action — not a
     // patch personality. The morph partner is "the sound you were just on"
     // (session state), so a patch can't meaningfully own the mapping; and the
     // player who set it expects it to survive sound switches. While a flag is
     // on it masks that axis's per-patch physical route; patches themselves can
-    // never carry the morph route (coerced to Off on load).
-    bool tiltMorphA = false;
+    // never carry the morph route (coerced to Off on load). Morph on f/b by
+    // default — the player's most-used gesture.
+    bool tiltMorphA = true;
     bool tiltMorphB = false;
+    // The whole tilt map (both routes, both depths, dual) is a global rig
+    // setting, not a per-sound personality. On (default): a sound switch never
+    // reloads tilt, so your Morph-f/b + vibrato-l/r rig follows every patch with
+    // zero saving — tilt is a physical control surface tied to your hands, and
+    // Morph was already global, so this makes both halves of the gesture behave
+    // alike. Off: applyPatchData restores per-patch tilt personality.
+    bool tiltLock = true;
     uint8_t currentPatch = 0; // active sound slot (fn+q..p)
     uint8_t jamRows = 1;      // 0=off, 1..2 bottom rows become tap-to-latch
                               // drones (-1 oct): the layering jam — backing
@@ -133,6 +144,9 @@ void markDirty();             // schedule a debounced persist
 void tick(uint32_t nowMs);    // call each frame; performs the deferred write
 void persistNow();
 void resetDefaults();         // restore + persist
+void setTiltLock(bool on);    // flip the global/per-sound tilt map AND rebase the
+                              // unsaved-* reference, so toggling the mode can't
+                              // leave a stale dirty marker
 
 // ---- sound slots (fn+q..p) ----------------------------------------------
 // Each of the 10 slots is a factory patch plus an optional user override

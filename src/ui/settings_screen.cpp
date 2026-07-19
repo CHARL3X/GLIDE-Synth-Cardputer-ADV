@@ -150,6 +150,14 @@ void aJamChord(int d) {
     g.jamChordBeats = (uint8_t)clampT((int)g.jamChordBeats + d, 1, 8);
 }
 
+// The tilt map (both routes/depths + dual) is either a global rig setting that
+// follows your hands across every sound, or a per-sound personality reloaded on
+// each switch. Global by default (and matches how Morph already behaved).
+void fTiltLock(char* o, int c) {
+    snprintf(o, c, "%s", store::get().tiltLock ? "global" : "per sound");
+}
+void aTiltLock(int) { store::setTiltLock(!store::get().tiltLock); }
+
 // The route rows cycle off/cutoff/vibrato/volume/morph as one sequence, but
 // MORPH lands in the global rig flag (survives sound switches, like the G0
 // action) while the physical routes stay per-patch personality. Cycling off
@@ -189,6 +197,20 @@ void aTiltB(int d) {
     } else {
         g.tiltMorphB = false;
         g.tiltRouteB = (store::TiltRoute)next;
+    }
+    // The roll axis only reads when the global 2D flag is armed (perform: axis B
+    // is applied `if (tiltDual)`), and that flag defaults off + reverts off after
+    // an NVS-pressure boot. So assigning the l/r axis a job here was silently
+    // inert — "Tilt l/r route = vibrato" did nothing until you also found the
+    // hidden enter-tap 2D gesture. Mirror cycleTilt's self-heal so the menu is
+    // honest: a real route (or morph) arms the roll axis and floors its depth;
+    // cycling back to plain "off" disarms it. Tilt itself must be on to read
+    // either axis, so a live route turns it on too.
+    const bool active = g.tiltMorphB || g.tiltRouteB != store::TiltRoute::Off;
+    g.tiltDual = active;
+    if (active) {
+        g.tiltOn = true;
+        if (g.tiltDepthB < 0.05f) g.tiltDepthB = 0.6f;
     }
 }
 
@@ -745,6 +767,7 @@ const Item kItems[] = {
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
     {"TILT", nullptr, nullptr},
+    {"Tilt map", fTiltLock, aTiltLock},
     {"Tilt f/b route", fTilt, aTilt},
     {"Tilt f/b depth", fTiltDepth, aTiltDepth, true, gTiltDep},
     {"Tilt l/r route", fTiltB, aTiltB},
