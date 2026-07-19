@@ -150,6 +150,14 @@ void aJamChord(int d) {
     g.jamChordBeats = (uint8_t)clampT((int)g.jamChordBeats + d, 1, 8);
 }
 
+// The tilt map (both routes/depths + dual) is either a global rig setting that
+// follows your hands across every sound, or a per-sound personality reloaded on
+// each switch. Global by default (and matches how Morph already behaved).
+void fTiltLock(char* o, int c) {
+    snprintf(o, c, "%s", store::get().tiltLock ? "global" : "per sound");
+}
+void aTiltLock(int) { store::setTiltLock(!store::get().tiltLock); }
+
 // The route rows cycle off/cutoff/vibrato/volume/morph as one sequence, but
 // MORPH lands in the global rig flag (survives sound switches, like the G0
 // action) while the physical routes stay per-patch personality. Cycling off
@@ -759,6 +767,7 @@ const Item kItems[] = {
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
     {"TILT", nullptr, nullptr},
+    {"Tilt map", fTiltLock, aTiltLock},
     {"Tilt f/b route", fTilt, aTilt},
     {"Tilt f/b depth", fTiltDepth, aTiltDepth, true, gTiltDep},
     {"Tilt l/r route", fTiltB, aTiltB},

@@ -244,15 +244,21 @@ void applyPatchData(const PatchData& pd) {
 
     const float keepVol = gCfg.synth.masterVol;  // volume is the player's, not the sound's
     gCfg.synth = pd.synth;
-    gCfg.tiltRoute = (TiltRoute)clampT<int>(pd.tiltRoute, 0, (int)TiltRoute::Count - 1);
-    gCfg.tiltDepth = clampT(pd.tiltDepth, 0.f, 1.f);
-    gCfg.tiltRouteB = (TiltRoute)clampT<int>(pd.tiltRouteB, 0, (int)TiltRoute::Count - 1);
-    gCfg.tiltDepthB = clampT(pd.tiltDepthB, 0.f, 1.f);
-    // patches can't carry the morph route (it's a global rig setting whose
-    // partner is session state); a blob that has it decodes to Off — and a
-    // patch load never flips the player's global flags either way
-    if (gCfg.tiltRoute == TiltRoute::Morph) gCfg.tiltRoute = TiltRoute::Off;
-    if (gCfg.tiltRouteB == TiltRoute::Morph) gCfg.tiltRouteB = TiltRoute::Off;
+    // Tilt map is a global rig setting while locked (the default): a sound
+    // switch keeps the player's live Morph-f/b + vibrato-l/r rig instead of
+    // reloading the patch's tilt personality. Unlocked restores per-patch tilt
+    // (load + clamp + strip any stored morph route).
+    if (!gCfg.tiltLock) {
+        gCfg.tiltRoute = (TiltRoute)clampT<int>(pd.tiltRoute, 0, (int)TiltRoute::Count - 1);
+        gCfg.tiltDepth = clampT(pd.tiltDepth, 0.f, 1.f);
+        gCfg.tiltRouteB = (TiltRoute)clampT<int>(pd.tiltRouteB, 0, (int)TiltRoute::Count - 1);
+        gCfg.tiltDepthB = clampT(pd.tiltDepthB, 0.f, 1.f);
+        // patches can't carry the morph route (it's a global rig setting whose
+        // partner is session state); a blob that has it decodes to Off — and a
+        // patch load never flips the player's global flags either way
+        if (gCfg.tiltRoute == TiltRoute::Morph) gCfg.tiltRoute = TiltRoute::Off;
+        if (gCfg.tiltRouteB == TiltRoute::Morph) gCfg.tiltRouteB = TiltRoute::Off;
+    }
     gCfg.synth.masterVol = keepVol;
     gCfg.synth.bendCents = 0.f;  // live-mod fields never come from a patch
     gCfg.synth.vibratoCents = 0.f;
@@ -294,10 +300,20 @@ uint32_t soundHash(const dsp::SynthParams& s, uint8_t tr, float td, uint8_t trb,
     return dsp::patchHash(g);
 }
 
-// Hash of the live working sound right now.
+// Tilt is a global rig setting when locked (follows your hands, not the sound),
+// so it must NOT count toward a slot's "modified" state — otherwise every slot
+// would read dirty the moment the global map differs from its stored tilt. Fold
+// it out of both sides of the liveDirty comparison while locked.
 uint32_t liveHash() {
-    return soundHash(gCfg.synth, (uint8_t)gCfg.tiltRoute, gCfg.tiltDepth,
-                     (uint8_t)gCfg.tiltRouteB, gCfg.tiltDepthB);
+    return gCfg.tiltLock
+               ? soundHash(gCfg.synth, 0, 0.f, 0, 0.f)
+               : soundHash(gCfg.synth, (uint8_t)gCfg.tiltRoute, gCfg.tiltDepth,
+                           (uint8_t)gCfg.tiltRouteB, gCfg.tiltDepthB);
+}
+uint32_t patchDirtyHash(const PatchData& pd) {
+    return gCfg.tiltLock
+               ? soundHash(pd.synth, 0, 0.f, 0, 0.f)
+               : soundHash(pd.synth, pd.tiltRoute, pd.tiltDepth, pd.tiltRouteB, pd.tiltDepthB);
 }
 
 // Re-cache the current slot's stored-sound hash (the saved reference for
@@ -306,7 +322,7 @@ uint32_t liveHash() {
 void refreshCurSlotHash() {
     PatchData pd;
     loadPatchData(gCfg.currentPatch, pd);
-    gCurSlotHash = soundHash(pd.synth, pd.tiltRoute, pd.tiltDepth, pd.tiltRouteB, pd.tiltDepthB);
+    gCurSlotHash = patchDirtyHash(pd);
 }
 
 // Encode a PatchData and write it as the slot's override blob. Updates the
@@ -641,6 +657,10 @@ void begin() {
         gPrefs.putBool("tilton2", true);
     }
     gCfg.tiltDual = gPrefs.getBool("tiltdual", d.tiltDual);
+    // Tilt map is global by default (follows your hands, not the sound). Absent
+    // key -> lock on, so existing devices adopt it too — non-destructive: the
+    // per-patch tilt data is kept, just not reloaded on a sound switch.
+    gCfg.tiltLock = gPrefs.getBool("tiltlk", d.tiltLock);
     gCfg.currentPatch = clampT<int>(gPrefs.getUChar("cpatch", d.currentPatch), 0,
                                     dsp::kPatchCount - 1);
 
@@ -744,8 +764,7 @@ void begin() {
     {
         PatchData sp;
         loadPatchData(gCfg.currentPatch, sp);
-        gCurSlotHash = soundHash(sp.synth, sp.tiltRoute, sp.tiltDepth, sp.tiltRouteB,
-                                 sp.tiltDepthB);
+        gCurSlotHash = patchDirtyHash(sp);
         if (liveHash() == gCurSlotHash)
             setLiveName(patchName(gCfg.currentPatch));
         else
@@ -816,6 +835,7 @@ void persistNow() {
     gPrefs.putInt("tiltctrb", (int)(gCfg.tiltCenterB * 1000));
     gPrefs.putBool("tilton", gCfg.tiltOn);
     gPrefs.putBool("tiltdual", gCfg.tiltDual);
+    gPrefs.putBool("tiltlk", gCfg.tiltLock);
     gPrefs.putBool("tmorpha", gCfg.tiltMorphA);
     gPrefs.putBool("tmorphb", gCfg.tiltMorphB);
     gPrefs.putUChar("cpatch", gCfg.currentPatch);
@@ -852,6 +872,19 @@ void resetDefaults() {
     persistNow();
 }
 
+// Toggle the global/per-sound tilt map. The unsaved-* rule counts tilt only in
+// per-sound mode (liveHash/patchDirtyHash fold it out while locked), so the
+// cached slot reference is basis-dependent. Rebase it on the new mode here —
+// otherwise flipping after the reference was last computed can strand a wrong
+// marker (e.g. load a slot unlocked, then lock: tilt should stop counting, but
+// the stored reference still included it, so it would read dirty forever).
+void setTiltLock(bool on) {
+    if (gCfg.tiltLock == on) return;
+    gCfg.tiltLock = on;
+    refreshCurSlotHash();  // recompute the reference under the new tilt rule
+    markDirty();
+}
+
 // ---- sound slots -----------------------------------------------------------
 
 bool patchHasOverride(int slot) {
@@ -867,8 +900,7 @@ void applyPatch(int slot) {
     gCfg.currentPatch = (uint8_t)slot;
     setLiveName(patchName(slot));  // factory slots show their instrument name,
                                    // custom slots their stored/canonical name
-    gCurSlotHash = soundHash(pd.synth, pd.tiltRoute, pd.tiltDepth, pd.tiltRouteB,
-                             pd.tiltDepthB);  // just loaded -> live matches: not dirty
+    gCurSlotHash = patchDirtyHash(pd);  // just loaded -> live matches: not dirty
     markDirty();
 }
 
@@ -924,8 +956,7 @@ bool saveToSlot(int slot, const PatchData& pd) {
     if (!writeOverride(slot, pd)) return false;  // encode + putBytes + set mask
     cacheSlotName(slot);                          // reads pd.name if present
     if (slot == gCfg.currentPatch)                // the current slot's reference moved
-        gCurSlotHash = soundHash(pd.synth, pd.tiltRoute, pd.tiltDepth, pd.tiltRouteB,
-                                 pd.tiltDepthB);
+        gCurSlotHash = patchDirtyHash(pd);
     markDirty();
     return true;
 }
