@@ -1,6 +1,6 @@
 # 03 — Loop quantize: the looper locks to the jam clock
 
-> **For agentic workers:** Execute task-by-task (superpowers:subagent-driven-development or superpowers:executing-plans). Steps use `- [ ]` checkboxes. Read `CLAUDE.md` and `README.md` first. See `docs/roadmap/00-INDEX.md` for cross-doc coordination.
+> **For agentic workers:** Execute task-by-task (superpowers:subagent-driven-development or superpowers:executing-plans). Steps use `- [x]` checkboxes. Read `CLAUDE.md` and `README.md` first. See `docs/roadmap/00-INDEX.md` for cross-doc coordination.
 
 **Goal:** When the loop closes (second `alt` tap), snap its length to the nearest beat or bar of the jam tempo — so the loop pedal and the auto-progression finally share one clock instead of drifting apart forever.
 
@@ -54,7 +54,7 @@ inline uint32_t quantizeLoopMs(uint32_t rawMs, float bpm, uint8_t mode) {
 
 **Files:** Create `src/dsp/quantize.h`. Modify `src/test_dsp.cpp`.
 
-- [ ] Write failing tests first:
+- [x] Write failing tests first:
 ```cpp
 // 100 bpm: beat = 600 ms, bar = 2400 ms
 assert(dsp::quantizeLoopMs(2500, 100.f, 2) == 2400);   // late tap -> 1 bar
@@ -65,25 +65,25 @@ assert(dsp::quantizeLoopMs(4700, 100.f, 1) == 4800);   // beats: 4700/600=7.83 -
 assert(dsp::quantizeLoopMs(4700, 100.f, 0) == 4700);   // off = untouched
 assert(dsp::quantizeLoopMs(4700, 0.f,  2) == 4700);    // no tempo = untouched
 ```
-- [ ] Run native — FAIL (header missing). Create the header exactly as in Design. Run native — PASS. Commit.
+- [x] Run native — FAIL (header missing). Create the header exactly as in Design. Run native — PASS. Commit.
 
 ### Task 2: looper integration
 
 **Files:** Modify `src/io/looper.h`, `src/io/looper.cpp`, call sites in `src/io/keys.cpp`.
 
-- [ ] Read `looper.cpp` fully first (320 lines). Find where the record→play tap computes the loop length.
-- [ ] Change `tap` to `State tap(uint32_t nowMs, float bpm, uint8_t snapMode);` (header comment: "bpm/snapMode only matter on the tap that closes a recording"). Apply `dsp::quantizeLoopMs` to the raw length; wrap any recorded event timestamps `>= length` by `t %= length`.
-- [ ] Update the `keys.cpp` call site to pass the live jam tempo and the config's `loopSnap`. (The tempo already flows to `SynthParams::tempoBpm` each frame — pull from the same source, not a second copy.)
-- [ ] Overdub cycles: verify overdub length logic uses the stored (now quantized) length — read the code, confirm, note it in the commit message.
-- [ ] Build `pio run`. Commit: `looper: loop length snaps to the jam clock (dsp-pure math)`.
+- [x] Read `looper.cpp` fully first (320 lines). Find where the record→play tap computes the loop length.
+- [x] Change `tap` to `State tap(uint32_t nowMs, float bpm, uint8_t snapMode);` (header comment: "bpm/snapMode only matter on the tap that closes a recording"). Apply `dsp::quantizeLoopMs` to the raw length; wrap any recorded event timestamps `>= length` by `t %= length`.
+- [x] Update the `keys.cpp` call site to pass the live jam tempo and the config's `loopSnap`. (The tempo already flows to `SynthParams::tempoBpm` each frame — pull from the same source, not a second copy.)
+- [x] Overdub cycles: verify overdub length logic uses the stored (now quantized) length — read the code, confirm, note it in the commit message.
+- [x] Build `pio run`. Commit: `looper: loop length snaps to the jam clock (dsp-pure math)`.
 
 ### Task 3: setting + persistence
 
 **Files:** Modify `src/storage/glide_config.h/.cpp`, `src/ui/settings_screen.cpp`.
 
-- [ ] Config field `uint8_t loopSnap = 2;` (bar), NVS key `loopsnap` in `begin()`/`persistNow()` (absent → 2).
-- [ ] Settings row in the JAM group: `Loop snap` → `off / beat / bar` (copy an existing 3-state row's `format`/`adjust` pattern).
-- [ ] `pio run`; native still green. Commit.
+- [x] Config field `uint8_t loopSnap = 2;` (bar), NVS key `loopsnap` in `begin()`/`persistNow()` (absent → 2).
+- [x] Settings row in the JAM group: `Loop snap` → `off / beat / bar` (copy an existing 3-state row's `format`/`adjust` pattern).
+- [x] `pio run`; native still green. Commit.
 
 ### Task 4: device verification
 

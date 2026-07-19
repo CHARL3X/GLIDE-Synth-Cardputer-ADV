@@ -147,6 +147,7 @@ The other half of "one hand backs, the other solos": **alt** (left thumb, since 
 - Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record a Bass line, switch to Solo, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
 - Loop playback is a protected backing layer like the drones. Its voices ride outside the voice cap, can't be robbed by chord-slide stealing, ignore live bends and tilt vibrato, never hijack the note readout, and survive sound switches and settings trips. Internally it plays on its own string lanes (4 to 7) with its own key ids, so it can never collide with your hands.
 - Timing belongs to the audio thread. Playback events are *scheduled* (block-accurate, ~4 ms), not fired from the ~33 ms UI frame, so the loop doesn't swing with the frame rate.
+- **The loop locks to the jam clock.** The tap that closes a take snaps its length to the nearest **bar** of the *Jam tempo* (minimum one bar — a tap 40% into bar one was meant as a 1-bar loop), so the loop and the auto-progression share one clock instead of drifting apart a little more every cycle. Notes played just past the bar line wrap to the downbeat; a note still held at the close rings to the loop end. Settings → *Loop snap* picks `bar` (default), `beat`, or `off` for the old free-time behaviour.
 - Status sits top-left of the scope: **REC** blinks red with elapsed time, **LOOP** green with a cycle-progress bar, **OVR** amber while layering, dim `LOOP --` for a stopped take. `FULL` means the take hit the 1024-event ceiling.
 
 Loops are performance state. They live until cleared or power-off, and never hit flash.
@@ -283,6 +284,7 @@ Audio path facts (verified against M5Unified source, not vibes): `playRaw` keeps
 | jam rows (drones) | off / bottom / bottom 2 | bottom | settings |
 | jam motion | sustained / pulse / arp / progression | progression | settings |
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
+| loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
 | trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0-100% / momentary, latch | muffle / 70% / momentary | settings (G0 button) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
