@@ -150,6 +150,18 @@ void aJamChord(int d) {
     g.jamChordBeats = (uint8_t)clampT((int)g.jamChordBeats + d, 1, 8);
 }
 
+// Loop snap: the pedal's close tap quantizes the take length to the jam clock
+// (dsp::quantizeLoopMs), so loop + progression stay phase-locked instead of
+// drifting. Off = the raw human length (the old free behaviour).
+void fLoopSnap(char* o, int c) {
+    const uint8_t m = store::get().loopSnap;
+    snprintf(o, c, "%s", m == 0 ? "off" : (m == 1 ? "beat" : "bar"));
+}
+void aLoopSnap(int d) {
+    auto& g = store::get();
+    g.loopSnap = (uint8_t)clampT((int)g.loopSnap + d, 0, 2);
+}
+
 // The tilt map (both routes/depths + dual) is either a global rig setting that
 // follows your hands across every sound, or a per-sound personality reloaded on
 // each switch. Global by default (and matches how Morph already behaved).
@@ -619,7 +631,9 @@ void chooseSaveName(const char* base, const dsp::GenPatch& gp, char* out, int ca
         dsp::GenPatch eg;
         eg.synth = ex.synth; eg.tiltRoute = ex.tiltRoute; eg.tiltDepth = ex.tiltDepth;
         eg.tiltRouteB = ex.tiltRouteB; eg.tiltDepthB = ex.tiltDepthB;
-        if (dsp::patchHash(eg) == dsp::patchHash(gp)) { snprintf(out, cap, "%s", base); return; }
+        // FULL hash: two sounds differing only in a name-hash-exempt field
+        // (delay fb, LFO shape...) are different sounds — suffix, don't clobber
+        if (dsp::patchHashFull(eg) == dsp::patchHashFull(gp)) { snprintf(out, cap, "%s", base); return; }
     }
     for (int i = 2; i <= 9; ++i) {
         snprintf(out, cap, "%s-%d", base, i);
@@ -766,6 +780,7 @@ const Item kItems[] = {
     {"Jam tempo", fJamBpm, aJamBpm, true, gJamBpmF},
     {"Tap tempo", fTapTempo, aTapTempo},
     {"Chord length", fJamChord, aJamChord},
+    {"Loop snap", fLoopSnap, aLoopSnap},
     {"TILT", nullptr, nullptr},
     {"Tilt map", fTiltLock, aTiltLock},
     {"Tilt f/b route", fTilt, aTilt},
@@ -1123,6 +1138,7 @@ void run(M5Canvas& canvas) {
         // CREATE bar) so it isn't part of the repeating dir. ---
         const bool enterHit = !fnHeld && hit(kEnter);
         int dir = 0;
+        bool dirFromRepeat = false;  // an auto-repeat step, not a fresh tap
         if (!fnHeld) {
             if (hit(kLeft) || hit(kDecAlt)) { dir = -1; adjRep = -1; adjStart = adjLast = now; }
             else if (hit(kRight) || hit(kIncAlt)) { dir = +1; adjRep = +1; adjStart = adjLast = now; }
@@ -1130,7 +1146,7 @@ void run(M5Canvas& canvas) {
                      now - adjStart >= cfg::kRepeatDelayMs && now - adjLast >= cfg::kRepeatRateMs) {
                 const bool stillDown = adjRep < 0 ? (held(kLeft) || held(kDecAlt))
                                                   : (held(kRight) || held(kIncAlt));
-                if (stillDown) { dir = adjRep; adjLast = now; }
+                if (stillDown) { dir = adjRep; adjLast = now; dirFromRepeat = true; }
             }
         }
         const bool anyAdj = held(kLeft) || held(kDecAlt) || held(kRight) || held(kIncAlt);
@@ -1161,13 +1177,19 @@ void run(M5Canvas& canvas) {
             continue;
         }
 
-        // Persist immediately, not just on exit: a pocket device gets its power
-        // flicked mid-edit; a debounced write would be lost. NVS skips unchanged
-        // keys so a write per step (incl. auto-repeat) is cheap.
-        auto applyEdit = [&]() {
+        // Persist discrete taps immediately: a pocket device gets its power
+        // flicked mid-edit; a debounced write would be lost. But an auto-repeat
+        // RAMP is ~16 steps/s — persisting each step is a flash append per step
+        // on the tiny shared NVS partition (wear + GC churn on the partition
+        // that's known to run full). Ramps mark dirty instead: store::tick()
+        // below writes once ~0.5 s after the ramp stops, and settings exit
+        // persistNow()s regardless — worst case a power flick mid-ramp loses
+        // only the last half-second of the ramp itself.
+        auto applyEdit = [&](bool immediate) {
             auto& g = store::get();
             g.synth.tempoBpm = (float)g.jamBpm;  // synced-delay preview
-            store::persistNow();
+            if (immediate) store::persistNow();
+            else store::markDirty();
             audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
         };
 
@@ -1190,7 +1212,7 @@ void run(M5Canvas& canvas) {
             if (d2 != 0) {
                 if (isActionRow(sel)) { gFlashRow = sel; gFlashUntil = now + 160; }  // confirm
                 kItems[sel].adjust(d2);
-                applyEdit();
+                applyEdit(!dirFromRepeat);
             }
         }
 
