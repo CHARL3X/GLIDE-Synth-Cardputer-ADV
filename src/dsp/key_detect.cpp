@@ -10,7 +10,12 @@ namespace {
 constexpr int kOctaves = 4;
 constexpr float kLowA = 110.f;      // A2; top target G#6 ~1661 Hz < Nyquist@16k
 constexpr int kCyclesPerTarget = 16;  // first null on the neighbouring semitone
-constexpr float kSilenceMeanAbs = 30.f;  // int16 counts, ~0.1% FS
+// Audibility floor: int16 counts, ~0.03% FS. Deliberately LOW — this gate only
+// refuses a genuinely silent room (the tiny-noise regression test sits at mean
+// ~4). Quiet-but-tonal music must pass; deciding whether sound has a KEY is
+// the flatness gate's job in classifyChroma, not a loudness test. (Was 30,
+// which made LISTEN demand a loud room and discard honest quiet rounds.)
+constexpr float kSilenceMeanAbs = 10.f;
 
 // Krumhansl-Schmuckler tonal-hierarchy profiles (probe-tone ratings).
 constexpr float kProfMajor[12] = {6.35f, 2.23f, 3.48f, 2.33f, 4.38f, 4.09f,
@@ -90,6 +95,47 @@ void accumulateChroma(const int16_t* mono, int n, float sampleRate,
         }
     }
 
+    // Broadband-floor subtraction, per octave, BEFORE harmonic subtraction:
+    // percussion and noise raise all 12 bins of an octave roughly together, a
+    // pedestal that dilutes the tonal peaks and pushes the flatness gate
+    // toward "no key" — the reason drum-heavy passages used to need an
+    // "especially melodic part". The lower-quartile bin tracks the pedestal
+    // (tonal content occupies well under 9 of 12 bins); subtract it, clamp at
+    // 0. Pearson correlation is offset-invariant, so on clean signal (floor
+    // ~0) this is a no-op — it only acts through the clamp, on noisy rounds.
+    // Track how much (fold-weighted) energy the subtraction removes: that
+    // ratio is the noise detector below.
+    constexpr float kOctWeight[kOctaves] = {1.f, 0.9f, 0.7f, 0.5f};
+    float rawSum = 0.f, cleanSum = 0.f;
+    for (int oct = 0; oct < kOctaves; ++oct) {
+        float s[12];
+        for (int pc = 0; pc < 12; ++pc) s[pc] = band[oct][pc];
+        for (int i = 1; i < 12; ++i) {  // insertion sort, 12 values
+            const float v = s[i];
+            int j = i - 1;
+            while (j >= 0 && s[j] > v) { s[j + 1] = s[j]; --j; }
+            s[j + 1] = v;
+        }
+        const float floorV = s[3];  // lower quartile
+        for (int pc = 0; pc < 12; ++pc) {
+            const float raw = band[oct][pc];
+            const float v = raw - floorV;
+            band[oct][pc] = v > 0.f ? v : 0.f;
+            rawSum += kOctWeight[oct] * raw;
+            cleanSum += kOctWeight[oct] * band[oct][pc];
+        }
+    }
+
+    // Pedestal-dominated capture: pure broadband noise loses most of its
+    // energy to the floor subtraction (every bin sits near the quartile),
+    // while real music — even heavily contaminated — keeps most of its
+    // (peak-carried) energy. What noise leaves behind is its systematic
+    // constant-Q tilt, which correlates with SOME key profile and would
+    // otherwise classify confidently. No tonal survivors -> no evidence:
+    // contribute nothing and let the caller's silence/flatness handling
+    // report "no key" honestly.
+    if (cleanSum < 0.30f * rawSum) return;
+
     // Harmonic subtraction, bottom-up. A note's 2nd harmonic lands one band
     // up at the same pitch class; its 3rd lands one band up a fifth higher
     // (bin pc has a 3rd-harmonic parent at pc+5). Without this, the dominant
@@ -103,11 +149,22 @@ void accumulateChroma(const int16_t* mono, int n, float sampleRate,
         }
     }
 
-    // Fold into 12 bins, bass octaves weighted up (the bass carries the key).
-    constexpr float kOctWeight[kOctaves] = {1.f, 0.9f, 0.7f, 0.5f};
+    // Fold into 12 bins, bass octaves weighted up (the bass carries the key;
+    // kOctWeight is declared with the floor subtraction above).
     for (int oct = 0; oct < kOctaves; ++oct)
         for (int pc = 0; pc < 12; ++pc)
             chroma[pc] += kOctWeight[oct] * band[oct][pc];
+}
+
+void accumulateChromaNormalized(const int16_t* mono, int n, float sampleRate,
+                                float chroma[12]) {
+    float round[12] = {0.f};
+    accumulateChroma(mono, n, sampleRate, round);
+    float sum = 0.f;
+    for (int i = 0; i < 12; ++i) sum += round[i];
+    if (sum <= 1e-9f) return;  // nothing tonal heard: contributes no vote
+    const float inv = 1.f / sum;
+    for (int i = 0; i < 12; ++i) chroma[i] += round[i] * inv;
 }
 
 KeyGuess classifyChroma(const float chromaIn[12]) {
@@ -147,6 +204,31 @@ KeyGuess classifyChroma(const float chromaIn[12]) {
 
     g.valid = true;
     const float margin = (best - second) * 5.f;
+    g.confidence = margin < 0.f ? 0.f : (margin > 1.f ? 1.f : margin);
+    return g;
+}
+
+KeyGuess classifyChromaForScale(const float chromaIn[12], int scaleIdx) {
+    KeyGuess g = classifyChroma(chromaIn);  // gates + winner + normalized chroma
+    if (!g.valid) return g;
+    // Re-derive the margin, excluding every rival whose applied root equals
+    // the winner's — those rivals (typically the relative twin) lead to the
+    // exact same retune, so their closeness is not uncertainty. keyScore is
+    // scale-invariant, so the raw accumulator values are fine here.
+    const int appliedWin = applyRootForScale(g.rootPc, g.minor, scaleIdx);
+    float best = -2.f, bestRival = -2.f;
+    for (int root = 0; root < 12; ++root) {
+        for (int m = 0; m < 2; ++m) {
+            const float r = keyScore(chromaIn, m ? kProfMinor : kProfMajor, root);
+            if (root == g.rootPc && (m != 0) == g.minor) {
+                best = r;
+                continue;
+            }
+            if (applyRootForScale(root, m != 0, scaleIdx) == appliedWin) continue;
+            if (r > bestRival) bestRival = r;
+        }
+    }
+    const float margin = (best - bestRival) * 5.f;
     g.confidence = margin < 0.f ? 0.f : (margin > 1.f ? 1.f : margin);
     return g;
 }
