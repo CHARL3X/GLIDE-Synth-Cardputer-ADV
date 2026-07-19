@@ -48,8 +48,20 @@ GenPatch mutateSound(const GenPatch& base, float amount, uint32_t seed);
 
 // A stable hash of a patch's audible character. Deterministic and padding-safe
 // (hashes named fields, not raw bytes): the same sound always hashes the same.
-// Used to name a patch from its own contents.
+// Used to name a patch from its own contents. FROZEN: its field coverage must
+// never change — every custom slot's displayed name derives from it, so a
+// coverage change would rename players' saved sounds after an update. New
+// fields go in patchHashFull() below instead.
 uint32_t patchHash(const GenPatch& g);
+
+// The COMPREHENSIVE hash: every field a patch persists (the codec table),
+// except the player's master volume and the live-mod fields. This is the hash
+// for unsaved-edit detection (store::liveDirty) and same-sound checks, where a
+// missed field silently loses a player's work — patchHash() deliberately skips
+// some fields for name stability, so it must never be used for those jobs.
+// When adding a SynthParams field, add it HERE (test_dsp enforces coverage
+// field-by-field) and leave patchHash() alone.
+uint32_t patchHashFull(const GenPatch& g);
 
 // Build an evocative, deterministic name from `seed`, e.g. "warm-haze-3f2a"
 // (adjective-noun-hex). Always null-terminated within `cap`. Pure, so the same

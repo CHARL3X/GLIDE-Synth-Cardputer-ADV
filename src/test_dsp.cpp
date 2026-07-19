@@ -12,6 +12,7 @@
 #include "dsp/morph.h"
 #include "dsp/patches.h"
 #include "dsp/pitch.h"
+#include "dsp/quantize.h"
 #include "dsp/sound_gen.h"
 #include "dsp/synth.h"
 #include "storage/patch_codec.h"  // host-safe codec (in env:native build_src_filter)
@@ -701,6 +702,69 @@ int main() {
         for (const char* c = sh; *c; ++c)
             CHECK(*c >= 'a' && *c <= 'z', "short name is a single lowercase word");
         CHECK(strstr(nm, sh) != nullptr, "short name's noun appears in the full name");
+    }
+
+    // ---- the dirty hash: every persisted field counts; the name hash is frozen
+    // patchHash() names sounds and must NEVER change coverage (it would rename
+    // players' saved slots). patchHashFull() is the unsaved-edit/same-sound
+    // hash: each field the name hash deliberately omits must still flip it —
+    // those edits used to be invisible to store::liveDirty and could be lost.
+    {
+        const GenPatch p = generateSound(42u);
+        const uint32_t name0 = patchHash(p);
+        const uint32_t full0 = patchHashFull(p);
+        CHECK(patchHashFull(p) == full0, "patchHashFull deterministic");
+        CHECK(patchHashFull(generateSound(7u)) != full0, "patchHashFull separates patches");
+
+        auto flips = [&](const GenPatch& q, const char* msg) {
+            CHECK(patchHashFull(q) != full0, msg);
+            CHECK(patchHash(q) == name0, "name hash unmoved (frozen coverage)");
+        };
+        GenPatch q;
+        q = p; q.synth.voiceCount = (uint8_t)(q.synth.voiceCount == 8 ? 1 : q.synth.voiceCount + 1);
+        flips(q, "voiceCount flips the dirty hash");
+        q = p; q.synth.fenvAtkS += 0.05f;   flips(q, "fenvAtkS flips the dirty hash");
+        q = p; q.synth.fenvDecS += 0.05f;   flips(q, "fenvDecS flips the dirty hash");
+        q = p; q.synth.noiseLevel += 0.1f;  flips(q, "noiseLevel flips the dirty hash");
+        q = p; q.synth.autoVibCents += 5.f; flips(q, "autoVibCents flips the dirty hash");
+        q = p; q.synth.delayTimeS += 0.05f; flips(q, "delayTimeS flips the dirty hash");
+        q = p; q.synth.delayFb += 0.1f;     flips(q, "delayFb flips the dirty hash");
+        q = p; q.synth.delaySync = (uint8_t)((q.synth.delaySync + 1) % kDelaySyncCount);
+        flips(q, "delaySync flips the dirty hash");
+        q = p; q.synth.reverbSize += 0.1f;  flips(q, "reverbSize flips the dirty hash");
+        q = p; q.synth.lfo1Shape = (uint8_t)((q.synth.lfo1Shape + 1) % (int)LfoShape::Count);
+        flips(q, "lfo1Shape flips the dirty hash");
+        q = p; q.synth.lfo1Sync = (uint8_t)((q.synth.lfo1Sync + 1) % kDelaySyncCount);
+        flips(q, "lfo1Sync flips the dirty hash");
+        q = p; q.synth.lfo2Shape = (uint8_t)((q.synth.lfo2Shape + 1) % (int)LfoShape::Count);
+        flips(q, "lfo2Shape flips the dirty hash");
+        q = p; q.synth.lfo2Sync = (uint8_t)((q.synth.lfo2Sync + 1) % kDelaySyncCount);
+        flips(q, "lfo2Sync flips the dirty hash");
+        q = p; q.synth.modEnvAtkS += 0.05f; flips(q, "modEnvAtkS flips the dirty hash");
+        q = p; q.synth.modEnvDecS += 0.05f; flips(q, "modEnvDecS flips the dirty hash");
+        q = p; q.tiltDepth += 0.1f;         flips(q, "tiltDepth flips the dirty hash");
+        q = p; q.tiltDepthB += 0.1f;        flips(q, "tiltDepthB flips the dirty hash");
+
+        // ...and what must NOT count: the player's volume and the live-mod
+        // frame state (riding a knob or a bend is never an "unsaved edit").
+        q = p; q.synth.masterVol += 0.2f;
+        CHECK(patchHashFull(q) == full0, "masterVol excluded (the player's, not the sound's)");
+        q = p; q.synth.bendCents = 500.f; q.synth.vibratoCents = 40.f;
+        q.synth.cutoffModOct = 1.f; q.synth.volMod = 0.5f; q.synth.tempoBpm = 87.f;
+        CHECK(patchHashFull(q) == full0, "live-mod fields excluded from the dirty hash");
+    }
+
+    // ---- loop quantize: the pedal's close tap snaps to the jam clock --------
+    {
+        // 100 bpm: beat = 600 ms, bar = 2400 ms
+        CHECK(quantizeLoopMs(2500, 100.f, 2) == 2400, "late tap -> 1 bar");
+        CHECK(quantizeLoopMs(1300, 100.f, 2) == 2400, "just past half a bar -> 1 bar");
+        CHECK(quantizeLoopMs(900,  100.f, 2) == 2400, "under half a bar -> still min 1 bar");
+        CHECK(quantizeLoopMs(4700, 100.f, 2) == 4800, "near 2 bars -> 2 bars");
+        CHECK(quantizeLoopMs(4700, 100.f, 1) == 4800, "beat mode: 7.83 beats -> 8 beats");
+        CHECK(quantizeLoopMs(610,  100.f, 1) == 600,  "beat mode rounds to the nearest beat");
+        CHECK(quantizeLoopMs(4700, 100.f, 0) == 4700, "off = untouched");
+        CHECK(quantizeLoopMs(4700, 0.f,  2) == 4700, "no tempo = untouched");
     }
 
     // ---- patch codec: the tagged save format (names + forward-compat) -------

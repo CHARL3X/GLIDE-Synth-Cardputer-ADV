@@ -239,6 +239,33 @@ uint32_t patchHash(const GenPatch& g) {
     return h ? h : 1u;
 }
 
+uint32_t patchHashFull(const GenPatch& g) {
+    const SynthParams& s = g.synth;
+    // Seed from the frozen name hash (everything it covers stays covered), then
+    // fold in every persisted field it deliberately omits. masterVol and the
+    // live-mod fields (bend/vibrato/cutoffMod/volMod/tempo/tilt values) stay
+    // out: they're the player's moment, not the sound.
+    uint32_t h = patchHash(g);
+    h = fnv(h, (uint32_t)s.voiceCount);
+    h = fhash(h, s.fenvAtkS, 1000.f);
+    h = fhash(h, s.fenvDecS, 1000.f);
+    h = fhash(h, s.noiseLevel, 100.f);
+    h = fhash(h, s.autoVibCents, 10.f);
+    h = fhash(h, s.delayTimeS, 1000.f);
+    h = fhash(h, s.delayFb, 100.f);
+    h = fnv(h, (uint32_t)s.delaySync);
+    h = fhash(h, s.reverbSize, 100.f);
+    h = fnv(h, (uint32_t)s.lfo1Shape);
+    h = fnv(h, (uint32_t)s.lfo1Sync);
+    h = fnv(h, (uint32_t)s.lfo2Shape);
+    h = fnv(h, (uint32_t)s.lfo2Sync);
+    h = fhash(h, s.modEnvAtkS, 1000.f);
+    h = fhash(h, s.modEnvDecS, 1000.f);
+    h = fhash(h, g.tiltDepth, 100.f);
+    h = fhash(h, g.tiltDepthB, 100.f);
+    return h ? h : 1u;
+}
+
 void nameForSeed(uint32_t seed, char* out, int cap) {
     if (cap <= 0) return;
     // Pull the word choices and the hex tag from DIFFERENT bit ranges, and use a
