@@ -52,7 +52,7 @@ The Cardputer's keyboard is a 4×14 matrix with staggered rows. Physically it's 
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
  - / =    octave -/+          G0 (top button) = trigger macro (muffle by default)
-                                         (tap rec/play/dub, hold undo, fn+alt clear)
+                                         (tap rec/play/dub, hold clear, fn+alt undo)
 
  fn + q..p         : switch between the ten sounds, live
  fn + shift + q..p : save your current tweaks over that slot
@@ -79,7 +79,7 @@ This is the other half of GLIDE, and arguably the bigger one. The patches aren't
 
 Ten slots live on `fn`+`q`..`p`. Eight are a curated bank, led by **GLIDE** on `q` (the home/boot sound) and **ACID** on `w`. The last two, `o` and `p`, are **generative**: rolled from a seed unique to your unit, so they're different on every device on Earth. From there you build your own.
 
-| key | sound | character | tilt does |
+| key | sound | character | tilt (per-sound mode) |
 |-----|-------|-----------|-----------|
 | q | **GLIDE** | the signature dry saw, and the literal boot tone | vibrato (roll: filter) |
 | w | **ACID** | resonant squelch. lean into it, tilt is the wah | filter (full) |
@@ -118,7 +118,7 @@ Under the hood every sound rides five engine character-makers: a paraphonic **fi
 
 The gyro debate, resolved as agreed, then promoted, because in practice it's fantastic. Tilt is an *assignable* effects modulator, toggled with `enter`, and **never pitch bend** (nobody wants to lean the instrument over again).
 
-- **Per-sound personality.** Every patch ships with its own route and depth. ACID tilts into a full wah, Hollow into a volume swell, Ethereal and Solo into vibrato. Saving a slot saves its tilt setup too.
+- **Your rig, or the sound's.** By default the tilt map is *global* — forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) and **vibrato on left/right**, both at 60% — set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Ethereal and Solo into vibrato — the table above), saved with the slot.
 - **Depth** (settings): how hard the motion drives the effect, 0 to 100%.
 - **Center calibration** (settings → *Tilt center*): "flat" becomes wherever *you* hold the thing, not wherever gravity says. Set it while holding the device in playing position.
 
@@ -140,10 +140,10 @@ On by default (bottom row) with the **progression** motion ready, so out of the 
 The other half of "one hand backs, the other solos": **alt** (left thumb, since space already covers sustain) is a one-button looper. What it records is the *performance*, not the audio. The note events themselves, replayed through the live engine.
 
 - **tap**: start recording. **tap again**: the loop closes and plays on that press. **tap again**: overdub a layer; once more seals it.
-- **hold** (~0.6 s): peel the last overdub (undo). Hold again and it walks back up the stack; the gesture bounces at the ends, so repeated holds undo to the base take and redo to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
-- **fn + alt**: clear the whole take in one deliberate chord.
+- **hold** (~0.7 s): clear the whole loop and start over. It's performance state, so there's no confirm — the hold just sits far enough past a normal overdub tap that a lingering thumb can't nuke the take.
+- **fn + alt**: peel the last overdub (undo). Repeat the chord and it walks back up the stack; the gesture bounces at the ends, so it undoes to the base take and redoes to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
 - **panic** (bksp) silences the loop but keeps the take. Tap alt and it plays again.
-- The hint line goes loop-aware while a take exists (`alt dub  hold undo  fn+alt clear`), so the gestures are always on screen.
+- The hint line goes loop-aware while a take exists (`alt dub  hold clear  fn+alt undo`), so the gestures are always on screen.
 - Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record a Bass line, switch to Solo, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
 - Loop playback is a protected backing layer like the drones. Its voices ride outside the voice cap, can't be robbed by chord-slide stealing, ignore live bends and tilt vibrato, never hijack the note readout, and survive sound switches and settings trips. Internally it plays on its own string lanes (4 to 7) with its own key ids, so it can never collide with your hands.
 - Timing belongs to the audio thread. Playback events are *scheduled* (block-accurate, ~4 ms), not fired from the ~33 ms UI frame, so the loop doesn't swing with the frame rate.
@@ -293,8 +293,9 @@ Audio path facts (verified against M5Unified source, not vibes): `playRaw` keeps
 | chorus / delay / reverb send | 0-100% each | per sound | settings (live) |
 | delay time / sync / feedback | 10-600ms / free+5 divisions / 0-90% | per sound | settings (live) |
 | tap tempo | 40-240 bpm, tapped | live | settings |
-| tilt routing | off / cutoff / vibrato / volume | per sound | settings, enter toggles |
-| tilt depth | 0-100% | per sound | settings |
+| tilt map | global (follows your hands) / per sound | global | settings |
+| tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings, enter toggles |
+| tilt depth | 0-100% | 60% | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
 | display | waveform scope / pitch trail | pitch trail | settings |
 | solo/backing split | auto when you change sound/octave over a jam | live | live |
