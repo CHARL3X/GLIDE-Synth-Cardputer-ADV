@@ -32,11 +32,52 @@ struct GenPatch {
     float   tiltDepthB = 0.60f;
 };
 
+// The character a roll commits to BEFORE painting parameters. This is what
+// makes two rolls sound like two different instruments instead of two shades
+// of the same one: independent uniform draws regress every patch to the
+// statistical middle ("a buzzy wave with some reverb"), so the generator first
+// picks a personality, then paints correlated values inside that personality's
+// window — plucks that actually stop, pads that actually swell, acid that
+// actually squelches. Wild keeps the old anything-goes chaos in the pool.
+// Append-only (a future "roll style" picker may persist it): add before Count.
+enum class Archetype : uint8_t { Pluck, Bell, Pad, Bass, Acid, Lead, Brass, Chip, Wild, Count };
+
+inline const char* archetypeName(Archetype a) {
+    switch (a) {
+        case Archetype::Pluck: return "pluck";
+        case Archetype::Bell:  return "bell";
+        case Archetype::Pad:   return "pad";
+        case Archetype::Bass:  return "bass";
+        case Archetype::Acid:  return "acid";
+        case Archetype::Lead:  return "lead";
+        case Archetype::Brass: return "brass";
+        case Archetype::Chip:  return "chip";
+        case Archetype::Wild:  return "wild";
+        default:               return "?";
+    }
+}
+
+// The archetype a bare seed rolls — a weighted pick (pads and plucks common,
+// brass/chip/wild the spice). Deterministic and separate from the parameter
+// paint, so generateSound(seed) == generateSound(seed, archetypeForSeed(seed)).
+Archetype archetypeForSeed(uint32_t seed);
+
 // Roll a brand-new patch from `seed`. Deterministic: same seed -> same patch.
 // Every field lands inside the engine's musical bounds (see the clamps in the
 // .cpp), so a roll is always playable — never a dead or blown-out sound. The
 // player's master volume is NOT touched here (the caller keeps it).
 GenPatch generateSound(uint32_t seed);
+
+// Same, but with the character chosen by the caller — the hook for a future
+// "roll me a pad" style picker. Deterministic in (seed, a).
+GenPatch generateSound(uint32_t seed, Archetype a);
+
+// FROZEN: the pre-archetype generator, kept verbatim so devices whose two
+// generative slots (o,p) were rolled by it keep those exact sounds across this
+// update — storage gates on a genver flag and only moves a device to the new
+// generator when the player re-rolls the bank (their choice, never an update's).
+// Never edit this function; the native tests pin its output with golden values.
+GenPatch generateSoundLegacy(uint32_t seed);
 
 // Evolve `base` by `amount` in [0,1]: small = a subtle variation that keeps the
 // character (find the neighbour you almost had), large = a bold leap. Continuous

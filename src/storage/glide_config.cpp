@@ -50,6 +50,14 @@ void noteSaveFailure(bool nvsWrite) {
 uint16_t gOverrideMask = 0;  // cached per-slot override flags — the UI asks
                              // every frame; NVS must not be in that path
 uint32_t gSeed = 0;          // this unit's stable unique seed (persisted)
+uint8_t gGenVer = 1;         // which generator rolls the generative slots (o,p)
+                             // from that seed: 1 = the frozen legacy generator
+                             // (devices from before the archetype engine keep
+                             // their exact rolled sounds across the update),
+                             // 2 = the archetype engine. Moves to 2 only when
+                             // the SEED itself is new — first boot, wiped NVS,
+                             // or the player's own Re-roll bank — never as a
+                             // side effect of updating. Persisted ("genver").
 
 // Cached display name per slot. A factory (un-overridden) slot shows its real
 // instrument name ("GLIDE"); any custom slot — generated at first boot, saved,
@@ -181,8 +189,12 @@ bool loadPatchData(int slot, PatchData& out) {
     patchKey(slot, key);
     const size_t len = gPrefs.getBytesLength(key);
     if (len == 0) {  // no user override
-        if (slot >= dsp::kFirstGenSlot)  // o,p: regenerate this unit's sound from the seed
-            genToPatchData(dsp::generateSound(slotSeed(gSeed, slot)), out);
+        if (slot >= dsp::kFirstGenSlot) {  // o,p: regenerate this unit's sound from
+                                           // the seed, with the generator version
+                                           // the seed was rolled under (gGenVer)
+            const uint32_t sv = slotSeed(gSeed, slot);
+            genToPatchData(gGenVer >= 2 ? dsp::generateSound(sv) : dsp::generateSoundLegacy(sv), out);
+        }
         return false;  // q..i keep their curated factory patch (already seeded above)
     }
 
@@ -463,8 +475,17 @@ void begin() {
     if (gSeed == 0) {
         gSeed = esp_random();
         if (gSeed == 0) gSeed = 0x9E3779B9u;  // vanishingly unlikely, but never 0
-        if (gNvsOk) gPrefs.putUInt("seed", gSeed);
-        Serial.printf("[glide] new device seed %08x\n", gSeed);
+        gGenVer = 2;  // a brand-new seed rolls with the current (archetype) engine
+        if (gNvsOk) {
+            gPrefs.putUInt("seed", gSeed);
+            gPrefs.putUChar("genver", gGenVer);
+        }
+        Serial.printf("[glide] new device seed %08x (gen v%u)\n", gSeed, gGenVer);
+    } else {
+        // an existing seed keeps the generator that rolled it: absent key = the
+        // legacy engine, so an update never changes a unit's o/p sounds. The
+        // player moves to the new engine by re-rolling the bank (their choice).
+        gGenVer = gPrefs.getUChar("genver", 1);
     }
     const bool freshDevice = (prevBoot == 0);  // truly first boot (or wiped NVS)
 
@@ -523,7 +544,9 @@ void begin() {
             stored.tiltDepth = pd.tiltDepth;
             stored.tiltRouteB = pd.tiltRouteB;
             stored.tiltDepthB = pd.tiltDepthB;
-            const dsp::GenPatch rolled = dsp::generateSound(slotSeed(gSeed, i));
+            // any blob this reclaim can match was written by the LEGACY
+            // generator (the archetype engine postdates the blob-writing builds)
+            const dsp::GenPatch rolled = dsp::generateSoundLegacy(slotSeed(gSeed, i));
             if (dsp::patchHash(stored) == dsp::patchHash(rolled)) {
                 clearOverride(i);  // identical to the regenerated default -> reclaim it
                 Serial.printf("[glide] reclaimed slot %d (matches seed)\n", i);
@@ -1040,7 +1063,11 @@ void reRollBank() {
     // regenerate on demand), so this also FREES whatever NVS the old saves held.
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
-    if (gNvsOk) gPrefs.putUInt("seed", gSeed);
+    gGenVer = 2;  // a re-roll is the player's opt-in to the archetype engine
+    if (gNvsOk) {
+        gPrefs.putUInt("seed", gSeed);
+        gPrefs.putUChar("genver", gGenVer);
+    }
     for (int i = 0; i < dsp::kPatchCount; ++i) clearOverride(i);
     cacheAllSlotNames();                // names now reflect the reset bank + new o,p
     applyPatch(gCfg.currentPatch);      // reload whatever slot is current, live

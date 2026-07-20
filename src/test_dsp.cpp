@@ -704,6 +704,110 @@ int main() {
         CHECK(strstr(nm, sh) != nullptr, "short name's noun appears in the full name");
     }
 
+    // ---- the archetype engine: variety is a tested property, not a vibe -----
+    {
+        // The FROZEN legacy generator, pinned by golden values captured from the
+        // pre-archetype build. Existing devices regenerate their o/p slots with
+        // it (storage gates on "genver"), so ANY drift here silently changes
+        // sounds players already have. The two hashes cover essentially every
+        // field between them; the enums pin the categorical draws directly.
+        {
+            const GenPatch l1 = generateSoundLegacy(0xC0FFEEu);
+            CHECK(patchHash(l1) == 0x023AE176u && patchHashFull(l1) == 0xE3B50DBCu,
+                  "legacy generator frozen (seed 0xC0FFEE)");
+            CHECK(l1.synth.wave == Waveform::Sine && l1.synth.filterMode == (uint8_t)FilterMode::LP,
+                  "legacy categorical draws frozen (seed 0xC0FFEE)");
+            const GenPatch l2 = generateSoundLegacy(42u);
+            CHECK(patchHash(l2) == 0x96F5ADD4u && patchHashFull(l2) == 0xD15358A8u,
+                  "legacy generator frozen (seed 42)");
+            const GenPatch l3 = generateSoundLegacy(0xDEADBEEFu);
+            CHECK(patchHash(l3) == 0x00BF90FEu && patchHashFull(l3) == 0x6BB25411u,
+                  "legacy generator frozen (seed 0xDEADBEEF)");
+        }
+
+        // the bare-seed roll IS the (seed, archetype-of-seed) roll — the
+        // determinism contract a future "roll style" picker relies on
+        {
+            const uint32_t sd = 0xBADC0DEu;
+            const GenPatch a = generateSound(sd);
+            const GenPatch b = generateSound(sd, archetypeForSeed(sd));
+            CHECK(patchHashFull(a) == patchHashFull(b),
+                  "generateSound(seed) == generateSound(seed, archetypeForSeed(seed))");
+        }
+
+        // sweep: the variety the archetypes exist for must actually occur, and
+        // the guardrails must hold on EVERY roll. (All seeded — deterministic.)
+        bool sawPluck = false, sawBell = false, sawPad = false, sawSubBass = false;
+        bool sawSweep = false, sawSwell = false, sawVib = false, sawSynced = false;
+        bool waveSeen[(int)Waveform::Count] = {false};
+        bool archSeen[(int)Archetype::Count] = {false};
+        for (uint32_t k = 1; k <= 400; ++k) {
+            const uint32_t sd = k * 2654435761u + 17u;
+            const GenPatch g = generateSound(sd);
+            const SynthParams& s = g.synth;
+            archSeen[(int)archetypeForSeed(sd)] = true;
+            waveSeen[(int)s.wave] = true;
+            if (s.sustain <= 0.22f && s.attackS < 0.05f && s.fenvOct > 0.5f) sawPluck = true;
+            if (s.sustain <= 0.06f && s.decayS >= 0.5f) sawBell = true;
+            if (s.attackS >= 0.25f && s.sustain >= 0.6f && s.releaseS >= 0.8f) sawPad = true;
+            if (s.subLevel >= 0.4f) sawSubBass = true;
+            if (s.fenvOct >= 2.2f && s.resonance >= 0.55f) sawSweep = true;
+            if (s.fenvAtkS >= 0.02f) sawSwell = true;
+            if (s.autoVibCents >= 2.f) sawVib = true;
+            if (s.delaySync != 0 || s.lfo1Sync != 0) sawSynced = true;
+
+            // guardrails — each of these is a known way a roll turns to trash
+            if (s.filterMode == (uint8_t)FilterMode::HP)
+                CHECK(s.cutoffHz <= 1800.5f, "no whisper rolls: HP keeps a body");
+            if (s.filterMode == (uint8_t)FilterMode::BP)
+                CHECK(s.cutoffHz >= 299.5f && s.cutoffHz <= 4500.5f, "BP stays on the melodic band");
+            if (s.resonance > 0.7f)
+                CHECK(s.drive <= 3.51f, "screaming reso never stacks on heavy drive");
+            CHECK(s.delayMix + s.reverbMix <= 0.81f, "echo+hall can't wash out jointly");
+            if (s.sustain < 0.1f)
+                CHECK(s.decayS >= 0.249f, "struck sounds keep a decay body (no clicks)");
+            if (s.attackS > 0.5f)
+                CHECK(s.sustain >= 0.499f && s.releaseS >= 0.399f, "slow swells hold and release");
+            for (int i = 0; i < kModSlots; ++i)
+                if (s.slots[i].src != (uint8_t)ModSource::None &&
+                    s.slots[i].dest == (uint8_t)ModDest::Pitch)
+                    CHECK(s.slots[i].depth >= -0.081f && s.slots[i].depth <= 0.081f,
+                          "pitch modulation stays within ~a semitone (no atonal warble)");
+        }
+        CHECK(sawPluck, "rolls include plucks (sustain near zero + fast attack)");
+        CHECK(sawBell, "rolls include struck bells (no sustain, long decay)");
+        CHECK(sawPad, "rolls include slow-swell pads");
+        CHECK(sawSubBass, "rolls include sub-heavy basses");
+        CHECK(sawSweep, "rolls include deep resonant acid sweeps");
+        CHECK(sawSwell, "rolls include brass-style filter-attack swells");
+        CHECK(sawVib, "rolls include singing built-in vibrato");
+        CHECK(sawSynced, "rolls include tempo-synced movement");
+        for (int w = 0; w < (int)Waveform::Count; ++w)
+            CHECK(waveSeen[w], "every waveform appears across the sweep");
+        for (int a = 0; a < (int)Archetype::Count; ++a)
+            CHECK(archSeen[a], "every archetype appears across the sweep");
+
+        // legacy rolls stay valid too (devices still regenerate o/p with them):
+        // in-range, and a sample renders finite & bounded
+        Synth sl;
+        sl.init(kSr);
+        for (uint32_t k = 1; k <= 100; ++k) {
+            const GenPatch g = generateSoundLegacy(k * 40503u + 3u);
+            // same validators the new-engine sweep uses (defined above)
+            CHECK(g.synth.cutoffHz >= 80.f && g.synth.cutoffHz <= 12000.f &&
+                      g.synth.resonance >= 0.f && g.synth.resonance <= 0.95f,
+                  "legacy roll in range");
+            if (k <= 30) {
+                sl.setParams(g.synth);
+                sl.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(k & 0x7F), 0, false, 60.f));
+                const float pk = peakOf(sl, 24);
+                CHECK(pk >= 0.f && pk < 1.6f, "legacy roll renders finite & bounded");
+                sl.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                peakOf(sl, 40);
+            }
+        }
+    }
+
     // ---- the dirty hash: every persisted field counts; the name hash is frozen
     // patchHash() names sounds and must NEVER change coverage (it would rename
     // players' saved slots). patchHashFull() is the unsaved-edit/same-sound
