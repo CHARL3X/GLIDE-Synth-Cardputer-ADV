@@ -122,6 +122,24 @@ void shortNameForSeed(uint32_t seed, char* out, int cap);
 // Save default), so what you see is always what you save. Uniqueness across the
 // library is handled by rename + a save-time collision suffix, not a hex tag.
 // Same words as nameForSeed()/shortNameForSeed(); deterministic from the seed.
+// LEGACY vocabulary: kept (frozen) because genver-1 devices derive their o/p
+// slot labels through it — new names come from soundNameForPatch() below.
 void soundName(uint32_t seed, char* out, int cap);
+
+// Classify an arbitrary patch into the archetype FAMILY it most SOUNDS like —
+// pure parameter heuristics (percussive first, then squelch, swell, weight…),
+// so it works on hand-built, mutated, and legacy sounds too, not just fresh
+// archetype rolls. Drives the character-aware namer; free for future UI use
+// (e.g. a family badge on the sound card).
+Archetype classifySound(const SynthParams& s);
+
+// The character-aware namer: the adjective follows the patch's timbre (texture,
+// then brightness), the noun its classified family — a bell gets bell words, a
+// bass gets weight words — with the word choice inside each bank drawn from
+// patchHash bits. Deterministic, filename-safe, same adjective-noun shape as
+// soundName(). This is the namer for all NEWLY-minted names (rolls, mutates,
+// genver>=2 slot regen, nameless-save fallbacks); genver-1 devices keep
+// deriving their o/p labels with soundName() so an update never relabels them.
+void soundNameForPatch(const GenPatch& g, char* out, int cap);
 
 }  // namespace dsp

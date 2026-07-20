@@ -164,6 +164,13 @@ void sanitizePatch(GenPatch& g) {
         if (s.sustain < 0.5f) s.sustain = 0.5f;
         if (s.releaseS < 0.4f) s.releaseS = 0.4f;
     }
+    // Always-glide means EVERY note slides in, so the glide must be quick
+    // enough to LAND: the one-pole slew needs ~4.6×glideS to settle, and past
+    // ~0.16 s a phrase at playing speed never reaches its pitches — every note
+    // sounds flat, parked between where it was and where it was aimed. (Longer
+    // glides stay available to LegatoOnly rolls, where fresh attacks land
+    // instantly and only deliberate hammer-on slides ride the glide.)
+    if (s.glideMode == GlideMode::Always && s.glideS > 0.16f) s.glideS = 0.16f;
     for (int i = 0; i < kModSlots; ++i) {
         ModSlot& m = s.slots[i];
         if (m.src == (uint8_t)ModSource::None) continue;
@@ -292,7 +299,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.3f, 0.9f);
             s.sustain = uni(r, 0.02f, 0.22f);
             s.releaseS = uni(r, 0.15f, 0.5f);
-            s.glideS = uni(r, 0.02f, 0.12f);
+            s.glideS = uni(r, 0.02f, 0.10f);
             s.glideMode = r.chance(0.15f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)(r.chance(0.15f) ? FilterMode::BP : FilterMode::LP);
             s.cutoffHz = uni(r, 600.f, 3000.f);
@@ -318,7 +325,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.5f, 1.4f);
             s.sustain = uni(r, 0.f, 0.06f);
             s.releaseS = uni(r, 0.4f, 1.2f);
-            s.glideS = uni(r, 0.03f, 0.15f);  // the bent-bell slide
+            s.glideS = uni(r, 0.02f, 0.12f);  // the bent-bell slide
             s.glideMode = r.chance(0.25f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)(r.chance(0.15f) ? FilterMode::Notch : FilterMode::LP);
             s.cutoffHz = uni(r, 2000.f, 6000.f);
@@ -342,7 +349,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.3f, 0.8f);
             s.sustain = uni(r, 0.6f, 1.f);
             s.releaseS = uni(r, 0.8f, 2.f);
-            s.glideS = uni(r, 0.1f, 0.35f);
+            s.glideS = 0.05f + r.f() * r.f() * 0.13f;  // dreamy but LANDS (see sanitize)
             s.glideMode = r.chance(0.6f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)(r.chance(0.8f) ? FilterMode::LP
                                                     : (r.chance(0.5f) ? FilterMode::Notch : FilterMode::BP));
@@ -377,7 +384,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.12f, 0.3f);
             s.sustain = uni(r, 0.5f, 0.9f);
             s.releaseS = uni(r, 0.08f, 0.25f);
-            s.glideS = uni(r, 0.03f, 0.12f);
+            s.glideS = uni(r, 0.03f, 0.10f);
             s.glideMode = r.chance(0.1f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)FilterMode::LP;
             s.cutoffHz = uni(r, 350.f, 1400.f);
@@ -402,7 +409,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.12f, 0.3f);
             s.sustain = uni(r, 0.35f, 0.7f);
             s.releaseS = uni(r, 0.1f, 0.3f);
-            s.glideS = uni(r, 0.06f, 0.18f);  // the 303 slide
+            s.glideS = uni(r, 0.05f, 0.15f);  // the 303 slide
             s.glideMode = r.chance(0.2f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)FilterMode::LP;
             s.cutoffHz = uni(r, 250.f, 700.f);   // low base...
@@ -433,7 +440,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.15f, 0.5f);
             s.sustain = uni(r, 0.5f, 0.9f);
             s.releaseS = uni(r, 0.15f, 0.6f);
-            s.glideS = uni(r, 0.05f, 0.25f);
+            s.glideS = uni(r, 0.04f, 0.16f);
             s.glideMode = r.chance(0.4f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)(r.chance(0.15f) ? FilterMode::Notch : FilterMode::LP);
             s.cutoffHz = uni(r, 1500.f, 6500.f);
@@ -462,7 +469,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.25f, 0.5f);
             s.sustain = uni(r, 0.7f, 0.95f);
             s.releaseS = uni(r, 0.2f, 0.5f);
-            s.glideS = uni(r, 0.04f, 0.15f);
+            s.glideS = uni(r, 0.03f, 0.12f);
             s.glideMode = r.chance(0.2f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)FilterMode::LP;
             s.cutoffHz = uni(r, 1000.f, 2500.f);
@@ -487,7 +494,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             s.decayS = uni(r, 0.08f, 0.3f);
             s.sustain = uni(r, 0.3f, 0.8f);
             s.releaseS = uni(r, 0.05f, 0.2f);
-            s.glideS = uni(r, 0.02f, 0.08f);
+            s.glideS = uni(r, 0.01f, 0.06f);
             s.glideMode = r.chance(0.15f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)FilterMode::LP;
             s.cutoffHz = uni(r, 3000.f, 9000.f);  // barely a filter: the raw chip
@@ -512,7 +519,7 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
         default: {  // anything-goes chaos across the FULL Range table — the
                     // old spirit, kept in the pool; sanitize reels in the trash
             s.wave = (Waveform)r.i(0, (int)Waveform::Count - 1);
-            s.glideS = uni(r, kGlide.lo, kGlide.hi);
+            s.glideS = r.f() * r.f() * kGlide.hi;  // legacy skew: mostly quick
             s.glideMode = r.chance(0.35f) ? GlideMode::Always : GlideMode::LegatoOnly;
             s.filterMode = (uint8_t)r.i(0, (int)FilterMode::Count - 1);
             s.cutoffHz = uni(r, kCutoff.lo, kCutoff.hi);
@@ -611,6 +618,15 @@ GenPatch mutateSound(const GenPatch& base, float amount, uint32_t seed) {
         if (s.filterMode == (uint8_t)FilterMode::HP && s.cutoffHz > 1800.f) s.cutoffHz = 1800.f;
     }
     if (r.chance(pc * 0.5f)) s.glideMode = r.chance(0.5f) ? GlideMode::Always : GlideMode::LegatoOnly;
+    // sanitizePatch's Always-glide landing rule, neighbourhood-respecting: a
+    // player's own longer-than-cap Always glide is kept as their ceiling — the
+    // mutate just can't CREATE the never-lands smear.
+    if (s.glideMode == GlideMode::Always) {
+        float lim = 0.16f;
+        if (base.synth.glideMode == GlideMode::Always && base.synth.glideS > lim)
+            lim = base.synth.glideS;
+        if (s.glideS > lim) s.glideS = lim;
+    }
     if (r.chance(pc * 0.6f)) s.lfo1Shape = (uint8_t)r.i(0, (int)LfoShape::Count - 1);
     if (r.chance(pc * 0.6f)) s.lfo2Shape = (uint8_t)r.i(0, (int)LfoShape::Count - 1);
     if (r.chance(pc * 0.4f)) s.delaySync = (uint8_t)r.i(0, kDelaySyncCount - 1);
@@ -653,6 +669,9 @@ inline uint32_t fnv(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 // doesn't change the name, and there are no raw-byte/padding hazards).
 inline uint32_t fhash(uint32_t h, float v, float q) { return fnv(h, (uint32_t)(int32_t)(v * q)); }
 
+// LEGACY word tables (frozen): nameForSeed/shortNameForSeed/soundName draw from
+// these by raw hash bits. genver-1 devices still derive their o/p slot labels
+// this way, so the tables and the bit-picking must never change.
 const char* const kAdjs[] = {
     "warm", "bright", "dark", "glassy", "fuzzy", "lush", "hollow", "sharp",
     "deep", "soft", "neon", "dusty", "velvet", "frost", "ember", "tidal",
@@ -660,6 +679,28 @@ const char* const kAdjs[] = {
 const char* const kNouns[] = {
     "haze", "comet", "drift", "pulse", "bloom", "grain", "choir", "river",
     "spark", "cavern", "prism", "vapor", "signal", "tide", "husk", "moss",
+};
+
+// Character-aware word banks (soundNameForPatch). Nouns are per-family (indexed
+// by Archetype) and ≤6 chars so they'd even fit the compact status-bar label;
+// adjectives are per-timbre. 8 per bank — picked by 3 bits of patchHash each.
+// Append/extend freely BUT never reorder or replace existing words: a sound's
+// derived name must stay stable across updates (saved names are baked as data,
+// but the o/p slots and nameless-save fallbacks re-derive every boot).
+const char* const kAdjGritty[8] = {"fuzzy", "gritty", "dusty", "rusty", "ember", "feral", "raw", "burnt"};
+const char* const kAdjDark[8]   = {"dark", "deep", "dusky", "velvet", "shadow", "murky", "umber", "sable"};
+const char* const kAdjBright[8] = {"bright", "glassy", "neon", "silver", "sharp", "gleam", "crisp", "lucid"};
+const char* const kAdjWarm[8]   = {"warm", "soft", "lush", "mellow", "golden", "honey", "misty", "tender"};
+const char* const kFamNouns[(int)Archetype::Count][8] = {
+    {"harp", "koto", "lute", "quill", "thorn", "dart", "drop", "twang"},      // pluck
+    {"bell", "chime", "glass", "halo", "frost", "prism", "hymn", "star"},     // bell
+    {"haze", "bloom", "cloud", "veil", "dream", "dawn", "nebula", "tide"},    // pad
+    {"root", "rumble", "depth", "boom", "core", "anchor", "fathom", "loam"},  // bass
+    {"acid", "wasp", "fizz", "venom", "spiral", "worm", "zap", "sting"},      // acid
+    {"voice", "spark", "comet", "flare", "siren", "arrow", "blade", "ray"},   // lead
+    {"horn", "brass", "blast", "swell", "crown", "herald", "bugle", "march"}, // brass
+    {"chip", "pixel", "sprite", "coin", "laser", "retro", "glitch", "bit"},   // chip
+    {"pulse", "grain", "choir", "river", "cavern", "vapor", "signal", "moss"} // wild/other
 };
 }  // namespace
 
@@ -759,6 +800,48 @@ void soundName(uint32_t seed, char* out, int cap) {
     const char* noun = kNouns[(seed >> 20) & 15];
     int n = 0;
     auto put = [&](const char* s) { for (; *s && n < cap - 1; ++s) out[n++] = *s; };
+    put(adj); put("-"); put(noun);
+    out[n] = '\0';
+}
+
+Archetype classifySound(const SynthParams& s) {
+    // Order is the heuristic: the strongest audible identities claim a patch
+    // first. Percussive (sustain gone) beats everything; a pure-wave long ring
+    // is a bell, any other stab a pluck. Then the squelch (screaming reso +
+    // deep filter env), the swell (slow attack), the brass bloom (filter
+    // attack under a held tone), the weight (sub + low cutoff), the chip
+    // (bright raw square, snappy), the singer (built-in vibrato). Anything
+    // else is character-neutral and gets the generic word bank.
+    const bool pure = (s.wave == Waveform::Sine || s.wave == Waveform::Triangle);
+    if (s.sustain < 0.25f)
+        return (pure && s.decayS >= 0.45f) ? Archetype::Bell : Archetype::Pluck;
+    if (s.resonance >= 0.55f && s.fenvOct >= 1.8f) return Archetype::Acid;
+    if (s.attackS >= 0.18f) return Archetype::Pad;
+    if (s.fenvAtkS >= 0.018f && s.sustain >= 0.6f) return Archetype::Brass;
+    if (s.subLevel >= 0.35f && s.cutoffHz <= 1600.f) return Archetype::Bass;
+    if ((s.wave == Waveform::Square || s.wave == Waveform::Pulse) &&
+        s.cutoffHz >= 3000.f && s.attackS <= 0.01f && s.releaseS <= 0.25f)
+        return Archetype::Chip;
+    if (s.autoVibCents >= 2.f) return Archetype::Lead;
+    return Archetype::Wild;
+}
+
+void soundNameForPatch(const GenPatch& g, char* out, int cap) {
+    if (cap <= 0) return;
+    const SynthParams& s = g.synth;
+    const uint32_t h = patchHash(g);
+    // adjective: texture trumps (grit is what you notice first), then
+    // brightness picks between dark / bright / warm banks
+    const char* const* adjs;
+    if (s.drive >= 3.f || s.noiseLevel >= 0.06f) adjs = kAdjGritty;
+    else if (s.cutoffHz < 900.f)                 adjs = kAdjDark;
+    else if (s.cutoffHz > 4000.f)                adjs = kAdjBright;
+    else                                         adjs = kAdjWarm;
+    const char* const* nouns = kFamNouns[(int)classifySound(s)];
+    const char* adj = adjs[(h >> 16) & 7];
+    const char* noun = nouns[(h >> 20) & 7];
+    int n = 0;
+    auto put = [&](const char* p) { for (; *p && n < cap - 1; ++p) out[n++] = *p; };
     put(adj); put("-"); put(noun);
     out[n] = '\0';
 }

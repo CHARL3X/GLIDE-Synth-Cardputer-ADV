@@ -95,6 +95,34 @@ identity) but now also nudges the once-neglected fields, and clamps pitch-mod
 depth only on routings *it* rewires — a player's own deliberate settings are
 never "corrected."
 
+**Glide must land.** The first archetype cut handed out glide times up to
+0.35 s; the one-pole slew needs ~4.6× `glideS` to settle, so at playing speed
+those rolls never *reached* a pitch — every note sat flat, parked between
+where it was and where it was aimed. Two rules fix it, both tested: archetype
+glide windows now live where the hand-tuned factory presets do (roughly
+0.01–0.18 s, skewed quick), and `sanitizePatch` caps **always-glide** patches
+at 0.16 s — in Always mode *every* note slides in, so the glide must be quick
+enough to land; longer dreamy glides remain available to LegatoOnly rolls,
+where fresh attacks hit pitch instantly and only deliberate hammer-on slides
+ride the glide. Relatedly, the audition lick (`ui/audition.cpp`) now uses a
+distinct id per note: re-pressing a sounding id takes the synth's legato path
+and glides, so the old single-id phrase made every preview note slide even for
+LegatoOnly sounds — rolls previewed far worse than they play. A native test
+walks every roll through the lick's exact timings and asserts the final pitch
+lands.
+
+**Names follow the sound.** `soundNameForPatch` replaced the hash-only word
+pick for everything newly minted: `classifySound` hears which family a patch
+belongs to from its parameters alone (works on hand-built and mutated sounds
+too), the noun comes from that family's bank (a bell gets bell/chime/halo, a
+bass root/rumble/boom, acid wasp/venom/spiral…), the adjective from the
+patch's texture and brightness, and `patchHash` bits still pick *within* the
+banks so naming stays deterministic. The legacy `soundName` tables are frozen
+behind the same `genver` gate — a genver-1 device re-derives its o/p slot
+labels every boot, so the update changes neither those sounds *nor their
+names*. Saved sounds everywhere are unaffected either way: their names are
+baked into the patch data itself.
+
 **Update safety (the seed contract).** A device's two generative slots (o, p)
 are regenerated from its seed on every load, so changing the generator would
 have silently changed sounds players already live with. Instead the old

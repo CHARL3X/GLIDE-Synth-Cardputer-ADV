@@ -166,8 +166,12 @@ bool loadBlob(const char* key, PatchBlob& out) {
     return false;
 }
 
-void genToPatchData(const dsp::GenPatch& g, PatchData& pd);  // defined below
-uint32_t slotSeed(uint32_t seed, int slot);                 // defined below
+// legacyName: derive the baked name with the frozen legacy word tables — used
+// only for genver-1 slot regeneration, so an update never relabels a device's
+// o/p slots. Everything newly minted names itself with the character-aware
+// namer (default).
+void genToPatchData(const dsp::GenPatch& g, PatchData& pd, bool legacyName = false);
+uint32_t slotSeed(uint32_t seed, int slot);  // defined below
 
 // Load a slot into a PatchData. Order: a USER override blob wins; else the
 // CURATED factory patch for this slot (q=GLIDE, w=ACID, e..i = the player's
@@ -191,9 +195,11 @@ bool loadPatchData(int slot, PatchData& out) {
     if (len == 0) {  // no user override
         if (slot >= dsp::kFirstGenSlot) {  // o,p: regenerate this unit's sound from
                                            // the seed, with the generator version
-                                           // the seed was rolled under (gGenVer)
+                                           // the seed was rolled under (gGenVer) —
+                                           // names re-derive too, so gate them alike
             const uint32_t sv = slotSeed(gSeed, slot);
-            genToPatchData(gGenVer >= 2 ? dsp::generateSound(sv) : dsp::generateSoundLegacy(sv), out);
+            const bool legacy = gGenVer < 2;
+            genToPatchData(legacy ? dsp::generateSoundLegacy(sv) : dsp::generateSound(sv), out, legacy);
         }
         return false;  // q..i keep their curated factory patch (already seeded above)
     }
@@ -234,7 +240,8 @@ void setLiveNameFromPatch(const PatchData& pd) {
     g.tiltDepth = pd.tiltDepth;
     g.tiltRouteB = pd.tiltRouteB;
     g.tiltDepthB = pd.tiltDepthB;
-    dsp::soundName(dsp::patchHash(g), gLiveName, sizeof gLiveName);
+    // nameless sound (Init, pre-naming-era saves): mint a character-aware name
+    dsp::soundNameForPatch(g, gLiveName, sizeof gLiveName);
 }
 
 // Apply a PatchData to the live config: the sound + tilt personality, with the
@@ -283,13 +290,16 @@ void applyPatchData(const PatchData& pd) {
 }
 
 // Map a pure-dsp GenPatch onto a storage PatchData (the dsp/storage seam).
-void genToPatchData(const dsp::GenPatch& g, PatchData& pd) {
+void genToPatchData(const dsp::GenPatch& g, PatchData& pd, bool legacyName) {
     pd.synth = g.synth;
     pd.tiltRoute = g.tiltRoute;
     pd.tiltDepth = g.tiltDepth;
     pd.tiltRouteB = g.tiltRouteB;
     pd.tiltDepthB = g.tiltDepthB;
-    dsp::soundName(dsp::patchHash(g), pd.name, sizeof pd.name);  // bake its name in
+    if (legacyName)  // genver-1 o/p slots: keep deriving the label they always had
+        dsp::soundName(dsp::patchHash(g), pd.name, sizeof pd.name);
+    else             // everything new: the name follows the sound's character
+        dsp::soundNameForPatch(g, pd.name, sizeof pd.name);
 }
 
 // Per-slot generation seed: the device seed scrambled by the slot index, so a

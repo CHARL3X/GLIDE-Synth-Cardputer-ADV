@@ -17,7 +17,7 @@ namespace demo {
 
 namespace {
 // Melody voice id: clear of leads (0..55), drone partners (64..119), backing
-// (120..122), loop playback (128..183) and the chime/preview (250/251).
+// (120..122), loop playback (128..183) and the chime/preview (250/251..253).
 constexpr uint8_t kMelodyId = 200;
 
 // The demo is a CURATED performance, not a random tour. The bed is Ethereal —

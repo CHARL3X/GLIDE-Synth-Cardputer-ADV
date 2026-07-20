@@ -768,6 +768,8 @@ int main() {
                 CHECK(s.decayS >= 0.249f, "struck sounds keep a decay body (no clicks)");
             if (s.attackS > 0.5f)
                 CHECK(s.sustain >= 0.499f && s.releaseS >= 0.399f, "slow swells hold and release");
+            if (s.glideMode == GlideMode::Always)
+                CHECK(s.glideS <= 0.161f, "always-glide rolls stay quick enough to land");
             for (int i = 0; i < kModSlots; ++i)
                 if (s.slots[i].src != (uint8_t)ModSource::None &&
                     s.slots[i].dest == (uint8_t)ModDest::Pitch)
@@ -786,6 +788,116 @@ int main() {
             CHECK(waveSeen[w], "every waveform appears across the sweep");
         for (int a = 0; a < (int)Archetype::Count; ++a)
             CHECK(archSeen[a], "every archetype appears across the sweep");
+
+        // ---- the roll must PLAY: audition-phrase pitch landing --------------
+        // Regression for "rolls glide so long the preview never hits a note":
+        // walk every roll through ui/audition.cpp's exact lick — timings AND
+        // per-note ids (fresh attacks land like real key presses; only the
+        // Retarget slides ride the glide) — and assert the lead has LANDED its
+        // final pitch by the release, not parked flat somewhere between notes.
+        {
+            Synth sp;
+            sp.init(kSr);
+            float pbuf[128];
+            auto runMs = [&](int ms) {  // 128-sample blocks at 32 kHz = 4 ms each
+                for (int b = 0; b < ms / 4; ++b) sp.render(pbuf, 128);
+            };
+            for (uint32_t k = 1; k <= 150; ++k) {
+                const GenPatch g = generateSound(k * 2654435761u + 12345u);
+                sp.setParams(g.synth);
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
+                runMs(300);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
+                runMs(340);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
+                runMs(360);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
+                runMs(380);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
+                runMs(480);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
+                runMs(740);
+                CHECK(sp.leadActive(), "preview's final note still sounds at its release");
+                const float err = sp.leadPitchMidi() - 60.f;
+                CHECK(err > -0.35f && err < 0.35f,
+                      "preview lands its final note (no flat between-pitch smear)");
+                sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                runMs(200);
+            }
+        }
+
+        // ---- character-aware naming: the words follow the sound -------------
+        {
+            char n1[24], n2[24];
+            const GenPatch p1 = generateSound(0x5EED1234u);
+            soundNameForPatch(p1, n1, sizeof n1);
+            soundNameForPatch(p1, n2, sizeof n2);
+            CHECK(strcmp(n1, n2) == 0, "soundNameForPatch deterministic");
+            bool dash = false;
+            for (const char* c = n1; *c; ++c) {
+                CHECK((*c >= 'a' && *c <= 'z') || *c == '-', "patch name filename-safe");
+                if (*c == '-') dash = true;
+            }
+            CHECK(dash && strlen(n1) < sizeof n1, "patch name keeps the adj-noun shape");
+
+            auto nounIn = [](const char* name, const char* const* bank) {
+                const char* d = strchr(name, '-');
+                if (!d) return false;
+                for (int i = 0; i < 8; ++i)
+                    if (strcmp(d + 1, bank[i]) == 0) return true;
+                return false;
+            };
+            // craft unmistakable family members; the noun must come from the
+            // matching bank (these lists double as a freeze pin: re-derived
+            // names — o/p slots, nameless saves — must stay stable)
+            static const char* kBellNouns[8] = {"bell", "chime", "glass", "halo", "frost", "prism", "hymn", "star"};
+            static const char* kBassNouns[8] = {"root", "rumble", "depth", "boom", "core", "anchor", "fathom", "loam"};
+            static const char* kAcidNouns[8] = {"acid", "wasp", "fizz", "venom", "spiral", "worm", "zap", "sting"};
+            GenPatch q;
+            q.synth.wave = Waveform::Sine; q.synth.sustain = 0.f; q.synth.decayS = 1.f;
+            q.synth.cutoffHz = 5000.f;
+            CHECK(classifySound(q.synth) == Archetype::Bell, "classifier hears a bell");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kBellNouns), "a bell is named like a bell");
+            q = GenPatch();
+            q.synth.subLevel = 0.6f; q.synth.cutoffHz = 500.f; q.synth.sustain = 0.8f;
+            CHECK(classifySound(q.synth) == Archetype::Bass, "classifier hears a bass");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kBassNouns), "a bass is named like a bass");
+            q = GenPatch();
+            q.synth.resonance = 0.8f; q.synth.fenvOct = 3.f; q.synth.sustain = 0.6f;
+            CHECK(classifySound(q.synth) == Archetype::Acid, "classifier hears acid");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kAcidNouns), "an acid patch is named like acid");
+            // the neutral GLIDE tone stays character-neutral (generic bank)
+            CHECK(classifySound(SynthParams()) == Archetype::Wild,
+                  "the neutral default classifies as no strong family");
+
+            // across a sweep, names spread far wider than the old 256 combos'
+            // effective use — and at least six families get named
+            bool famNamed[(int)Archetype::Count] = {false};
+            int distinct = 0;
+            char seen[160][24];
+            for (uint32_t k = 1; k <= 300; ++k) {
+                const GenPatch g = generateSound(k * 2654435761u + 901u);
+                famNamed[(int)classifySound(g.synth)] = true;
+                soundNameForPatch(g, n1, sizeof n1);
+                bool dup = false;
+                for (int i = 0; i < distinct && !dup; ++i)
+                    if (strcmp(seen[i], n1) == 0) dup = true;
+                if (!dup && distinct < 160) {
+                    strncpy(seen[distinct], n1, 23);
+                    seen[distinct][23] = '\0';
+                    ++distinct;
+                }
+            }
+            int nfam = 0;
+            for (int a = 0; a < (int)Archetype::Count; ++a) nfam += famNamed[a] ? 1 : 0;
+            CHECK(nfam >= 6, "the classifier spreads rolls across >=6 families");
+            CHECK(distinct >= 80, "300 rolls yield a wide spread of distinct names");
+        }
 
         // legacy rolls stay valid too (devices still regenerate o/p with them):
         // in-range, and a sample renders finite & bounded

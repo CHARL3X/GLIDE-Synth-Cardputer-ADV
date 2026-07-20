@@ -61,8 +61,14 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
   character's window — this is what keeps rolls from regressing to one mid-
   everything mush. Every roll ends in `sanitizePatch` (pure coupling rules: HP
   keeps a body, reso×drive can't shriek, echo+hall can't jointly wash out,
-  pitch-mod depth ≤ ~1 semitone…). The test suite asserts both the variety and
-  the guardrails.
+  pitch-mod depth ≤ ~1 semitone, always-glide ≤ 0.16 s so notes LAND…). The
+  test suite asserts the variety, the guardrails, and that every roll lands
+  the audition lick's final pitch.
+- `classifySound` + `soundNameForPatch` name a sound from its own character
+  (family noun + timbre adjective; word choice from `patchHash` bits). The old
+  `soundName(seed)` word tables are FROZEN: genver-1 devices re-derive their
+  o/p slot labels through them every boot, so an update must never relabel.
+  Bank arrays are append-only — never reorder or replace existing words.
 - `generateSoundLegacy(seed)` is the pre-archetype generator, FROZEN and pinned
   by golden hashes in `test_dsp.cpp` — existing devices regenerate their o/p
   slots with it (see `genver` below) so an update never changes a sound a
