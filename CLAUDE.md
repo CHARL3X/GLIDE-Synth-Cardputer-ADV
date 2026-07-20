@@ -55,14 +55,36 @@ native env needs `~\.platformio\packages\toolchain-gccmingw32\bin` on PATH.
 The randomizer is a first-class engine feature, not a UI gimmick. It lives in
 `dsp/sound_gen.{h,cpp}` (pure, seeded, deterministic, host-tested):
 - `generateSound(seed)` rolls a complete `GenPatch` (synth + tilt). Deterministic
-  so a per-device seed gives every unit a unique-but-reproducible bank.
+  so a per-device seed gives every unit a unique-but-reproducible bank. It is
+  ARCHETYPE-driven: the seed first picks a character (pluck/bell/pad/bass/acid/
+  lead/brass/chip/wild, weighted), then paints correlated values inside that
+  character's window — this is what keeps rolls from regressing to one mid-
+  everything mush. Every roll ends in `sanitizePatch` (pure coupling rules: HP
+  keeps a body, reso×drive can't shriek, echo+hall can't jointly wash out,
+  pitch-mod depth ≤ ~1 semitone, always-glide ≤ 0.16 s so notes LAND…). The
+  test suite asserts the variety, the guardrails, and that every roll lands
+  the audition lick's final pitch.
+- `classifySound` + `soundNameForPatch` name a sound from its own character
+  (family noun + timbre adjective; word choice from `patchHash` bits). The old
+  `soundName(seed)` word tables are FROZEN: genver-1 devices re-derive their
+  o/p slot labels through them every boot, so an update must never relabel.
+  Bank arrays are append-only — never reorder or replace existing words.
+- `generateSoundLegacy(seed)` is the pre-archetype generator, FROZEN and pinned
+  by golden hashes in `test_dsp.cpp` — existing devices regenerate their o/p
+  slots with it (see `genver` below) so an update never changes a sound a
+  player already has. Never edit it.
 - `mutateSound(base, amount, seed)` evolves a patch within its neighbourhood.
 - `patchHash` + `nameForSeed` give a sound an evocative, content-derived name.
 - All bounds live in one place (the `Range` table) so generate and mutate can't
   drift a value out of the playable window. If you add a `SynthParams` field,
   add it to `generateSound`/`mutateSound` too (and a `Range` if continuous).
 
-Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS). The bank is
+Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS) plus a `genver`
+flag: 1 (or absent) = the o/p slots regenerate with `generateSoundLegacy`,
+2 = with the archetype engine. `genver` moves to 2 ONLY when the seed itself is
+new (first boot, wiped NVS, or the player's own Re-roll bank) — never as a side
+effect of a firmware update. The Randomize button always uses the new engine
+(fresh random seed each press; no continuity to preserve). The bank is
 **curated**, not random: slots q..i are fixed factory sounds (q=GLIDE, w=ACID,
 e..i = presets baked from the player's SD `.gpat` files — see `dsp/patches.cpp`),
 and only the last two slots (o,p, i.e. `slot >= dsp::kFirstGenSlot`) are
@@ -84,7 +106,8 @@ instrument depends on the card.
 `glide_config` / `sd_store` / `sd_browser` are NOT. After touching those, keep
 the native tests green and review carefully — there's no on-device build here.
 (No `pio` in this environment; reproduce the native gate with
-`g++ -std=gnu++14 -DGLIDE_HOST_BUILD -I src src/test_dsp.cpp src/dsp/*.cpp`.)
+`g++ -std=gnu++14 -DGLIDE_HOST_BUILD -I src src/test_dsp.cpp src/dsp/*.cpp
+src/storage/patch_codec.cpp`.)
 
 ## Adding a sound parameter (the expansion-safe way)
 

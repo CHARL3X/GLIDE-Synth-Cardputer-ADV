@@ -96,7 +96,7 @@ A `*` in the `fn`+`q..p` list marks a slot holding *your own* sound. A `*` on th
 
 The bank is just the floor. The point is **rolling your own**:
 
-- **Randomize.** A whole new patch in one tap. Oscillator, filter, envelopes, drive, FX, the LFOs, and a few mod-matrix routings, all painted inside musical bounds so a roll is always playable, never dead or blown out. Roll till you love one.
+- **Randomize.** A whole new patch in one tap — and a whole new *kind* of patch. Every roll first commits to a character (a pluck that stops, a bell that rings, a pad that swells, a sub-heavy bass, an acid squelch, a singing lead, a brass swell, a chip trill, or pure chaos), then paints everything inside that character's musical bounds, with guardrails so a roll is always playable — never dead, blown out, or warbling off-key. Roll till you love one.
 - **Mutate** (with **Mutate amt**). Don't start over, evolve what you have. A gentle mutate is a neighbour, same character nudged. A wild one rewrites it. Sculpting toward a vibe instead of pulling a slot machine.
 - **Undo / Redo.** Every roll, mutate, and init checkpoints first, so you can always step back to the sound you just had. Experiment without ever trashing a keeper.
 - **Init.** A blank, neutral sound to build up by hand.

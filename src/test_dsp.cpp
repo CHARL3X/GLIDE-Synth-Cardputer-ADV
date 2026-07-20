@@ -704,6 +704,222 @@ int main() {
         CHECK(strstr(nm, sh) != nullptr, "short name's noun appears in the full name");
     }
 
+    // ---- the archetype engine: variety is a tested property, not a vibe -----
+    {
+        // The FROZEN legacy generator, pinned by golden values captured from the
+        // pre-archetype build. Existing devices regenerate their o/p slots with
+        // it (storage gates on "genver"), so ANY drift here silently changes
+        // sounds players already have. The two hashes cover essentially every
+        // field between them; the enums pin the categorical draws directly.
+        {
+            const GenPatch l1 = generateSoundLegacy(0xC0FFEEu);
+            CHECK(patchHash(l1) == 0x023AE176u && patchHashFull(l1) == 0xE3B50DBCu,
+                  "legacy generator frozen (seed 0xC0FFEE)");
+            CHECK(l1.synth.wave == Waveform::Sine && l1.synth.filterMode == (uint8_t)FilterMode::LP,
+                  "legacy categorical draws frozen (seed 0xC0FFEE)");
+            const GenPatch l2 = generateSoundLegacy(42u);
+            CHECK(patchHash(l2) == 0x96F5ADD4u && patchHashFull(l2) == 0xD15358A8u,
+                  "legacy generator frozen (seed 42)");
+            const GenPatch l3 = generateSoundLegacy(0xDEADBEEFu);
+            CHECK(patchHash(l3) == 0x00BF90FEu && patchHashFull(l3) == 0x6BB25411u,
+                  "legacy generator frozen (seed 0xDEADBEEF)");
+        }
+
+        // the bare-seed roll IS the (seed, archetype-of-seed) roll — the
+        // determinism contract a future "roll style" picker relies on
+        {
+            const uint32_t sd = 0xBADC0DEu;
+            const GenPatch a = generateSound(sd);
+            const GenPatch b = generateSound(sd, archetypeForSeed(sd));
+            CHECK(patchHashFull(a) == patchHashFull(b),
+                  "generateSound(seed) == generateSound(seed, archetypeForSeed(seed))");
+        }
+
+        // sweep: the variety the archetypes exist for must actually occur, and
+        // the guardrails must hold on EVERY roll. (All seeded — deterministic.)
+        bool sawPluck = false, sawBell = false, sawPad = false, sawSubBass = false;
+        bool sawSweep = false, sawSwell = false, sawVib = false, sawSynced = false;
+        bool waveSeen[(int)Waveform::Count] = {false};
+        bool archSeen[(int)Archetype::Count] = {false};
+        for (uint32_t k = 1; k <= 400; ++k) {
+            const uint32_t sd = k * 2654435761u + 17u;
+            const GenPatch g = generateSound(sd);
+            const SynthParams& s = g.synth;
+            archSeen[(int)archetypeForSeed(sd)] = true;
+            waveSeen[(int)s.wave] = true;
+            if (s.sustain <= 0.22f && s.attackS < 0.05f && s.fenvOct > 0.5f) sawPluck = true;
+            if (s.sustain <= 0.06f && s.decayS >= 0.5f) sawBell = true;
+            if (s.attackS >= 0.25f && s.sustain >= 0.6f && s.releaseS >= 0.8f) sawPad = true;
+            if (s.subLevel >= 0.4f) sawSubBass = true;
+            if (s.fenvOct >= 2.2f && s.resonance >= 0.55f) sawSweep = true;
+            if (s.fenvAtkS >= 0.02f) sawSwell = true;
+            if (s.autoVibCents >= 2.f) sawVib = true;
+            if (s.delaySync != 0 || s.lfo1Sync != 0) sawSynced = true;
+
+            // guardrails — each of these is a known way a roll turns to trash
+            if (s.filterMode == (uint8_t)FilterMode::HP)
+                CHECK(s.cutoffHz <= 1800.5f, "no whisper rolls: HP keeps a body");
+            if (s.filterMode == (uint8_t)FilterMode::BP)
+                CHECK(s.cutoffHz >= 299.5f && s.cutoffHz <= 4500.5f, "BP stays on the melodic band");
+            if (s.resonance > 0.7f)
+                CHECK(s.drive <= 3.51f, "screaming reso never stacks on heavy drive");
+            CHECK(s.delayMix + s.reverbMix <= 0.81f, "echo+hall can't wash out jointly");
+            if (s.sustain < 0.1f)
+                CHECK(s.decayS >= 0.249f, "struck sounds keep a decay body (no clicks)");
+            if (s.attackS > 0.5f)
+                CHECK(s.sustain >= 0.499f && s.releaseS >= 0.399f, "slow swells hold and release");
+            if (s.glideMode == GlideMode::Always)
+                CHECK(s.glideS <= 0.161f, "always-glide rolls stay quick enough to land");
+            for (int i = 0; i < kModSlots; ++i)
+                if (s.slots[i].src != (uint8_t)ModSource::None &&
+                    s.slots[i].dest == (uint8_t)ModDest::Pitch)
+                    CHECK(s.slots[i].depth >= -0.081f && s.slots[i].depth <= 0.081f,
+                          "pitch modulation stays within ~a semitone (no atonal warble)");
+        }
+        CHECK(sawPluck, "rolls include plucks (sustain near zero + fast attack)");
+        CHECK(sawBell, "rolls include struck bells (no sustain, long decay)");
+        CHECK(sawPad, "rolls include slow-swell pads");
+        CHECK(sawSubBass, "rolls include sub-heavy basses");
+        CHECK(sawSweep, "rolls include deep resonant acid sweeps");
+        CHECK(sawSwell, "rolls include brass-style filter-attack swells");
+        CHECK(sawVib, "rolls include singing built-in vibrato");
+        CHECK(sawSynced, "rolls include tempo-synced movement");
+        for (int w = 0; w < (int)Waveform::Count; ++w)
+            CHECK(waveSeen[w], "every waveform appears across the sweep");
+        for (int a = 0; a < (int)Archetype::Count; ++a)
+            CHECK(archSeen[a], "every archetype appears across the sweep");
+
+        // ---- the roll must PLAY: audition-phrase pitch landing --------------
+        // Regression for "rolls glide so long the preview never hits a note":
+        // walk every roll through ui/audition.cpp's exact lick — timings AND
+        // per-note ids (fresh attacks land like real key presses; only the
+        // Retarget slides ride the glide) — and assert the lead has LANDED its
+        // final pitch by the release, not parked flat somewhere between notes.
+        {
+            Synth sp;
+            sp.init(kSr);
+            float pbuf[128];
+            auto runMs = [&](int ms) {  // 128-sample blocks at 32 kHz = 4 ms each
+                for (int b = 0; b < ms / 4; ++b) sp.render(pbuf, 128);
+            };
+            for (uint32_t k = 1; k <= 150; ++k) {
+                const GenPatch g = generateSound(k * 2654435761u + 12345u);
+                sp.setParams(g.synth);
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
+                runMs(300);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
+                runMs(340);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
+                runMs(360);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
+                runMs(380);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
+                runMs(480);
+                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
+                sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
+                runMs(740);
+                CHECK(sp.leadActive(), "preview's final note still sounds at its release");
+                const float err = sp.leadPitchMidi() - 60.f;
+                CHECK(err > -0.35f && err < 0.35f,
+                      "preview lands its final note (no flat between-pitch smear)");
+                sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                runMs(200);
+            }
+        }
+
+        // ---- character-aware naming: the words follow the sound -------------
+        {
+            char n1[24], n2[24];
+            const GenPatch p1 = generateSound(0x5EED1234u);
+            soundNameForPatch(p1, n1, sizeof n1);
+            soundNameForPatch(p1, n2, sizeof n2);
+            CHECK(strcmp(n1, n2) == 0, "soundNameForPatch deterministic");
+            bool dash = false;
+            for (const char* c = n1; *c; ++c) {
+                CHECK((*c >= 'a' && *c <= 'z') || *c == '-', "patch name filename-safe");
+                if (*c == '-') dash = true;
+            }
+            CHECK(dash && strlen(n1) < sizeof n1, "patch name keeps the adj-noun shape");
+
+            auto nounIn = [](const char* name, const char* const* bank) {
+                const char* d = strchr(name, '-');
+                if (!d) return false;
+                for (int i = 0; i < 8; ++i)
+                    if (strcmp(d + 1, bank[i]) == 0) return true;
+                return false;
+            };
+            // craft unmistakable family members; the noun must come from the
+            // matching bank (these lists double as a freeze pin: re-derived
+            // names — o/p slots, nameless saves — must stay stable)
+            static const char* kBellNouns[8] = {"bell", "chime", "glass", "halo", "frost", "prism", "hymn", "star"};
+            static const char* kBassNouns[8] = {"root", "rumble", "depth", "boom", "core", "anchor", "fathom", "loam"};
+            static const char* kAcidNouns[8] = {"acid", "wasp", "fizz", "venom", "spiral", "worm", "zap", "sting"};
+            GenPatch q;
+            q.synth.wave = Waveform::Sine; q.synth.sustain = 0.f; q.synth.decayS = 1.f;
+            q.synth.cutoffHz = 5000.f;
+            CHECK(classifySound(q.synth) == Archetype::Bell, "classifier hears a bell");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kBellNouns), "a bell is named like a bell");
+            q = GenPatch();
+            q.synth.subLevel = 0.6f; q.synth.cutoffHz = 500.f; q.synth.sustain = 0.8f;
+            CHECK(classifySound(q.synth) == Archetype::Bass, "classifier hears a bass");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kBassNouns), "a bass is named like a bass");
+            q = GenPatch();
+            q.synth.resonance = 0.8f; q.synth.fenvOct = 3.f; q.synth.sustain = 0.6f;
+            CHECK(classifySound(q.synth) == Archetype::Acid, "classifier hears acid");
+            soundNameForPatch(q, n1, sizeof n1);
+            CHECK(nounIn(n1, kAcidNouns), "an acid patch is named like acid");
+            // the neutral GLIDE tone stays character-neutral (generic bank)
+            CHECK(classifySound(SynthParams()) == Archetype::Wild,
+                  "the neutral default classifies as no strong family");
+
+            // across a sweep, names spread far wider than the old 256 combos'
+            // effective use — and at least six families get named
+            bool famNamed[(int)Archetype::Count] = {false};
+            int distinct = 0;
+            char seen[160][24];
+            for (uint32_t k = 1; k <= 300; ++k) {
+                const GenPatch g = generateSound(k * 2654435761u + 901u);
+                famNamed[(int)classifySound(g.synth)] = true;
+                soundNameForPatch(g, n1, sizeof n1);
+                bool dup = false;
+                for (int i = 0; i < distinct && !dup; ++i)
+                    if (strcmp(seen[i], n1) == 0) dup = true;
+                if (!dup && distinct < 160) {
+                    strncpy(seen[distinct], n1, 23);
+                    seen[distinct][23] = '\0';
+                    ++distinct;
+                }
+            }
+            int nfam = 0;
+            for (int a = 0; a < (int)Archetype::Count; ++a) nfam += famNamed[a] ? 1 : 0;
+            CHECK(nfam >= 6, "the classifier spreads rolls across >=6 families");
+            CHECK(distinct >= 80, "300 rolls yield a wide spread of distinct names");
+        }
+
+        // legacy rolls stay valid too (devices still regenerate o/p with them):
+        // in-range, and a sample renders finite & bounded
+        Synth sl;
+        sl.init(kSr);
+        for (uint32_t k = 1; k <= 100; ++k) {
+            const GenPatch g = generateSoundLegacy(k * 40503u + 3u);
+            // same validators the new-engine sweep uses (defined above)
+            CHECK(g.synth.cutoffHz >= 80.f && g.synth.cutoffHz <= 12000.f &&
+                      g.synth.resonance >= 0.f && g.synth.resonance <= 0.95f,
+                  "legacy roll in range");
+            if (k <= 30) {
+                sl.setParams(g.synth);
+                sl.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(k & 0x7F), 0, false, 60.f));
+                const float pk = peakOf(sl, 24);
+                CHECK(pk >= 0.f && pk < 1.6f, "legacy roll renders finite & bounded");
+                sl.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                peakOf(sl, 40);
+            }
+        }
+    }
+
     // ---- the dirty hash: every persisted field counts; the name hash is frozen
     // patchHash() names sounds and must NEVER change coverage (it would rename
     // players' saved slots). patchHashFull() is the unsaved-edit/same-sound

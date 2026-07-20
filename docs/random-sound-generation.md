@@ -62,6 +62,81 @@ All field bounds live in one `Range` table, shared by `generate` (paint within)
 and `mutate` (nudge a fraction of the span, then clamp back) — so a mutation can
 never drift a value outside the playable window a roll respects.
 
+## The archetype engine (2026-07): variety by construction
+
+The original generator drew every parameter independently and uniformly from a
+narrow middle band. Statistically that regresses every roll to the same center
+— sustain could never go below 0.3 (no plucks or bells, ever), attack never
+above 0.4 s (no pad swells), the filter envelope never past 2 octaves (no acid),
+and `fenvAtkS` / `autoVibCents` / LFO sync were never rolled at all. Players
+noticed: a library of saved rolls all sounded like "a buzzy wave with varying
+reverb," and morph-blending between any two was nearly imperceptible.
+
+`generateSound` now commits to a **character archetype first** — a weighted
+pick among *pluck, bell, pad, bass, acid, lead, brass, chip* and *wild* (the
+old anything-goes chaos, kept in the pool) — then paints every field from that
+character's own correlated window, which is finally allowed to reach the
+extremes (sustain 0, slow swells, 3.5-octave squelches, the brass filter-attack
+swell). A small "spice" chance adds one off-archetype twist so the families
+stay connected instead of collapsing into nine fixed presets with jitter.
+`archetypeForSeed(seed)` is exposed and `generateSound(seed, archetype)` exists
+as the hook for a future "roll me a pad" style picker.
+
+Every roll then passes `sanitizePatch` — deterministic musical guardrails that
+kill the known ways an in-range roll still sounds like trash: a highpass parked
+so high the note whispers away, screaming resonance stacked on heavy drive,
+echo + hall washing jointly into mush, struck sounds with no decay body, slow
+swells that choke, and above all mod-matrix **pitch** routings past ~1 semitone
+of wobble (previously a roll could wire an LFO to pitch at ±7 semitones —
+atonal warble on a scale-locked instrument).
+
+`mutateSound` keeps its neighbourhood semantics (amount 0 is still an exact
+identity) but now also nudges the once-neglected fields, and clamps pitch-mod
+depth only on routings *it* rewires — a player's own deliberate settings are
+never "corrected."
+
+**Glide must land.** The first archetype cut handed out glide times up to
+0.35 s; the one-pole slew needs ~4.6× `glideS` to settle, so at playing speed
+those rolls never *reached* a pitch — every note sat flat, parked between
+where it was and where it was aimed. Two rules fix it, both tested: archetype
+glide windows now live where the hand-tuned factory presets do (roughly
+0.01–0.18 s, skewed quick), and `sanitizePatch` caps **always-glide** patches
+at 0.16 s — in Always mode *every* note slides in, so the glide must be quick
+enough to land; longer dreamy glides remain available to LegatoOnly rolls,
+where fresh attacks hit pitch instantly and only deliberate hammer-on slides
+ride the glide. Relatedly, the audition lick (`ui/audition.cpp`) now uses a
+distinct id per note: re-pressing a sounding id takes the synth's legato path
+and glides, so the old single-id phrase made every preview note slide even for
+LegatoOnly sounds — rolls previewed far worse than they play. A native test
+walks every roll through the lick's exact timings and asserts the final pitch
+lands.
+
+**Names follow the sound.** `soundNameForPatch` replaced the hash-only word
+pick for everything newly minted: `classifySound` hears which family a patch
+belongs to from its parameters alone (works on hand-built and mutated sounds
+too), the noun comes from that family's bank (a bell gets bell/chime/halo, a
+bass root/rumble/boom, acid wasp/venom/spiral…), the adjective from the
+patch's texture and brightness, and `patchHash` bits still pick *within* the
+banks so naming stays deterministic. The legacy `soundName` tables are frozen
+behind the same `genver` gate — a genver-1 device re-derives its o/p slot
+labels every boot, so the update changes neither those sounds *nor their
+names*. Saved sounds everywhere are unaffected either way: their names are
+baked into the patch data itself.
+
+**Update safety (the seed contract).** A device's two generative slots (o, p)
+are regenerated from its seed on every load, so changing the generator would
+have silently changed sounds players already live with. Instead the old
+generator is kept verbatim as `generateSoundLegacy` — pinned by golden hashes
+in `test_dsp.cpp`, never to be edited — and storage gates on an NVS `genver`
+flag: existing seeds keep rolling with the legacy engine until the player
+re-rolls the bank (or the seed is otherwise fresh: first boot / wiped NVS),
+which is the moment `genver` moves to 2. The **Randomize** button always uses
+the archetype engine — each press is a fresh hardware-random seed with no
+continuity to preserve. The native tests assert the archetype variety actually
+occurs (plucks, bells, pads, sub-basses, acid sweeps, brass swells, every
+waveform, every archetype across a 400-seed sweep), that every guardrail holds
+on every roll, and that the legacy generator's output is frozen.
+
 ### The slot model (what changed, what didn't)
 
 The 10 NVS slots and the `fn+q..p` / `fn+shift+q..p` gestures are **unchanged**.
