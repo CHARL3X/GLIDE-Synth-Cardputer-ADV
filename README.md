@@ -16,11 +16,20 @@ Firmware for the M5Stack Cardputer, original (v1.1) and ADV. By **[CHARL3X](http
   <br><em>▶️ <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">Watch the demo</a></em>
 </p>
 
+### 🆕 Recently
+
+- **Auto key detection.** Hold `fn`+`k` and GLIDE listens to a song through the mic, works out its key, and retunes so you can solo straight over it. (ADV only — it needs the mic.)
+- **Archetype-driven sound generation.** Randomize now picks a *character* first (pluck, bell, pad, bass, acid, lead, brass, chip, or wild), then paints inside its bounds — real variety per roll, and guardrails so a roll is never dead, blown out, or warbling off-key.
+- **Tilt morph (synth blend).** Map tilt to blend continuously between two sounds as you lean the device back and forth.
+- **Loop snap.** The looper locks its length to the jam clock, so your loop and the auto-progression share one beat instead of drifting apart.
+
 Two things make GLIDE what it is.
 
 You play it like a fretless string instrument. The key rows are tuned like strings and notes glide between pitches instead of snapping, so you can slide whole chords around and bend into notes right on the keyboard.
 
-And the sounds are yours. You roll them, evolve them, and keep the ones that hit. The engine seeds two of your slots from a number only your device has, so out of the box no two Cardputers even start alike. Use it the way it wants to be used and no two players' racks ever sound the same.
+And the sounds are yours. You roll them, evolve them, and keep the ones that hit. Every roll commits to a *character* first — a pluck, a bell, a pad, an acid squelch — then paints inside that character's bounds, so a fresh sound is always playable and never mid-everything mush. The engine seeds two of your slots from a number only your device has, so out of the box no two Cardputers even start alike. Use it the way it wants to be used and no two players' racks ever sound the same.
+
+One more that earns its place up top: it can find a song's key by ear. Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key (root *and* major/minor), and retunes itself — so you can solo over anything without hunting for the notes.
 
 That's the pitch. The rest of this is how it works.
 
