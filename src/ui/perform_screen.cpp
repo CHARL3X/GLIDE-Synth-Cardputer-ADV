@@ -603,7 +603,8 @@ void drawTape(M5Canvas& c) {
                     fminf(1.f, lv * 2.f));
         if (yo > 16) yo = 16;
         if (yo < -16) yo = -16;
-        const int mid = kScopeMid + yo;
+        const int mid = kScopeMid + 4 + yo;  // seated at the optical center,
+                                             // like the waveform's midline
         int extent = (int)(lv * rows + 0.5f);
         if (extent < 1) extent = 1;
         const int roomUp = (mid - (kScopeY + 1)) / bh;
@@ -651,7 +652,7 @@ void drawTape(M5Canvas& c) {
                 c.drawFastVLine(px + 1, mid - hgt, hgt * 2, theme::fade(theme::kIdle, 230));
         }
     }
-    c.drawFastHLine(kTraceX, kScopeMid, kTraceW, theme::kLine);
+    c.drawFastHLine(kTraceX, kScopeMid + 4, kTraceW, theme::kLine);
 }
 
 // ---- CYMATIC (mode 3): a Chladni plate resonating at the lead pitch -------
@@ -809,20 +810,26 @@ void drawStringWave(M5Canvas& c) {
     for (int h = 0; h < 3; ++h)
         for (int p = 0; p < 5; ++p)
             cosTab[h][p] = cosf((float)(h + 1) * (gStrPhase + (p - 2) * 0.55f));
-    // chromatic exposures: earlier phases print cool (steel), later phases
-    // warm (accent), and the "now" exposure burns primary-to-hot — on the
-    // anaglyph palette this splits into a literal stereo pair, and every
-    // theme recolors the weave from its own roles instead of staying mono
-    uint16_t mid = f.bend ? theme::kAmber
-                          : theme::blend(theme::kGreen, theme::kIdle,
-                                         (uint8_t)(64 + lv * 115.f));
-    if (!f.bend && f.blend01 > 0.1f)  // morph lean prints steel, same as tape
+    // chromatic exposures, kept SATURATED: pure steel and amber bookends, only
+    // a 25% lean on the inner pair — the 50/50 mixes went olive on phosphor.
+    // Where exposures land on the same pixel they ADD (saturating), so
+    // crossings and the resting string brighten like stacked light instead of
+    // last-color-wins mud.
+    uint16_t mid = theme::blend(theme::kGreen, theme::kIdle, (uint8_t)(76 + lv * 90.f));
+    if (f.blend01 > 0.1f)  // morph lean prints steel, same as tape
         mid = theme::blend(mid, theme::kSteel, (uint8_t)(f.blend01 * 191.f));
-    const uint16_t expCol[5] = {theme::kSteel,
-                                theme::blend(theme::kGreen, theme::kSteel, 128),
-                                theme::blend(mid, theme::kIdle, 76),
-                                theme::blend(theme::kGreen, theme::kAmber, 128),
-                                theme::kAmber};
+    uint16_t expCol[5] = {theme::kSteel,
+                          theme::blend(theme::kGreen, theme::kSteel, 64),
+                          mid,
+                          theme::blend(theme::kGreen, theme::kAmber, 64),
+                          theme::kAmber};
+    if (f.bend) {  // a pulled note pulls the whole weave amber
+        expCol[0] = expCol[1] = expCol[3] = expCol[4] = theme::kAmber;
+        expCol[2] = theme::blend(theme::kAmber, theme::kIdle, 76);
+    }
+    // whole-weave brightness follows the string's energy — the resting string
+    // is a quiet line, not five full exposures stacked to white
+    const float master = 0.45f + 0.55f * fminf(1.f, gStrA[0] + gStrA[1] + gStrA[2]);
     // per-column oscillators via rotation — no sin() in the hot loop
     float s[3], cR[3], sd[3], cd[3];
     for (int h = 0; h < 3; ++h) {
@@ -833,6 +840,9 @@ void drawStringWave(M5Canvas& c) {
     }
     constexpr float kAmp = 34.f;
     for (int x = 0; x < kTraceW; ++x) {
+        int ey[5];        // exposures landing on this column, merged additively
+        uint16_t ec[5];
+        int en = 0;
         for (int p = 0; p < 5; ++p) {
             const float y = (gStrA[0] * s[0] * cosTab[0][p] + gStrA[1] * s[1] * cosTab[1][p] +
                              gStrA[2] * s[2] * cosTab[2][p]) *
@@ -841,14 +851,27 @@ void drawStringWave(M5Canvas& c) {
             if (py < kScopeY + 1) py = kScopeY + 1;
             if (py > kScopeY + kScopeH - 2) py = kScopeY + kScopeH - 2;
             const int dp = p < 2 ? 2 - p : p - 2;  // distance from the "now" exposure
-            const float I = dp == 0 ? 1.f : dp == 1 ? 0.55f : 0.32f;
-            c.drawPixel(kTraceX + x, py, theme::fade(expCol[p], (uint8_t)(I * 235.f)));
+            const float I = (dp == 0 ? 1.f : dp == 1 ? 0.62f : 0.40f) * master;
+            const uint16_t col = theme::fade(expCol[p], (uint8_t)(I * 235.f));
+            bool merged = false;
+            for (int e = 0; e < en; ++e)
+                if (ey[e] == py) {  // stacked light sums
+                    ec[e] = theme::addSat565(ec[e], col);
+                    merged = true;
+                    break;
+                }
+            if (!merged) {
+                ey[en] = py;
+                ec[en] = col;
+                ++en;
+            }
             // dither-spray: grain bleeding off the curve, denser near the core
             const int sp = 1 + (int)(hash01(x, p, gVizFrame) * 3.f);
             const int py2 = py + ((hash3(x, p + 9, gVizFrame) & 1) ? sp : -sp);
             if (py2 > kScopeY && py2 < kScopeY + kScopeH - 1)
                 c.drawPixel(kTraceX + x, py2, theme::fade(expCol[p], (uint8_t)(I * 92.f)));
         }
+        for (int e = 0; e < en; ++e) c.drawPixel(kTraceX + x, ey[e], ec[e]);
         for (int h = 0; h < 3; ++h) {  // rotate the column oscillators
             const float ns = s[h] * cd[h] + cR[h] * sd[h];
             cR[h] = cR[h] * cd[h] - s[h] * sd[h];

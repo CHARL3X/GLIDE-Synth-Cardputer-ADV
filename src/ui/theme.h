@@ -66,4 +66,17 @@ inline uint16_t fadeDither(uint16_t c, int f, int x, int y) {
     return fade(c, (uint8_t)(f < 0 ? 0 : (f > 255 ? 255 : f)));
 }
 
+// RGB565 saturating add. Exposure/glow layers are EMITTED LIGHT, which sums —
+// where they land on the same pixel they must brighten toward white, never
+// let the last color win (five stacked exposures read as mud otherwise).
+inline uint16_t addSat565(uint16_t a, uint16_t b) {
+    uint16_t r = (uint16_t)(((a >> 11) & 0x1F) + ((b >> 11) & 0x1F));
+    uint16_t g = (uint16_t)(((a >> 5) & 0x3F) + ((b >> 5) & 0x3F));
+    uint16_t l = (uint16_t)((a & 0x1F) + (b & 0x1F));
+    if (r > 31) r = 31;
+    if (g > 63) g = 63;
+    if (l > 31) l = 31;
+    return (uint16_t)((r << 11) | (g << 5) | l);
+}
+
 }  // namespace theme
