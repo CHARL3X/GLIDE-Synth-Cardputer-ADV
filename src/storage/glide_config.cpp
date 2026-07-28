@@ -749,7 +749,7 @@ void begin() {
     gCfg.loopSnap = clampT<int>(gPrefs.getUChar("loopsnap", d.loopSnap), 0, 2);
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
-    gCfg.scopeMode = clampT<int>(gPrefs.getUChar("scopemd", d.scopeMode), 0, 5);
+    gCfg.scopeMode = clampT<int>(gPrefs.getUChar("scopemd", d.scopeMode), 0, 7);
     gCfg.themeId = clampT<int>(gPrefs.getUChar("themeid", d.themeId), 0, 9);
     // one-time: pitch trail became the default — adopt it even on devices that
     // saved the old waveform default before the change (runs once; the player's

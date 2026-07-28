@@ -56,7 +56,12 @@ struct TapeCol {
                                               // bit1 transient spike
 };
 constexpr int kCombBins = 56;
+constexpr int kHgPts = 800;      // 800 * 2 B = 1,600 B — inside the 1,624 cap
+struct HgPoint {
+    uint8_t x, y;  // scope rect is 232x82, so both axes fit a byte
+};
 union VizState {
+    HgPoint harmo[kHgPts];  // harmonograph pen-trail ring
     int16_t wavePrev[kTraceW];  // waveform scope: last frame's trace (afterglow)
     struct {                    // pitch trail: lead pitch sampled once per frame,
         float pitch[kTraceW];   // scrolling right-to-left (~7.5 s across the
@@ -855,8 +860,8 @@ void drawStringWave(M5Canvas& c) {
             const uint16_t col = theme::fade(expCol[p], (uint8_t)(I * 235.f));
             bool merged = false;
             for (int e = 0; e < en; ++e)
-                if (ey[e] == py) {  // stacked light sums
-                    ec[e] = theme::addSat565(ec[e], col);
+                if (ey[e] == py) {  // light sums / ink pools, per the ground
+                    ec[e] = theme::stack565(ec[e], col);
                     merged = true;
                     break;
                 }
@@ -974,6 +979,314 @@ void drawComb(M5Canvas& c) {
                                 (uint8_t)(60 + fminf(f.l.level, 1.f) * 160.f)));
 }
 
+// ---- HARMONOGRAPH (mode 6): a four-pendulum drawing machine ----------------
+// Victorian apparatus, INTEGRATED rather than plotted: two damped pendulums
+// per axis, coupled within each axis by a shared beam, kept alive by an
+// escapement while a note is held. The amplitude envelope is the pen's
+// friction — every patch in the library draws in its own handwriting. A new
+// note kicks a still-swinging machine (legato builds compound figures), the
+// restoring force is the true -w^2*sin(theta) so a hard strike relaxes
+// through figure families as it decays, and the morph fader rotates the
+// paper (lateral Lissajous -> rotary spirograph rosettes).
+struct HgOsc {
+    float p, v;
+};
+HgOsc gHgO[4];  // 0,1 = X pair; 2,3 = Y pair
+bool gHgInit = false;
+int gHgPos = 0, gHgFill = 0;
+float gHgAgc = 1.f, gHgMax = 1.f, gHgRot = 0.f, gHgVibPh = 0.f;
+float gHgRatio = 1.26f, gHgTarget = 57.f, gHgPrevTarget = 52.f, gHgPrevLev = 0.f;
+
+constexpr int kHgSub = 24;      // integrator substeps per frame (one point each)
+constexpr float kHgDt = 0.05f;  // ~1.1 s of visible trail at 800 points
+
+void hgPushPoint() {
+    const float ux = gHgO[0].p + gHgO[1].p;
+    const float uy = gHgO[2].p + gHgO[3].p;
+    // paper rotation: morph walks the machine from lateral to rotary
+    gHgRot += morph::pos() * 0.010f / kHgSub;
+    const float ca = cosf(gHgRot), sa = sinf(gHgRot);
+    const float rx = ux * ca - uy * sa;
+    const float ry = ux * sa + uy * ca;
+    // pen AGC — same lesson as gAgcTrack: a quiet patch must still draw big
+    const float rad = sqrtf(rx * rx + ry * ry);
+    gHgMax = fmaxf(fmaxf(rad, gHgMax * 0.995f), 0.25f);
+    gHgAgc += (1.75f / gHgMax - gHgAgc) * 0.03f;
+    const float sc = gHgAgc * 30.f;
+    int px = (int)(kTraceW * 0.5f + rx * sc + 0.5f);
+    int py = (int)(kScopeH * 0.5f + ry * sc * 0.62f + 0.5f);  // squash to the rect
+    if (px < 0) px = 0;
+    if (px > kTraceW - 1) px = kTraceW - 1;
+    if (py < 0) py = 0;
+    if (py > kScopeH - 1) py = kScopeH - 1;
+    gViz.harmo[gHgPos].x = (uint8_t)px;
+    gViz.harmo[gHgPos].y = (uint8_t)py;
+    gHgPos = (gHgPos + 1) % kHgPts;
+    if (gHgFill < kHgPts) ++gHgFill;
+}
+
+void hgStep(const VizFeed& f) {
+    const auto& s = store::get().synth;
+    // pendulum ratio = the interval between the last two LANDED pitches (a
+    // glide morphs the figure); mono fallback keeps a held note two-frequency
+    if (f.l.active) {
+        if (f.l.glide01 > 0.95f && fabsf(f.l.pitchMidi - gHgTarget) > 0.4f) {
+            gHgPrevTarget = gHgTarget;
+            gHgTarget = f.l.pitchMidi;
+        }
+        float semis = gHgTarget - gHgPrevTarget;
+        if (fabsf(semis) < 0.2f) semis = s.detuneCents / 100.f;
+        const float tgt = powf(2.f, clampf(semis, -12.f, 12.f) / 12.f);
+        gHgRatio += (tgt - gHgRatio) * 0.06f;
+    }
+    const float wob = 1.f + f.vib01 * 0.09f * sinf(gHgVibPh);
+    gHgVibPh += 0.22f;
+    const float wBase = 1.5f;
+    const float w[4] = {wBase * wob, wBase * gHgRatio * wob,
+                        wBase * 0.996f * wob,             // slight detune: the
+                        wBase * gHgRatio * 1.005f * wob}; // figure never closes
+    // friction IS the amplitude envelope: pluck = tight spiral, pad = rosette
+    const float zeta = clampf(0.004f + 0.030f / fmaxf(0.05f, s.decayS), 0.004f, 0.05f);
+    // escapement: a held note is a running clock (limit cycle — required for
+    // the Huygens entrainment below; released notes drift apart as they die)
+    const float esc = f.l.active ? 0.058f * clampf(f.l.level, 0.f, 1.f) : 0.f;
+    // the shared beam: chorus sets coupling — quasi-periodic below ~0.10,
+    // anti-phase lock through the middle, beat death near 1
+    const float kC = 0.15f + s.chorusDepth * 0.55f;
+    const float gx = f.tiltX * 0.055f;  // the drawing table is sloped
+    const float gy = f.tiltY * 0.018f;
+    for (int n = 0; n < kHgSub; ++n) {
+        for (int i = 0; i < 4; ++i) {
+            const int j = i ^ 1;  // same-axis partner ONLY (Huygens 1665:
+                                  // perpendicular pendulums don't entrain)
+            const float restore = -w[i] * w[i] * sinf(gHgO[i].p * 0.92f);
+            const float beam = kC * (gHgO[j].p - gHgO[i].p);
+            const float drive = esc * (gHgO[i].v > 0.f ? 1.f : -1.f);
+            const float grav = (i < 2) ? gx : gy;
+            gHgO[i].v += (restore + beam + drive + grav - 2.f * zeta * w[i] * gHgO[i].v) * kHgDt;
+        }
+        for (int i = 0; i < 4; ++i) gHgO[i].p += gHgO[i].v * kHgDt;
+        hgPushPoint();
+    }
+}
+
+void drawHarmonograph(M5Canvas& c) {
+    const VizFeed f = vizFeed();
+    if (!gHgInit) {
+        gHgO[0].p = 0.9f;
+        gHgO[1].p = -0.6f;
+        gHgO[2].p = 0.5f;
+        gHgO[3].p = -0.8f;
+        gHgO[0].v = gHgO[1].v = gHgO[2].v = gHgO[3].v = 0.f;
+        gHgPos = gHgFill = 0;
+        gHgAgc = gHgMax = 1.f;
+        gHgRot = 0.f;
+        gHgPrevLev = 0.f;
+        gHgInit = true;
+    }
+    // a strike kicks the machine; drive throws it into the nonlinear regime,
+    // so a hot patch draws wild and relaxes, exactly like it sounds
+    if (f.l.level - gHgPrevLev > 0.22f) {
+        const float kick = 2.0f + store::get().synth.drive * 0.55f;
+        for (int i = 0; i < 4; ++i)
+            gHgO[i].v += (hash01(i, gVizFrame, 7) - 0.5f) * kick;
+    }
+    gHgPrevLev = f.l.level;
+    hgStep(f);
+    uint16_t base =
+        theme::blend(theme::kGreen, theme::kSteel, (uint8_t)(clampf(morph::pos(), 0.f, 1.f) * 255.f));
+    if (f.bend) base = theme::kAmber;
+    // oldest -> newest, so the live end sits on top. The ghost terminates by
+    // construction: points fall off the end of the ring (a decaying raster
+    // never reaches zero on integer state — the permanent-stain bug).
+    for (int n = 0; n < gHgFill; ++n) {
+        const int idx = (gHgPos - gHgFill + n + kHgPts * 2) % kHgPts;
+        const HgPoint& p = gViz.harmo[idx];
+        // time-uniform capture means point spacing ~ 1/pen-speed: cusps get
+        // dwell-time brightness for free
+        const uint8_t age = (uint8_t)(30 + (uint32_t)n * 225 / gHgFill);
+        c.drawPixel(kTraceX + p.x, kScopeY + p.y, theme::fade(base, age));
+    }
+    if (gHgFill) {  // hot pen tip
+        const HgPoint& t = gViz.harmo[(gHgPos - 1 + kHgPts) % kHgPts];
+        c.drawPixel(kTraceX + t.x, kScopeY + t.y, theme::blend(base, theme::kIdle, 200));
+    }
+}
+
+// ---- INTERFERENCE (mode 7): a two-source ripple tank -----------------------
+// The field is evaluated analytically per 2x2 block — zero persistent state,
+// no grid (a wave-equation grid needs kilobytes we measured we don't have).
+// The two sources are the last two landed pitches: the interval sets the
+// fringe geometry, unequal frequencies sweep the pattern at EXACTLY the
+// audible beat rate, vibrato FM propagates outward as wavefront bunching,
+// tilt refracts the wavefronts (WKB midpoint phase), reverb adds image
+// sources mirrored off the tank walls, and morph grows source A from a point
+// into a bar (circular -> plane waves).
+static const int16_t kSinLut[257] = {
+    0, 804, 1608, 2410, 3212, 4011, 4808, 5602, 6393, 7179, 7962, 8739,
+    9512, 10278, 11039, 11793, 12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530,
+    18204, 18868, 19519, 20159, 20787, 21403, 22005, 22594, 23170, 23731, 24279, 24811,
+    25329, 25832, 26319, 26790, 27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956,
+    30273, 30571, 30852, 31113, 31356, 31580, 31785, 31971, 32137, 32285, 32412, 32521,
+    32609, 32678, 32728, 32757, 32767, 32757, 32728, 32678, 32609, 32521, 32412, 32285,
+    32137, 31971, 31785, 31580, 31356, 31113, 30852, 30571, 30273, 29956, 29621, 29268,
+    28898, 28510, 28105, 27683, 27245, 26790, 26319, 25832, 25329, 24811, 24279, 23731,
+    23170, 22594, 22005, 21403, 20787, 20159, 19519, 18868, 18204, 17530, 16846, 16151,
+    15446, 14732, 14010, 13279, 12539, 11793, 11039, 10278, 9512, 8739, 7962, 7179,
+    6393, 5602, 4808, 4011, 3212, 2410, 1608, 804, 0, -804, -1608, -2410,
+    -3212, -4011, -4808, -5602, -6393, -7179, -7962, -8739, -9512, -10278, -11039, -11793,
+    -12539, -13279, -14010, -14732, -15446, -16151, -16846, -17530, -18204, -18868, -19519, -20159,
+    -20787, -21403, -22005, -22594, -23170, -23731, -24279, -24811, -25329, -25832, -26319, -26790,
+    -27245, -27683, -28105, -28510, -28898, -29268, -29621, -29956, -30273, -30571, -30852, -31113,
+    -31356, -31580, -31785, -31971, -32137, -32285, -32412, -32521, -32609, -32678, -32728, -32757,
+    -32767, -32757, -32728, -32678, -32609, -32521, -32412, -32285, -32137, -31971, -31785, -31580,
+    -31356, -31113, -30852, -30571, -30273, -29956, -29621, -29268, -28898, -28510, -28105, -27683,
+    -27245, -26790, -26319, -25832, -25329, -24811, -24279, -23731, -23170, -22594, -22005, -21403,
+    -20787, -20159, -19519, -18868, -18204, -17530, -16846, -16151, -15446, -14732, -14010, -13279,
+    -12539, -11793, -11039, -10278, -9512, -8739, -7962, -7179, -6393, -5602, -4808, -4011,
+    -3212, -2410, -1608, -804, 0};  // flash-resident: sinf in the inner loop
+                                    // would dominate the whole frame
+inline float ifSin(float ph) {
+    float u = ph * (256.f / 6.2831853f);
+    int i = (int)floorf(u);
+    const float fr = u - (float)i;
+    i &= 255;
+    const float a = (float)kSinLut[i];
+    return (a + ((float)kSinLut[i + 1] - a) * fr) * (1.f / 32767.f);
+}
+
+struct IfSrc {
+    float x, y, k, phase, amp;
+};
+IfSrc gIfSrc[6];
+bool gIfInit = false;
+float gIfPhA = 0.f, gIfPhB = 0.f, gIfTilt = 0.f, gIfVibPh = 0.f;
+float gIfSep = 8.f, gIfRatio = 1.f, gIfAmp = 0.f, gIfKA = 0.2f, gIfKB = 0.2f;
+float gIfTargetA = 57.f, gIfTargetB = 52.f;
+
+void drawInterference(M5Canvas& c) {
+    const VizFeed f = vizFeed();
+    const auto& s = store::get().synth;
+    if (!gIfInit) {
+        gIfAmp = 0.f;
+        gIfSep = 8.f;
+        gIfRatio = 1.f;
+        gIfTilt = 0.f;
+        gIfInit = true;
+    }
+    if (f.l.active && f.l.glide01 > 0.95f && fabsf(f.l.pitchMidi - gIfTargetA) > 0.4f) {
+        gIfTargetB = gIfTargetA;  // the previous landed pitch becomes source B
+        gIfTargetA = f.l.pitchMidi;
+    }
+    // separation = interval (unison collapses to concentric rings); all eased
+    // so glides sweep the fringes instead of cutting
+    const float semis = clampf(gIfTargetA - gIfTargetB, -24.f, 24.f);
+    gIfSep += (clampf(fabsf(semis) * 7.f, 6.f, 96.f) - gIfSep) * 0.08f;
+    gIfKA += (clampf(0.10f + (gIfTargetA - 36.f) * 0.0045f, 0.10f, 0.55f) - gIfKA) * 0.1f;
+    gIfKB += (clampf(0.10f + (gIfTargetB - 36.f) * 0.0045f, 0.10f, 0.55f) - gIfKB) * 0.1f;
+    gIfRatio += (powf(2.f, semis / 12.f) - gIfRatio) * 0.06f;
+    // waves rise fast, die slowly (~2.5 s) — the tank settles, never snaps
+    const float tgtAmp =
+        (f.l.active || f.l.sounding > 0) ? clampf(f.l.level, 0.f, 1.f) : 0.f;
+    gIfAmp += (tgtAmp - gIfAmp) * (tgtAmp > gIfAmp ? 0.12f : 0.035f);
+    gIfTilt += (f.tiltX * 0.55f - gIfTilt) * 0.1f;
+    // vibrato is FM on the emission clock — the bunching propagates outward,
+    // so you can watch vibrato you played half a second ago still travelling
+    gIfVibPh += 1.1519f;  // ~5.5 Hz at 30 fps
+    const float vibMul = 1.f + f.vib01 * 0.22f * sinf(gIfVibPh);
+    gIfPhA += 0.33f * vibMul;
+    gIfPhB += 0.33f * gIfRatio * vibMul;
+    if (gIfAmp < 0.02f) return;  // a glassy, still tank (already faded to it)
+
+    // sources: A (possibly a bar under morph), B, then reverb image sources
+    const float cy = kScopeH * 0.5f;
+    const float ax = kTraceW * 0.5f - gIfSep * 0.5f;
+    const float bx = kTraceW * 0.5f + gIfSep * 0.5f;
+    const float mp = clampf(morph::pos(), 0.f, 1.f);
+    const int aEm = 1 + (mp > 0.30f ? 1 : 0) + (mp > 0.65f ? 1 : 0);
+    const float spread = 10.f + mp * 8.f;
+    int n = 0;
+    for (int e = 0; e < aEm; ++e) {  // a point grows into a bar: plane waves
+        gIfSrc[n].x = ax;
+        gIfSrc[n].y = cy + (e == 0 ? 0.f : (e == 1 ? -spread : spread));
+        gIfSrc[n].k = gIfKA;
+        gIfSrc[n].phase = gIfPhA;
+        gIfSrc[n].amp = gIfAmp * (aEm > 1 ? 0.62f : 1.f);
+        ++n;
+    }
+    const int bIdx = n;
+    gIfSrc[n].x = bx;
+    gIfSrc[n].y = cy;
+    gIfSrc[n].k = gIfKB;
+    gIfSrc[n].phase = gIfPhB;
+    gIfSrc[n].amp = gIfAmp;
+    ++n;
+    const float mix = clampf(s.reverbMix, 0.f, 1.f);
+    if (mix > 0.08f) {  // image-source method: a wall is a mirror
+        const float wallL = -kTraceW * 0.5f * s.reverbSize;
+        const float wallR = kTraceW * (0.5f + s.reverbSize);
+        const int bases[2] = {0, bIdx};
+        for (int b2 = 0; b2 < 2 && n < 6; ++b2) {
+            gIfSrc[n] = gIfSrc[bases[b2]];
+            gIfSrc[n].x = 2.f * wallL - gIfSrc[bases[b2]].x;
+            gIfSrc[n].amp *= mix * 0.7f;  // absorption on reflection
+            ++n;
+            if (n >= 6) break;
+            gIfSrc[n] = gIfSrc[bases[b2]];
+            gIfSrc[n].x = 2.f * wallR - gIfSrc[bases[b2]].x;
+            gIfSrc[n].amp *= mix * 0.7f;
+            ++n;
+        }
+    }
+
+    uint16_t base = theme::blend(theme::kGreen, theme::kSteel, (uint8_t)(mp * 255.f));
+    if (f.bend) base = theme::kAmber;
+    const uint16_t hot = theme::blend(base, theme::kIdle, 180);
+    float* dy2 = gScopeBuf;  // within-frame scratch only (mode never copyScopes)
+    for (int j = 0; j < kScopeH; j += 2) {
+        for (int m = 0; m < n; ++m) {
+            const float d = (float)j - gIfSrc[m].y;
+            dy2[m] = d * d;
+        }
+        for (int i = 0; i < kTraceW; i += 2) {
+            float a = 0.f;
+            for (int m = 0; m < n; ++m) {
+                const float dx = (float)i - gIfSrc[m].x;
+                const float r = sqrtf(dx * dx + dy2[m]);
+                // tilt refraction, first order: depth ramp scales the phase
+                // accumulated along the path, evaluated at its midpoint (WKB)
+                const float xm = (i + gIfSrc[m].x) * 0.5f;
+                const float kEff = gIfSrc[m].k * (1.f - gIfTilt * (xm / kTraceW - 0.5f));
+                a += gIfSrc[m].amp * ifSin(kEff * r - gIfSrc[m].phase) *
+                     (1.f - fminf(r * 0.0035f, 0.75f));
+            }
+            // signed field -> directional light: one crest edge bright, the
+            // other dark — a lit liquid surface, not a plot. The whole light
+            // scales with the eased amplitude: the constant 0.42 baseline
+            // rendered a gray wash at ZERO ripple height, which then vanished
+            // in one frame at the early-return — the "flash to black". Now
+            // the tank dims continuously as the waves flatten.
+            float v = (0.42f + a * 0.34f) * fminf(1.f, gIfAmp * 2.2f);
+            if (v < 0.f) v = 0.f;
+            if (v > 1.f) v = 1.f;
+            const uint16_t col = (v > 0.86f) ? hot : base;
+            const uint8_t lvl = (uint8_t)(v * 255.f);
+            // compose first, dither ONCE on the final value (two independent
+            // thresholds in one renderer beat against each other as speckle)
+            for (int dy = 0; dy < 2; ++dy) {
+                const int y = j + dy;
+                if (y >= kScopeH) break;
+                for (int dx3 = 0; dx3 < 2; ++dx3) {
+                    const int x = i + dx3;
+                    if (x >= kTraceW) break;
+                    if (lvl <= bayer4(x, y) * 12) continue;
+                    c.drawPixel(kTraceX + x, kScopeY + y, theme::fade(col, lvl));
+                }
+            }
+        }
+    }
+}
+
 // CRT depth: bevelled glass corners so the scope seats in its bezel like a
 // little tube screen. (The drifting scanline sheen was removed — too busy.)
 // Overlaid on top of the scope, skipped during the quick-edit panel.
@@ -1008,6 +1321,9 @@ void drawScope(M5Canvas& c, uint32_t now) {
         gCombInit = false;
         gStrA[0] = gStrA[1] = gStrA[2] = 0.f;  // the string starts at rest
         gStrPrevActive = false;
+        gHgInit = false;
+        gIfInit = false;
+        gShockN = 0;  // shared shock ring starts clean for cymatic/interference
     }
     switch (mode) {
         case 1: drawPitchTrail(c); return;
@@ -1015,6 +1331,8 @@ void drawScope(M5Canvas& c, uint32_t now) {
         case 3: drawCymatic(c); return;
         case 4: drawStringWave(c); return;
         case 5: drawComb(c); return;
+        case 6: drawHarmonograph(c); return;
+        case 7: drawInterference(c); return;
         default: break;  // 0 = the waveform scope below
     }
     // graticule — seated a touch below geometric center: the readout and

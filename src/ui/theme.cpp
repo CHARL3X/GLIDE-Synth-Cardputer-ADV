@@ -45,8 +45,10 @@ constexpr Palette kPalettes[] = {
     {"mission", 0x20C2, 0x2923, 0x41C5, 0xF2C3, 0x89C2, 0xE6D7, 0x8C0D,
      0xFF9B, 0x7B4A, 0xF800, 0xE505},
     // DRAFTING — the No.023 print: black ink on cool gray stock with an
-    // acid-green plate accent (the colorful light theme)
-    {"drafting", 0xDEB9, 0xCE58, 0xAD33, 0x9682, 0xB670, 0x18C3, 0x6B6C,
+    // acid-green plate accent (the colorful light theme). The accent is a
+    // DARK acid: the poster's bright chartreuse matched the stock's luminance
+    // and vanished on hardware.
+    {"drafting", 0xDEB9, 0xCE58, 0xAD33, 0x6CC1, 0x9D8D, 0x18C3, 0x6B6C,
      0x0000, 0x8C4F, 0xB102, 0x4B71},
     // PAPER — vellum's dimmer sibling: warm mid-gray stock at roughly half the
     // luminance (vellum at full backlight was "bright as FUCK" — the user),
@@ -57,6 +59,7 @@ constexpr Palette kPalettes[] = {
 constexpr int kCount = (int)(sizeof(kPalettes) / sizeof(kPalettes[0]));
 
 uint8_t gCurrent = 0;
+bool gDark = true;
 
 }  // namespace
 
@@ -80,10 +83,36 @@ const char* name(uint8_t idx) { return kPalettes[idx < kCount ? idx : 0].name; }
 
 uint8_t current() { return gCurrent; }
 
+bool darkGround() { return gDark; }
+
+uint16_t stack565(uint16_t a, uint16_t b) {
+    if (gDark) return addSat565(a, b);  // light sums on a dark ground
+    // ink pools on a light ground: per-channel densities (distance below the
+    // page colour) add, clamped at black — overlap darkens, never glows
+    const int pr = (kBg >> 11) & 0x1F, pg = (kBg >> 5) & 0x3F, pb = kBg & 0x1F;
+    int r = pr - ((pr - (int)((a >> 11) & 0x1F)) + (pr - (int)((b >> 11) & 0x1F)));
+    int g = pg - ((pg - (int)((a >> 5) & 0x3F)) + (pg - (int)((b >> 5) & 0x3F)));
+    int l = pb - ((pb - (int)(a & 0x1F)) + (pb - (int)(b & 0x1F)));
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (l < 0) l = 0;
+    if (r > pr) r = pr;  // pooled ink can't be lighter than the page
+    if (g > pg) g = pg;
+    if (l > pb) l = pb;
+    return (uint16_t)((r << 11) | (g << 5) | l);
+}
+
 void setTheme(uint8_t idx) {
     if (idx >= kCount) idx = 0;
     gCurrent = idx;
     const Palette& p = kPalettes[idx];
+    // classify the ground once: perceptual luminance of bg, 0..255 scale
+    {
+        const int r8 = ((p.bg >> 11) & 0x1F) * 255 / 31;
+        const int g8 = ((p.bg >> 5) & 0x3F) * 255 / 63;
+        const int b8 = (p.bg & 0x1F) * 255 / 31;
+        gDark = ((r8 * 54 + g8 * 183 + b8 * 18) >> 8) < 110;
+    }
     kBg = p.bg;
     kPanel = p.panel;
     kLine = p.line;

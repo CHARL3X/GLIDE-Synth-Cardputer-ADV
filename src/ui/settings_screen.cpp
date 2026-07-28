@@ -377,8 +377,9 @@ void aTapTempo(int) {
 
 // The scope modes, in scopeMode order (append-only — the index persists).
 // 0/1 are the originals; 2..5 are the generative modes from the viz lab.
-constexpr const char* kScopeModeNames[] = {"waveform", "pitch trail", "tape",
-                                           "cymatic",  "string",      "comb"};
+constexpr const char* kScopeModeNames[] = {"waveform",     "pitch trail", "tape",
+                                           "cymatic",      "string",      "comb",
+                                           "harmonograph", "interference"};
 constexpr int kScopeModeCount = (int)(sizeof(kScopeModeNames) / sizeof(kScopeModeNames[0]));
 void fScopeMode(char* o, int c) {
     snprintf(o, c, "%s", kScopeModeNames[store::get().scopeMode < kScopeModeCount

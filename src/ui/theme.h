@@ -29,6 +29,13 @@ int count();                     // number of preset palettes
 const char* name(uint8_t idx);   // palette name for the settings row
 void setTheme(uint8_t idx);      // clamps; repoints the roles above
 uint8_t current();
+bool darkGround();               // is kBg dark (phosphor) or light (paper)?
+
+// Stack two exposure colours with the medium's own algebra: emitted LIGHT
+// sums toward white on a dark ground; INK pools toward black on a light one.
+// Additive math on paper saturated overlaps to white — a glowing white line
+// on a printed page (measured; STRING on the paper theme).
+uint16_t stack565(uint16_t a, uint16_t b);
 
 inline uint16_t scale(uint16_t c, uint8_t f) {
     uint16_t r = (c >> 11) & 0x1F, g = (c >> 5) & 0x3F, b = c & 0x1F;
