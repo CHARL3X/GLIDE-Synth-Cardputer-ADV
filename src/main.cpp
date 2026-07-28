@@ -67,6 +67,8 @@ void setup() {
     Serial.println("[glide] boot");
 
     store::begin();
+    theme::setTheme(store::get().themeId);  // saved palette styles everything
+                                            // from the splash on
 
     if (!audio::begin()) fatalAudio(audio::lastError());
     audio::setParams(store::get().synth);

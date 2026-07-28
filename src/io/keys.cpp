@@ -34,6 +34,7 @@ constexpr int kKeyHold = 27;       // backslash
 constexpr int kKeyFn = 28;         // fn
 constexpr int kKeyShift = 29;      // shift
 constexpr int kKeyKeyCycle = 37;   // k — fn+K cycles the root key (live retune)
+constexpr int kKeyScaleCycle = 31; // s — fn+S cycles the scale (live)
 constexpr int kKeyScaleLock = 40;  // '
 constexpr int kKeyTilt = 41;       // enter
 constexpr int kKeyCtrl = 42;       // ctrl  (octave down, left thumb)
@@ -519,6 +520,16 @@ void cycleRootKey() {
     hud::show("KEY", dsp::kNoteNames[g.layout.rootSemis], -1.f);
 }
 
+// fn+S: walk the scale table — the same audition loop as fn+K but for mode
+// color. Held notes keep sounding; new notes land in the new scale. The HUD
+// names it in full so "phdom" never has to be decoded mid-jam.
+void cycleScale() {
+    auto& g = store::get();
+    g.layout.scaleIdx = (uint8_t)((g.layout.scaleIdx + 1) % dsp::kScaleCount);
+    store::markDirty();
+    hud::show("SCALE", dsp::kScales[g.layout.scaleIdx].name, -1.f);
+}
+
 // ---- tilt mode cycle --------------------------------------------------------
 // enter short-tap: off -> single (axis A) -> dual (A + roll B) -> off. Entering
 // an active state self-heals a missing route/depth so it's never a dead toggle.
@@ -902,6 +913,10 @@ Actions poll(uint32_t nowMs) {
                     gKeyCyclePending = true;
                     gKeyListenFired = false;
                     gKeyCyclePressMs = nowMs;
+                    continue;
+                }
+                if (cd == kKeyScaleCycle) {  // fn+S: next scale, immediately
+                    cycleScale();
                     continue;
                 }
                 if (gGridString[cd] == 3) {

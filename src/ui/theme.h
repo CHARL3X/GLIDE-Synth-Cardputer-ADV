@@ -1,22 +1,34 @@
 // GLIDE visual identity: dark machined panel, amber annunciators, phosphor
 // green for anything alive (the trace, held keys). Cassette futurism —
 // it should read as test equipment that learned to sing.
+//
+// The identity is now a set of ROLES, not fixed colors: kGreen is "primary /
+// live", kAmber is "accent / annunciator", kIdle is "hot / bright text",
+// kDim/kLine/kPanel/kBg the grounds. setTheme() repoints every role at one of
+// the preset palettes (PHOSPHOR is the original). The historical names stay so
+// every call site reads unchanged.
 #pragma once
 #include <cstdint>
 
 namespace theme {
 
-constexpr uint16_t kBg       = 0x0000;  // black
-constexpr uint16_t kPanel    = 0x10A2;  // near-black panel fill
-constexpr uint16_t kLine     = 0x2104;  // faint rules / graticule
-constexpr uint16_t kAmber    = 0xFD60;  // primary annunciator
-constexpr uint16_t kAmberDim = 0x8B00;
-constexpr uint16_t kGreen    = 0x07E0;  // phosphor trace / live
-constexpr uint16_t kGreenDim = 0x03E0;
-constexpr uint16_t kIdle     = 0xEF7D;  // bright text
-constexpr uint16_t kDim      = 0x6B4D;  // secondary text
-constexpr uint16_t kRed      = 0xF800;  // failures are loud
-constexpr uint16_t kSteel    = 0x42BF;  // cool accent
+// The role values the whole UI draws with. Runtime — repointed by setTheme().
+extern uint16_t kBg;        // screen ground
+extern uint16_t kPanel;     // near-ground panel fill
+extern uint16_t kLine;      // faint rules / graticule
+extern uint16_t kAmber;     // accent / annunciator
+extern uint16_t kAmberDim;
+extern uint16_t kGreen;     // primary / live
+extern uint16_t kGreenDim;
+extern uint16_t kIdle;      // hot / bright text
+extern uint16_t kDim;       // secondary text
+extern uint16_t kRed;       // failures are loud (red-family in every theme)
+extern uint16_t kSteel;     // cool accent (the backing layer's colour)
+
+int count();                     // number of preset palettes
+const char* name(uint8_t idx);   // palette name for the settings row
+void setTheme(uint8_t idx);      // clamps; repoints the roles above
+uint8_t current();
 
 inline uint16_t scale(uint16_t c, uint8_t f) {
     uint16_t r = (c >> 11) & 0x1F, g = (c >> 5) & 0x3F, b = c & 0x1F;
@@ -35,5 +47,10 @@ inline uint16_t blend(uint16_t a, uint16_t b, uint8_t t) {  // t=0 -> a
     const int bl = (bA * (255 - t) + bB * t) / 255;
     return (uint16_t)((r << 11) | (g << 5) | bl);
 }
+
+// Intensity that fades toward the theme GROUND, not toward black — the only
+// dimming that stays correct on a light (paper) palette. New scope modes use
+// this; scale() remains for the phosphor-style glow math of the originals.
+inline uint16_t fade(uint16_t c, uint8_t f) { return blend(kBg, c, f); }
 
 }  // namespace theme

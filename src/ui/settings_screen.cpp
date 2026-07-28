@@ -375,12 +375,26 @@ void aTapTempo(int) {
     lastTap = now;
 }
 
+// The scope modes, in scopeMode order (append-only — the index persists).
+// 0/1 are the originals; 2..5 are the generative modes from the viz lab.
+constexpr const char* kScopeModeNames[] = {"waveform", "pitch trail", "tape",
+                                           "cymatic",  "bloom",       "comb"};
+constexpr int kScopeModeCount = (int)(sizeof(kScopeModeNames) / sizeof(kScopeModeNames[0]));
 void fScopeMode(char* o, int c) {
-    snprintf(o, c, "%s", store::get().scopeMode == 0 ? "waveform" : "pitch trail");
+    snprintf(o, c, "%s", kScopeModeNames[store::get().scopeMode < kScopeModeCount
+                                             ? store::get().scopeMode
+                                             : 0]);
 }
-void aScopeMode(int) {
+void aScopeMode(int d) {
     auto& g = store::get();
-    g.scopeMode = g.scopeMode ? 0 : 1;
+    g.scopeMode = (uint8_t)(((int)g.scopeMode + d + kScopeModeCount) % kScopeModeCount);
+}
+
+void fTheme(char* o, int c) { snprintf(o, c, "%s", theme::name(theme::current())); }
+void aTheme(int d) {
+    auto& g = store::get();
+    g.themeId = (uint8_t)(((int)g.themeId + d + theme::count()) % theme::count());
+    theme::setTheme(g.themeId);  // live — the menu restyles under your finger
 }
 
 void fBoot(char* o, int c) { snprintf(o, c, "%s", store::get().bootSound ? "on" : "off"); }
@@ -795,6 +809,7 @@ const Item kItems[] = {
     {"SYSTEM", nullptr, nullptr},
     {"Demo mode", fDemo, aDemo},
     {"Display", fScopeMode, aScopeMode},
+    {"Theme", fTheme, aTheme},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
     {"How to play", fHelp, aHelp},
@@ -966,6 +981,23 @@ void draw(M5Canvas& c, int sel, int top) {
     int vis[kItemCount];
     const int nv = buildVisible(vis);  // collapsed mod slots drop out of the list
 
+    // Row bands first, all text after (transparent): Font2 glyphs are 16 px
+    // tall on the 13 px row pitch, so a band or bg-painted text cell drawn for
+    // row N+1 used to erase row N's descenders — "cymatic" read as "cumatic".
+    for (int row = 0; row < kVisible; ++row) {
+        const int vidx = top + row;
+        if (vidx >= nv) break;
+        const int i = vis[vidx];
+        const int y = 18 + row * 13;
+        if (isCreateButton(i)) continue;  // buttons paint their own box
+        const bool fl = (i == gFlashRow) && (millis() < gFlashUntil);
+        if (isHeader(i)) {
+            if (i == sel) c.fillRect(0, y - 1, cfg::kScreenW, 12, theme::kPanel);
+        } else if (fl || i == sel) {
+            c.fillRect(0, y - 1, cfg::kScreenW, 13, fl ? theme::kAmber : theme::kPanel);
+        }
+    }
+
     char val[28];
     for (int row = 0; row < kVisible; ++row) {
         const int vidx = top + row;
@@ -975,11 +1007,8 @@ void draw(M5Canvas& c, int sel, int top) {
 
         if (isHeader(i)) {  // collapsible section handle: ▾ open / ▸ closed
             const bool exp = gExpanded[sectionOf(i)];
-            const bool hsel = (i == sel);
             c.setFont(&fonts::Font0);
-            const uint16_t hbg = hsel ? theme::kPanel : theme::kBg;
-            if (hsel) c.fillRect(0, y - 1, cfg::kScreenW, 12, hbg);
-            c.setTextColor(theme::kAmber, hbg);
+            c.setTextColor(theme::kAmber);
             char hdr[40];
             // \x1f = ▼ (expanded), \x10 = ► (collapsed) — Font0 CP437 glyphs
             snprintf(hdr, sizeof hdr, "%c %s", exp ? '\x1f' : '\x10', kItems[i].name);
@@ -988,7 +1017,7 @@ void draw(M5Canvas& c, int sel, int top) {
                 const char* h = headerHint(kItems[i].name);
                 if (h) {
                     c.setTextDatum(top_right);
-                    c.setTextColor(theme::kDim, hbg);
+                    c.setTextColor(theme::kDim);
                     c.drawString(h, cfg::kScreenW - 6, y + 3);
                     c.setTextDatum(top_left);
                 }
@@ -1008,11 +1037,9 @@ void draw(M5Canvas& c, int sel, int top) {
         c.setFont(&fonts::Font2);
         const bool isSel = (i == sel);
         const bool flash = (i == gFlashRow) && (millis() < gFlashUntil);  // one-shot confirm
-        const uint16_t rowBg = flash ? theme::kAmber : (isSel ? theme::kPanel : theme::kBg);
         const uint16_t nameCol = flash ? theme::kBg : (isSel ? theme::kAmber : theme::kDim);
         const uint16_t valCol = flash ? theme::kBg : (isSel ? theme::kIdle : theme::kDim);
-        if (flash || isSel) c.fillRect(0, y - 1, cfg::kScreenW, 13, rowBg);
-        c.setTextColor(nameCol, rowBg);
+        c.setTextColor(nameCol);  // transparent: the band pre-pass owns the bg
         c.drawString(kItems[i].name, 8, y);
         kItems[i].format(val, sizeof val);
         // a trailing kLRtag => this is an action row: draw the , / keys' L/R arrow
@@ -1036,7 +1063,7 @@ void draw(M5Canvas& c, int sel, int top) {
             else if (f >= 0.f)      viz::drawGauge(c, 120, y + 2, 44, 8, f, gc);
         }
         c.setTextDatum(top_right);
-        c.setTextColor(valCol, rowBg);
+        c.setTextColor(valCol);
         c.drawString(val, rightX, y);
         c.setTextDatum(top_left);
         // shape/mode rows draw the thing, not just its name

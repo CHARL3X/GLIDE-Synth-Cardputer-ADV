@@ -36,19 +36,41 @@ constexpr int kBottomY = 98;
 constexpr int kHintY = 125;
 
 constexpr int kTraceX = 4, kTraceW = 232;
-int16_t gPrevTrace[kTraceW];
 bool gPrevValid = false;
 
 float gScopeBuf[512];
 
-// pitch trail: lead pitch sampled once per frame, scrolling right-to-left
-// (~7.5 s across the screen at 30 fps). NAN = silence gap.
-float gTrail[kTraceW];
-uint8_t gTrailBend[kTraceW];  // frames where the bend keys were deforming it
-uint8_t gTrailLev[kTraceW];   // lead envelope level per frame (0..255): drives the
-                              // trace's brightness + glow, so loudness is visible
-uint8_t gTrailBri[kTraceW];   // lead filter openness per frame (0..255): green (dark)
-                              // -> gold (open), so timbre/filter motion is visible
+// ---- shared scope-mode state ----------------------------------------------
+// Exactly one scope mode draws at a time, so every mode's frame-to-frame
+// history — including the original waveform afterglow and pitch-trail rings —
+// lives in ONE union, sized by the largest member (the trail). Switching
+// Display modes restarts the incoming mode's history; bloom's heap-side field
+// is the one long-memory survivor. The 65 KB frame-buffer sprite sits within
+// ~1 KB of the RAM ceiling (measured on hardware: +1.2 KB of .bss over the
+// shipped build already boots to "UI ALLOC FAILED"), so a new mode must
+// budget INSIDE this union, never beside it.
+constexpr int kTapeCols = 58;
+struct TapeCol {
+    uint8_t lev, bri, vib, bl, pitch, flags;  // pitch 0 = rest; flags: bit0 bend,
+                                              // bit1 transient spike
+};
+constexpr int kCombBins = 56;
+union VizState {
+    int16_t wavePrev[kTraceW];  // waveform scope: last frame's trace (afterglow)
+    struct {                    // pitch trail: lead pitch sampled once per frame,
+        float pitch[kTraceW];   // scrolling right-to-left (~7.5 s across the
+        uint8_t bend[kTraceW];  // screen). NAN = silence gap; bend marks pulled
+        uint8_t lev[kTraceW];   // notes; lev/bri drive brightness + hue.
+        uint8_t bri[kTraceW];
+    } trail;
+    TapeCol tape[kTapeCols];
+    struct {
+        float coef[kCombBins], v[kCombBins], pk[kCombBins];
+        uint8_t octMark[kCombBins];
+    } comb;
+};
+VizState gViz;
+
 int gTrailPos = 0;
 bool gTrailInit = false;
 float gTrailCenter = 69.f;  // view center in MIDI, follows the lead slowly
@@ -304,10 +326,10 @@ void drawEditPanel(M5Canvas& c) {
 // for the *other* axis — every glide, hammer-on and bend is a visible curve.
 void drawPitchTrail(M5Canvas& c) {
     if (!gTrailInit) {
-        for (int i = 0; i < kTraceW; ++i) gTrail[i] = NAN;
-        memset(gTrailBend, 0, sizeof gTrailBend);
-        memset(gTrailLev, 0, sizeof gTrailLev);
-        memset(gTrailBri, 0, sizeof gTrailBri);
+        for (int i = 0; i < kTraceW; ++i) gViz.trail.pitch[i] = NAN;
+        memset(gViz.trail.bend, 0, sizeof gViz.trail.bend);
+        memset(gViz.trail.lev, 0, sizeof gViz.trail.lev);
+        memset(gViz.trail.bri, 0, sizeof gViz.trail.bri);
         gTrailPos = 0;
         gTrailCenterSet = false;
         gTrailInit = true;
@@ -335,10 +357,10 @@ void drawPitchTrail(M5Canvas& c) {
         const float depthCents = s.vibratoCents + s.autoVibCents;
         v = base + sinf(vibPhase) * depthCents * 0.01f * kVibVisGain;
     }
-    gTrail[gTrailPos] = v;
-    gTrailBend[gTrailPos] = fabsf(keys::bendCentsNow()) > 2.f ? 1 : 0;
-    gTrailLev[gTrailPos] = (uint8_t)(l.active ? clampf(l.level * 180.f, 0.f, 255.f) : 0.f);
-    gTrailBri[gTrailPos] = (uint8_t)(l.active ? clampf(l.brightness * 255.f, 0.f, 255.f) : 0.f);
+    gViz.trail.pitch[gTrailPos] = v;
+    gViz.trail.bend[gTrailPos] = fabsf(keys::bendCentsNow()) > 2.f ? 1 : 0;
+    gViz.trail.lev[gTrailPos] = (uint8_t)(l.active ? clampf(l.level * 180.f, 0.f, 255.f) : 0.f);
+    gViz.trail.bri[gTrailPos] = (uint8_t)(l.active ? clampf(l.brightness * 255.f, 0.f, 255.f) : 0.f);
     gTrailPos = (gTrailPos + 1) % kTraceW;
 
     // 30-semitone window: ~2.5 octaves visible
@@ -375,7 +397,7 @@ void drawPitchTrail(M5Canvas& c) {
     bool prevValid = false;
     for (int x = 0; x < kTraceW; ++x) {
         const int idx = (gTrailPos + x) % kTraceW;
-        const float m = gTrail[idx];
+        const float m = gViz.trail.pitch[idx];
         if (m != m) {  // NAN: a rest — break the line
             prevValid = false;
             continue;
@@ -384,12 +406,12 @@ void drawPitchTrail(M5Canvas& c) {
         // hue = timbre: a dark filter reads green, an open one warms toward gold
         // — kept mostly green (cap 120) so the trace stays punchy, not olive.
         // Bend overrides to full amber: the deflection + colour mark a pulled note.
-        const uint16_t baseCol = gTrailBend[idx]
+        const uint16_t baseCol = gViz.trail.bend[idx]
                                      ? theme::kAmber
                                      : theme::blend(theme::kGreen, theme::kAmber,
-                                                    (uint8_t)((uint32_t)gTrailBri[idx] * 120 / 255));
+                                                    (uint8_t)((uint32_t)gViz.trail.bri[idx] * 120 / 255));
         const uint8_t age = (uint8_t)(110 + (uint32_t)x * 145 / kTraceW);  // old->new, bold floor
-        const uint8_t lev = gTrailLev[idx];                               // loudness here
+        const uint8_t lev = gViz.trail.lev[idx];                               // loudness here
         // brightness rides loudness on a HIGH floor, so the green stays vivid and
         // punchy well across the screen and only dims as a note releases.
         const uint8_t bright = (uint8_t)((uint32_t)age * (180 + (uint32_t)lev * 75 / 255) / 255);
@@ -443,6 +465,551 @@ void drawPitchTrail(M5Canvas& c) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Generative scope modes (scopeMode 2..7), ported 1:1 from the viz-lab
+// browser preview. All of them draw from the same two lock-free feeds the
+// originals use — audio::lead() + audio::copyScope() — plus the tilt/vibrato/
+// morph values the UI thread already owns. Nothing here touches the audio
+// thread. Aesthetic family: ordered dither, stipple, monochrome duotone —
+// intensity always fades toward the theme ground (theme::fade), so every
+// mode survives the paper (vellum) palette.
+// ---------------------------------------------------------------------------
+
+uint32_t gVizFrame = 0;  // advanced once per drawScope
+
+constexpr uint8_t kBayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+inline uint8_t bayer4(int x, int y) { return kBayer[(y & 3) * 4 + (x & 3)]; }
+
+// Deterministic per-cell hash for dither/twinkle — no rand(), no state.
+inline uint32_t hash3(uint32_t x, uint32_t y, uint32_t t) {
+    uint32_t h = x * 374761393u + y * 668265263u + t * 2246822519u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return h ^ (h >> 16);
+}
+inline float hash01(uint32_t x, uint32_t y, uint32_t t) {
+    return (float)(hash3(x, y, t) & 0xFFFF) / 65535.f;
+}
+
+// The per-frame data every generative mode reads. tiltX/Y are the raw axes
+// applyTilt() already publishes; vib01 is the live vibrato depth (tilt +
+// patch); blend01 is the morph fader — so the visuals answer the same
+// gestures the sound does.
+struct VizFeed {
+    audio::Lead l;
+    bool bend;
+    float tiltX, tiltY, vib01, blend01;
+};
+VizFeed vizFeed() {
+    VizFeed f;
+    f.l = audio::lead();
+    f.bend = fabsf(keys::bendCentsNow()) > 2.f;
+    const auto& s = store::get().synth;
+    f.tiltX = clampf(s.tiltBVal, -1.f, 1.f);  // roll
+    f.tiltY = clampf(s.tiltAVal, -1.f, 1.f);  // forward/back
+    f.vib01 = clampf((s.vibratoCents + s.autoVibCents) / 80.f, 0.f, 1.f);
+    f.blend01 = clampf(morph::pos(), 0.f, 1.f);
+    return f;
+}
+
+// A peak read of the recent mix for the amplitude-history modes.
+float scopePeak() {
+    const int n = audio::copyScope(gScopeBuf, 512);
+    float pk = 0.f;
+    for (int i = 0; i < n; ++i) {
+        const float a = fabsf(gScopeBuf[i]);
+        if (a > pk) pk = a;
+    }
+    return pk;
+}
+
+// Slow AGC over the mix peak. The raw ring is far quieter than full scale
+// (master volume + patch headroom) and varies per sound, so every amplitude-
+// driven mode normalizes against a ~5 s running peak instead of a fixed
+// gain — measured on hardware, where fixed gain drew "a flat stream of two
+// squares". Short-term dynamics survive (the track moves slowly); silence
+// stays silent (the floor).
+float gAgcTrack = 0.05f;
+inline void agcFeed(float pk) {
+    // The floor only guards the division — the synth is digitally silent at
+    // rest, so it can sit very low. A 0.02 floor buried low-master-volume
+    // playing entirely (measured: comb barely moved at practice volume).
+    gAgcTrack = fmaxf(fmaxf(pk, gAgcTrack * 0.995f), 0.004f);
+}
+float scopePeakNorm() {
+    const float pk = scopePeak();
+    agcFeed(pk);
+    const float n = pk / gAgcTrack;
+    return n > 1.f ? 1.f : n;
+}
+
+// ---- TAPE (mode 2): quantized-block amplitude history ---------------------
+// The sound as archival tape: stacked dithered blocks, transients strike a
+// full-height filament, bends print accent. Vibrato prints as wow/flutter
+// undulation; the morph blend inks the blocks toward solid.
+bool gTapeInit = false;
+uint8_t gTapePhase = 0, gTapePrevLev = 0;
+float gTapeCenter = 57.f;
+
+void drawTape(M5Canvas& c) {
+    if (!gTapeInit) {
+        memset(gViz.tape, 0, sizeof gViz.tape);
+        gTapePhase = 0;
+        gTapePrevLev = 0;
+        gTapeInit = true;
+    }
+    const VizFeed f = vizFeed();
+    gTapePhase ^= 1;
+    if (gTapePhase) {  // push a column every other frame -> ~3.8 s of history
+        // AGC-normalized peak plus a shot of raw envelope, so attacks POP
+        // above the running level instead of averaging into it
+        float lev = scopePeakNorm() * 0.80f + fminf(f.l.level, 1.f) * 0.30f;
+        if (lev > 1.f) lev = 1.f;
+        const uint8_t l8 = (uint8_t)(lev * 255.f);
+        const uint8_t spike = ((int)l8 - (int)gTapePrevLev > 60) ? 2 : 0;
+        gTapePrevLev = l8;
+        if (f.l.active) gTapeCenter += (f.l.pitchMidi - gTapeCenter) * 0.06f;
+        memmove(gViz.tape, gViz.tape + 1, sizeof(TapeCol) * (kTapeCols - 1));
+        TapeCol& nc = gViz.tape[kTapeCols - 1];
+        nc.lev = l8;
+        nc.bri = (uint8_t)(f.l.brightness * 255.f);
+        nc.vib = (uint8_t)(f.vib01 * 255.f);
+        nc.bl = (uint8_t)(f.blend01 * 255.f);
+        nc.pitch = f.l.active ? (uint8_t)clampf(f.l.pitchMidi, 1.f, 127.f) : 0;
+        nc.flags = (uint8_t)((f.bend ? 1 : 0) | spike);
+    }
+    constexpr int rows = 10, bh = 4, bw = 4;
+    for (int ci = 0; ci < kTapeCols; ++ci) {
+        const TapeCol& tc = gViz.tape[ci];
+        if (tc.lev < 6) continue;
+        const int px = kTraceX + ci * bw;
+        const float lv = tc.lev / 255.f;
+        // the stream RIDES the melody (2 px/semitone) with vibrato flutter on
+        // top — the y-motion that makes the pitch trail feel alive, kept here
+        int yo = tc.pitch ? (int)((gTapeCenter - (float)tc.pitch) * 2.f) : 0;
+        yo += (int)(sinf(gVizFrame * 0.25f + ci * 0.55f) * (tc.vib / 255.f) * 3.f *
+                    fminf(1.f, lv * 2.f));
+        if (yo > 16) yo = 16;
+        if (yo < -16) yo = -16;
+        const int mid = kScopeMid + yo;
+        int extent = (int)(lv * rows + 0.5f);
+        if (extent < 1) extent = 1;
+        const int roomUp = (mid - (kScopeY + 1)) / bh;
+        const int roomDn = (kScopeY + kScopeH - 2 - mid) / bh;
+        const int maxExt = roomUp < roomDn ? roomUp : roomDn;
+        if (maxExt < 1) continue;
+        if (extent > maxExt) extent = maxExt;
+        const float blf = tc.bl / 255.f;
+        // the newest columns burn hot — a beam head, where the sound IS now
+        const int fromHead = kTapeCols - 1 - ci;
+        const float head = fromHead < 4 ? (float)(4 - fromHead) / 4.f : 0.f;
+        for (int r = 0; r < extent; ++r) {
+            float b = powf(1.f - (float)r / (extent + 0.5f), 1.4f);
+            // osc blend sets the print: dithery when clean, near-solid under morph
+            const float fl = hash01(ci, r, gVizFrame >> 3);
+            b *= (0.55f + 0.45f * fl) * (1.f - blf) + (0.88f + 0.12f * fl) * blf;
+            b = fminf(1.f, b + head * 0.30f);
+            // full-strength green ground burning toward white with level ×
+            // timbre; the morph blend tints toward steel — the lean into your
+            // previous sound prints right onto the tape (bend stays amber)
+            uint16_t base =
+                (tc.flags & 1) ? theme::kAmber
+                               : theme::blend(theme::kGreen, theme::kIdle,
+                                              (uint8_t)clampf(b * (0.20f + tc.bri / 255.f) * 220.f,
+                                                              0.f, 255.f));
+            if (!(tc.flags & 1) && tc.bl > 24)
+                base = theme::blend(base, theme::kSteel, (uint8_t)((tc.bl * 3) >> 2));
+            if (head > 0.f) base = theme::blend(base, theme::kIdle, (uint8_t)(head * 110.f));
+            const float q = b > 0.75f ? 1.f : b > 0.5f ? 0.78f : b > 0.28f ? 0.52f : 0.30f;
+            const uint16_t col = theme::fade(base, (uint8_t)(q * 255.f));
+            c.fillRect(px, mid - (r + 1) * bh, bw - 1, bh - 1, col);
+            c.fillRect(px, mid + r * bh + 1, bw - 1, bh - 1, col);
+        }
+        if (tc.flags & 2) {  // transient: thin bright filament, kept in-bounds
+            int hgt = extent * bh + 6;
+            const int mu = mid - (kScopeY + 1), md = kScopeY + kScopeH - 2 - mid;
+            if (hgt > mu) hgt = mu;
+            if (hgt > md) hgt = md;
+            if (hgt > 0)
+                c.drawFastVLine(px + 1, mid - hgt, hgt * 2, theme::fade(theme::kIdle, 230));
+        }
+    }
+    c.drawFastHLine(kTraceX, kScopeMid, kTraceW, theme::kLine);
+}
+
+// ---- CYMATIC (mode 3): a Chladni plate resonating at the lead pitch -------
+// Sand gathers on nodal lines; glides morph the figure continuously. The
+// white is energy: note attacks strike the plate and launch a shockwave ring
+// that sweeps through the sand and cools; loudness (and tilt-vibrato)
+// physically agitates the grains. Tilt moves the driving point off-center,
+// warping the figure asymmetric.
+float gCymM = 3.02f, gCymN = 2.0f, gCymDrift = 0.f, gCymPrevLev = 0.f;
+struct Shock {
+    float r, a;
+};
+Shock gShocks[3];
+int gShockN = 0;
+
+void drawCymatic(M5Canvas& c) {
+    const VizFeed f = vizFeed();
+    if (f.l.level - gCymPrevLev > 0.22f && gShockN < 3) {
+        gShocks[gShockN].r = 3.f;
+        gShocks[gShockN].a = 1.f;
+        ++gShockN;
+    }
+    gCymPrevLev = f.l.level;
+    for (int i = 0; i < gShockN;) {
+        gShocks[i].r += 3.4f;
+        gShocks[i].a *= 0.90f;
+        if (gShocks[i].a < 0.06f || gShocks[i].r > 190.f)
+            gShocks[i] = gShocks[--gShockN];
+        else
+            ++i;
+    }
+    if (f.l.active) {  // pitch -> plate modes, eased so glides morph the figure
+        const float pc = fmodf(fmodf(f.l.pitchMidi, 12.f) + 12.f, 12.f);
+        const float oct = floorf(f.l.pitchMidi / 12.f) - 2.f;
+        const float tm = 1.5f + pc / 12.f * 3.5f, tn = 1.f + oct * 0.85f;
+        gCymM += (tm - gCymM) * 0.12f;
+        gCymN += (tn - gCymN) * 0.12f;
+    } else {  // idle: the figure breathes slowly instead of freezing
+        gCymDrift += 0.003f;
+        gCymM += sinf(gCymDrift) * 0.0015f;
+        gCymN += cosf(gCymDrift * 0.7f) * 0.0012f;
+    }
+    const float th = 0.05f + f.l.level * 0.13f;    // louder -> thicker sand lines
+    const float glow = 0.30f + f.l.level * 0.70f;
+    const float agit = f.l.level * 1.8f + f.vib01 * f.l.level * 1.6f;
+    const uint32_t shT = gVizFrame >> (f.vib01 > 0.55f ? 1 : 2);
+    const float ax = f.tiltX * 0.10f, ay = f.tiltY * 0.10f;
+    constexpr float PI_ = 3.14159265f;
+    float* cosA = gScopeBuf;            // scratch: cymatic never copyScopes,
+    float* cosB = gScopeBuf + kTraceW;  // and 2x232 floats fit the 512 buffer
+    for (int i = 0; i < kTraceW; ++i) {
+        const float u = (float)i / (kTraceW - 1);
+        cosA[i] = cosf(gCymM * PI_ * (u + ax));
+        cosB[i] = cosf(gCymN * PI_ * (u - ax));
+    }
+    const uint16_t base =
+        f.bend ? theme::kAmber
+               : theme::blend(theme::kGreen, theme::kIdle,
+                              (uint8_t)(25 + f.l.brightness * 76.f));
+    const float ys = (float)kTraceW / kScopeH;  // elliptical shock distance
+    for (int j = 0; j < kScopeH; ++j) {
+        const float v = (float)j / (kScopeH - 1);
+        const float ry = cosf(gCymN * PI_ * (v + ay));
+        const float ry2 = cosf(gCymM * PI_ * (v - ay));
+        for (int i = 0; i < kTraceW; ++i) {
+            const float a = fabsf(cosA[i] * ry - cosB[i] * ry2);
+            if (a >= th) continue;
+            const float p = 1.f - a / th;
+            float g = p * glow * (0.5f + 0.5f * hash01(i, j, shT));
+            float boost = 0.f;
+            if (gShockN) {
+                const float dx = i - kTraceW * 0.5f, dy = (j - kScopeH * 0.5f) * ys;
+                const float dist = sqrtf(dx * dx + dy * dy);
+                for (int s = 0; s < gShockN; ++s) {
+                    const float dd = fabsf(dist - gShocks[s].r);
+                    if (dd < 11.f) {
+                        const float bb = gShocks[s].a * (1.f - dd / 11.f);
+                        if (bb > boost) boost = bb;
+                    }
+                }
+            }
+            g += boost * 0.9f;
+            if (g > 1.f) g = 1.f;
+            if (g * 255.f <= bayer4(i, j) * 13.6f) continue;  // ordered-dither gate
+            // agitation: grains displace, hardest inside the shock ring
+            const float jmp = agit + boost * 3.5f;
+            const int oi = i + (int)((hash01(i, j, gVizFrame) - 0.5f) * 2.f * jmp);
+            const int oj = j + (int)((hash01(j, i, gVizFrame) - 0.5f) * 2.f * jmp);
+            if (oi < 0 || oi >= kTraceW || oj < 0 || oj >= kScopeH) continue;
+            const uint16_t col = boost > 0.28f
+                                     ? theme::kIdle
+                                     : (g > 0.85f ? theme::blend(base, theme::kIdle, 153) : base);
+            c.drawPixel(kTraceX + oi, kScopeY + oj,
+                        theme::fade(col, (uint8_t)clampf((g + 0.15f) * 255.f, 0.f, 255.f)));
+        }
+    }
+}
+
+// ---- BLOOM (mode 4): Gray-Scott reaction-diffusion, ordered dither --------
+// The reference post's organism. Every note seeds growth at its pitch
+// position; timbre steers feed/kill. (Tilt advection was tried and cut —
+// jumpy on hardware; the culture stands its ground now.)
+constexpr int kBloomW = 116, kBloomH = 41;  // 2px cells
+// The field lives on the HEAP as Q16 fixed point (19.5 KB), allocated the
+// first time the mode is entered and kept. Static float arrays cost 38 KB of
+// .bss and starved the 65 KB frame-buffer sprite ("UI ALLOC FAILED" on real
+// hardware). Q16's LSB (1.5e-5) is far below the sim's smallest step.
+uint16_t* gBloomU16 = nullptr;
+uint16_t* gBloomV16 = nullptr;
+bool gBloomInit = false, gBloomNoMem = false;
+float gBloomLastNote = -1.f;
+float gBloomF = 0.046f, gBloomK = 0.0594f, gBloomCover = 0.f;
+struct BloomFlare {
+    uint8_t x, y, age, bend;
+};
+BloomFlare gFlares[6];
+int gFlareN = 0;
+
+inline float q2f(uint16_t q) { return q * (1.f / 65535.f); }
+inline uint16_t f2q(float v) {
+    return v <= 0.f ? 0 : (v >= 1.f ? 65535 : (uint16_t)(v * 65535.f + 0.5f));
+}
+
+void bloomSeed(int cx, int cy, int r) {
+    for (int y = -r; y <= r; ++y)
+        for (int x = -r; x <= r; ++x) {
+            if (x * x + y * y > r * r) continue;
+            const int X = ((cx + x) % kBloomW + kBloomW) % kBloomW;
+            int Y = cy + y;
+            if (Y < 0) Y = 0;
+            if (Y >= kBloomH) Y = kBloomH - 1;
+            gBloomV16[Y * kBloomW + X] = f2q(0.9f);
+        }
+}
+
+// One Gray-Scott step, in place. Correct Jacobi neighbours via saved rows:
+// "up" from the previous row's pre-update copy, "down" from the still-
+// untouched next row, left/right from this row's copy.
+void bloomStep(float F, float K) {
+    constexpr float Du = 0.19f, Dv = 0.09f;
+    // scratch rows live in gScopeBuf (4x116 floats fit the 512): bloom never
+    // copyScopes, and the modes that do refill the buffer every frame
+    float* puRow = gScopeBuf;
+    float* pvRow = gScopeBuf + kBloomW;
+    float* cuRow = gScopeBuf + 2 * kBloomW;
+    float* cvRow = gScopeBuf + 3 * kBloomW;
+    constexpr size_t kRowBytes = sizeof(float) * kBloomW;
+    for (int x = 0; x < kBloomW; ++x) {  // top edge clamps to itself
+        puRow[x] = q2f(gBloomU16[x]);
+        pvRow[x] = q2f(gBloomV16[x]);
+    }
+    for (int y = 0; y < kBloomH; ++y) {
+        uint16_t* U = gBloomU16 + y * kBloomW;
+        uint16_t* V = gBloomV16 + y * kBloomW;
+        for (int x = 0; x < kBloomW; ++x) {
+            cuRow[x] = q2f(U[x]);
+            cvRow[x] = q2f(V[x]);
+        }
+        const uint16_t* dnU = y < kBloomH - 1 ? U + kBloomW : nullptr;
+        const uint16_t* dnV = y < kBloomH - 1 ? V + kBloomW : nullptr;
+        for (int x = 0; x < kBloomW; ++x) {
+            const int xm = x ? x - 1 : kBloomW - 1, xp = x < kBloomW - 1 ? x + 1 : 0;
+            const float u = cuRow[x], vv = cvRow[x];
+            const float du = dnU ? q2f(dnU[x]) : u;  // bottom edge clamps
+            const float dv = dnV ? q2f(dnV[x]) : vv;
+            const float lu = puRow[x] + du + cuRow[xm] + cuRow[xp] - 4.f * u;
+            const float lv = pvRow[x] + dv + cvRow[xm] + cvRow[xp] - 4.f * vv;
+            const float uvv = u * vv * vv;
+            U[x] = f2q(u + (Du * lu - uvv + F * (1.f - u)));
+            V[x] = f2q(vv + (Dv * lv + uvv - (K + F) * vv));
+        }
+        memcpy(puRow, cuRow, kRowBytes);
+        memcpy(pvRow, cvRow, kRowBytes);
+    }
+}
+
+void drawBloom(M5Canvas& c) {
+    const VizFeed f = vizFeed();
+    if (!gBloomU16 && !gBloomNoMem) {
+        gBloomU16 = (uint16_t*)malloc(sizeof(uint16_t) * kBloomW * kBloomH);
+        gBloomV16 = (uint16_t*)malloc(sizeof(uint16_t) * kBloomW * kBloomH);
+        if (!gBloomU16 || !gBloomV16) {
+            free(gBloomU16);
+            free(gBloomV16);
+            gBloomU16 = gBloomV16 = nullptr;
+            gBloomNoMem = true;  // failure stays visible, never a blank scope
+        }
+    }
+    if (gBloomNoMem) {
+        c.setFont(&fonts::Font0);
+        c.setTextColor(theme::kAmber, theme::kBg);
+        c.drawString("bloom: out of memory", kTraceX + 60, kScopeMid - 4);
+        c.setTextColor(theme::kDim, theme::kBg);
+        c.drawString("pick another Display mode", kTraceX + 52, kScopeMid + 6);
+        return;
+    }
+    if (!gBloomInit) {
+        for (int i = 0; i < kBloomW * kBloomH; ++i) {
+            gBloomU16[i] = 65535;
+            gBloomV16[i] = 0;
+        }
+        bloomSeed(kBloomW / 2, kBloomH / 2, 3);
+        bloomSeed(kBloomW / 4, kBloomH / 4, 2);
+        gBloomLastNote = -1.f;
+        gBloomF = 0.046f;
+        gBloomK = 0.0594f;
+        gBloomCover = 0.f;
+        gFlareN = 0;
+        gBloomInit = true;
+    }
+    if (f.l.active) {  // notes inject growth at a pitch-mapped position
+        const float pc = fmodf(fmodf(f.l.pitchMidi, 12.f) + 12.f, 12.f);
+        const int nx = (int)(pc / 12.f * kBloomW);
+        const int ny = (int)(kBloomH / 2 + sinf(f.l.pitchMidi * 0.7f) * kBloomH * 0.3f);
+        if (fabsf(f.l.pitchMidi - gBloomLastNote) > 0.5f) {
+            bloomSeed(nx, ny, 2);
+            gBloomLastNote = f.l.pitchMidi;
+            if (gFlareN < 6) {  // the note itself flashes white where it lands
+                gFlares[gFlareN].x = (uint8_t)nx;
+                gFlares[gFlareN].y = (uint8_t)ny;
+                gFlares[gFlareN].age = 0;
+                gFlares[gFlareN].bend = f.bend ? 1 : 0;
+                ++gFlareN;
+            }
+        } else if (f.l.level > 0.5f && (gVizFrame & 7) == 0) {
+            bloomSeed(nx, ny, 1);
+        }
+    }
+    // The dish breathes with the instrument. Playing runs a growth regime
+    // (feed from timbre, kill from loudness); silence eases into a starving
+    // one, so the culture recedes over ~15 s instead of squatting on the
+    // screen; and a coverage governor raises kill as the dish crowds past a
+    // third, so it can never fill solid and bury the note flares.
+    const bool playing = f.l.active || f.l.sounding > 0;
+    float Ft = playing ? 0.044f + f.l.brightness * 0.012f : 0.030f;
+    float Kt = playing ? 0.0590f + fminf(f.l.level, 1.f) * 0.0025f : 0.0645f;
+    Kt += fmaxf(0.f, gBloomCover - 0.32f) * 0.030f;
+    gBloomF += (Ft - gBloomF) * 0.08f;
+    gBloomK += (Kt - gBloomK) * 0.08f;
+    for (int it = 0; it < 3; ++it) bloomStep(gBloomF, gBloomK);
+    const uint16_t cc =
+        f.bend ? theme::kAmber
+               : theme::blend(theme::kGreen, theme::kAmber, (uint8_t)(f.l.brightness * 76.f));
+    const float lvl = 0.55f + 0.45f * fminf(f.l.level, 1.f);  // idle field sleeps dim
+    int cov = 0;
+    for (int y = 0; y < kBloomH; ++y) {
+        for (int x = 0; x < kBloomW; ++x) {
+            const float vv = q2f(gBloomV16[y * kBloomW + x]);
+            if (vv >= 0.15f) ++cov;
+            if (vv < 0.08f) continue;
+            const float b = fminf(1.f, vv * 3.2f) * lvl;
+            const int px = kTraceX + x * 2, py = kScopeY + y * 2;
+            // green texture only, capped short of white — the flares own white
+            const uint16_t col = theme::fade(cc, (uint8_t)(fminf(b, 1.f) * 205.f));
+            for (int sy = 0; sy < 2; ++sy)
+                for (int sx = 0; sx < 2; ++sx)
+                    if (b * 255.f > bayer4(x * 2 + sx, y * 2 + sy) * 16)
+                        c.drawPixel(px + sx, py + sy, col);
+        }
+    }
+    gBloomCover = (float)cov / (kBloomW * kBloomH);
+    // fresh notes flare white-hot ON TOP of the culture, then cool into it —
+    // what you just played stays legible over the green
+    for (int i = 0; i < gFlareN;) {
+        BloomFlare& fl = gFlares[i];
+        if (++fl.age > 26) {
+            gFlares[i] = gFlares[--gFlareN];
+            continue;
+        }
+        const float t = 1.f - (float)fl.age / 26.f;
+        const uint16_t fc = fl.bend ? theme::kAmber : theme::kIdle;
+        const int px = kTraceX + fl.x * 2, py = kScopeY + fl.y * 2;
+        const uint8_t fI = (uint8_t)(t * 255.f);
+        c.fillRect(px, py, 2, 2, theme::fade(fc, fI));
+        c.fillRect(px - 2, py, 2, 2, theme::fade(fc, fI >> 1));
+        c.fillRect(px + 2, py, 2, 2, theme::fade(fc, fI >> 1));
+        c.fillRect(px, py - 2, 2, 2, theme::fade(fc, fI >> 1));
+        c.fillRect(px, py + 2, 2, 2, theme::fade(fc, fI >> 1));
+        ++i;
+    }
+}
+
+// ---- COMB (mode 5): Goertzel harmonic spectrum ----------------------------
+// A true spectrum without an FFT: 56 Goertzel bins on a log-frequency axis
+// (55 Hz .. 7 kHz). Glides slide the comb sideways; opening the filter
+// ignites the upper partials; dissolving dithered tops, falling peak caps,
+// fundamental runs hot, octave ruler above. The tilt-morph blend shows for
+// real — the spectrum IS the sound.
+bool gCombInit = false;
+
+void drawComb(M5Canvas& c) {
+    const VizFeed f = vizFeed();
+    if (!gCombInit) {
+        int prevOct = -1;
+        for (int k = 0; k < kCombBins; ++k) {
+            const float fr = 55.f * powf(128.f, (float)k / (kCombBins - 1));
+            gViz.comb.coef[k] = 2.f * cosf(6.2831853f * fr / (float)cfg::kSampleRate);
+            const int o = (int)floorf(log2f(fr / 55.f) + 1e-4f);
+            gViz.comb.octMark[k] = (o != prevOct) ? 1 : 0;
+            prevOct = o;
+            gViz.comb.v[k] = gViz.comb.pk[k] = 0.f;
+        }
+        gCombInit = true;
+    }
+    const int n = audio::copyScope(gScopeBuf, 512);
+    float combPk = 0.f;
+    for (int i = 0; i < n; ++i) {
+        const float a = fabsf(gScopeBuf[i]);
+        if (a > combPk) combPk = a;
+    }
+    agcFeed(combPk);
+    for (int k = 0; k < kCombBins; ++k) {
+        const float co = gViz.comb.coef[k];
+        float s1 = 0.f, s2 = 0.f;
+        for (int i = 0; i < n; ++i) {
+            const float s0 = gScopeBuf[i] + co * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+        }
+        float mag = n > 0 ? sqrtf(fmaxf(0.f, s1 * s1 + s2 * s2 - co * s1 * s2)) / (n * 0.5f) : 0.f;
+        // normalize against the AGC track — a fixed gain left the whole
+        // spectrum below the visibility floor on hardware
+        float v = powf(fminf(1.f, mag / (gAgcTrack * 1.15f)), 0.65f);
+        if (v < 0.04f) v = 0.f;
+        gViz.comb.v[k] += (v - gViz.comb.v[k]) * (v > gViz.comb.v[k] ? 0.75f : 0.30f);  // snap up
+        gViz.comb.pk[k] = fmaxf(gViz.comb.v[k], gViz.comb.pk[k] - 0.016f);             // peak hold
+    }
+    const float hz = 440.f * exp2f((f.l.pitchMidi - 69.f) / 12.f);
+    auto binOf = [](float fr) {
+        return (int)(log2f(fr / 55.f) / 7.f * (kCombBins - 1) + 0.5f);  // 7 octaves
+    };
+    const int fBin = f.l.active ? binOf(hz) : -9;
+    bool harm[kCombBins] = {};
+    if (f.l.active)
+        for (int h = 2; h <= 6; ++h) {
+            const int b = binOf(hz * h);
+            if (b >= 0 && b < kCombBins) harm[b] = true;
+        }
+    for (int k = 0; k < kCombBins; ++k) {  // octave ruler along the top
+        const int rx = kTraceX + k * 4 + 1;
+        if (gViz.comb.octMark[k])
+            c.drawFastVLine(rx, kScopeY + 1, 4, theme::fade(theme::kGreenDim, 230));
+        else
+            c.drawFastVLine(rx, kScopeY + 1, 2, theme::kLine);
+    }
+    const int bot = kScopeY + kScopeH - 3, hMax = kScopeH - 12;
+    for (int k = 0; k < kCombBins; ++k) {
+        const float v = gViz.comb.v[k];
+        const int rx = kTraceX + k * 4 + 1;
+        if (v > 0.f) {
+            const bool isF = (k >= fBin - 1 && k <= fBin + 1);
+            const uint16_t base = f.bend ? theme::kAmber
+                                  : isF  ? theme::blend(theme::kGreen, theme::kIdle, 140)
+                                  : harm[k]
+                                      ? theme::blend(theme::kGreen, theme::kAmber, 76)
+                                      : theme::kGreen;
+            const int hgt = (int)(v * hMax);
+            for (int y = 0; y < hgt; ++y) {
+                const float rel = (float)y / hMax;
+                float bb = (v - rel) * 3.2f;  // tops dissolve into dither
+                if (bb > 1.f) bb = 1.f;
+                if (bb * 255.f > bayer4(rx + (y & 1), y) * 15.2f)
+                    c.fillRect(rx, bot - y, 2, 1,
+                               theme::fade(base, (uint8_t)(64 + bb * 191.f)));
+            }
+        }
+        if (gViz.comb.pk[k] > 0.05f)  // falling peak cap
+            c.fillRect(rx, bot - (int)(gViz.comb.pk[k] * hMax), 2, 1,
+                       theme::fade(theme::kIdle, 242));
+    }
+    // the baseline glows with the note's energy — the floor is alive
+    c.drawFastHLine(kTraceX, bot + 2, kTraceW,
+                    theme::fade(theme::kGreenDim,
+                                (uint8_t)(60 + fminf(f.l.level, 1.f) * 160.f)));
+}
+
 // CRT depth: bevelled glass corners so the scope seats in its bezel like a
 // little tube screen. (The drifting scanline sheen was removed — too busy.)
 // Overlaid on top of the scope, skipped during the quick-edit panel.
@@ -466,14 +1033,40 @@ void drawScope(M5Canvas& c, uint32_t now) {
         drawEditPanel(c);
         return;
     }
-    if (store::get().scopeMode == 1) {
-        drawPitchTrail(c);
-        return;
+    ++gVizFrame;
+    const uint8_t mode = store::get().scopeMode;
+    static uint8_t prevMode = 255;
+    if (mode != prevMode) {  // the union holds ONE mode's history — restart
+        if (prevMode == 4 && gBloomU16) {
+            // Leaving bloom: hand its 19.5 KB field back to the heap. LISTEN /
+            // auto-key sizes its record buffer from the largest free block, so
+            // a resident field starved it ("no memory" on fn+k — measured).
+            free(gBloomU16);
+            free(gBloomV16);
+            gBloomU16 = gBloomV16 = nullptr;
+            gBloomNoMem = false;
+        }
+        prevMode = mode;
+        gPrevValid = false;
+        gTrailInit = false;
+        gTapeInit = false;
+        gCombInit = false;
+        gBloomInit = false;
     }
-    // graticule
-    c.drawFastHLine(kTraceX, kScopeMid, kTraceW, theme::kLine);
+    switch (mode) {
+        case 1: drawPitchTrail(c); return;
+        case 2: drawTape(c); return;
+        case 3: drawCymatic(c); return;
+        case 4: drawBloom(c); return;
+        case 5: drawComb(c); return;
+        default: break;  // 0 = the waveform scope below
+    }
+    // graticule — seated a touch below geometric center: the readout and
+    // annunciators own the top of the scope, so the optical middle is lower
+    const int wMid = kScopeMid + 5;
+    c.drawFastHLine(kTraceX, wMid, kTraceW, theme::kLine);
     for (int x = kTraceX; x < kTraceX + kTraceW; x += 29)
-        c.drawFastVLine(x, kScopeMid - 2, 5, theme::kLine);
+        c.drawFastVLine(x, wMid - 2, 5, theme::kLine);
 
     const int n = audio::copyScope(gScopeBuf, 512);
     if (n < kTraceW + 2) return;
@@ -487,25 +1080,32 @@ void drawScope(M5Canvas& c, uint32_t now) {
         }
     }
 
+    float wavePk = 0.f;
+    for (int i = 0; i < n; ++i) {
+        const float a = fabsf(gScopeBuf[i]);
+        if (a > wavePk) wavePk = a;
+    }
+    agcFeed(wavePk);
     const uint16_t glow = theme::scale(theme::kGreen, 80);
     const uint16_t bright = theme::kGreen;
-    const float gain = (kScopeH / 2 - 3) * 1.25f;
+    // AGC gain: the raw mix sits far below full scale, so a fixed gain drew a
+    // near-flat line — normalize so the trace fills the tube at any volume
+    // (0.85 keeps full swings inside the tube around the lowered midline)
+    const float gain = (kScopeH / 2 - 3) * 0.85f / gAgcTrack;
 
     // afterglow: last frame's trace lingers like phosphor
     if (gPrevValid) {
         for (int x = 1; x < kTraceW; ++x)
-            c.drawLine(kTraceX + x - 1, gPrevTrace[x - 1], kTraceX + x, gPrevTrace[x], glow);
+            c.drawLine(kTraceX + x - 1, gViz.wavePrev[x - 1], kTraceX + x, gViz.wavePrev[x], glow);
     }
     int prevY = 0;
     for (int x = 0; x < kTraceW; ++x) {
-        float s = gScopeBuf[trig + x];
-        if (s > 1.2f) s = 1.2f;
-        if (s < -1.2f) s = -1.2f;
-        int y = kScopeMid - (int)(s * gain);
+        const float s = gScopeBuf[trig + x];
+        int y = wMid - (int)(s * gain);
         if (y < kScopeY) y = kScopeY;
         if (y > kScopeY + kScopeH - 1) y = kScopeY + kScopeH - 1;
         if (x > 0) c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y, bright);
-        gPrevTrace[x] = (int16_t)y;
+        gViz.wavePrev[x] = (int16_t)y;
         prevY = y;
     }
     gPrevValid = true;
@@ -821,15 +1421,29 @@ void run() {
             keys::resync();
             gPrevValid = false;
             gTrailInit = false;  // restart the pitch trail clean
+            gTapeInit = false;   // short-history modes restart; the long-memory
+                                 // modes (strata/constellation/bloom) keep their
+                                 // page — that history is their whole point
             introShownAt = millis();
             continue;
         }
         if (act.listen) {
             demo::stop();  // same yield as settings
+            if (gBloomU16) {
+                // LISTEN needs the largest free block for its record buffer —
+                // bloom's field must never cost the player auto-key. It re-
+                // allocates and re-seeds on the next bloom frame.
+                free(gBloomU16);
+                free(gBloomV16);
+                gBloomU16 = gBloomV16 = nullptr;
+                gBloomInit = false;
+                gBloomNoMem = false;
+            }
             listen_screen::run(canvas);
             keys::resync();
             gPrevValid = false;
             gTrailInit = false;
+            gTapeInit = false;
             continue;
         }
 
