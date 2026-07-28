@@ -107,7 +107,7 @@ struct GlideConfig {
     uint8_t scopeMode = 1;    // 0=waveform scope, 1=pitch trail (default — the
                               // glide drawn over time, the instrument's whole
                               // point; watch a slide curve between the notes),
-                              // 2=tape, 3=cymatic, 4=bloom, 5=comb (the
+                              // 2=tape, 3=cymatic, 4=string, 5=comb (the
                               // generative scope modes — append-only, the
                               // value persists in NVS)
     uint8_t themeId = 0;      // ui/theme.cpp palette index (0 = phosphor).

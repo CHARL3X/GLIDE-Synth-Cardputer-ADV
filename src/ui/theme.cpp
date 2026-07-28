@@ -43,6 +43,11 @@ constexpr Palette kPalettes[] = {
     // REDSHIFT — deep-space red receding to black, hot gold annunciators
     {"redshift", 0x0800, 0x1821, 0x3882, 0xFDA9, 0x8B25, 0xFA85, 0x78E2,
      0xFF5B, 0x7A8A, 0xF800, 0x4C7F},
+    // PAPER — vellum's dimmer sibling: warm mid-gray stock at roughly half the
+    // luminance (vellum at full backlight was "bright as FUCK" — the user),
+    // near-black ink, deep-green annotations, pure-black hot
+    {"paper", 0xAD12, 0x9C90, 0x736C, 0x1A86, 0x5BEC, 0x1081, 0x4A27, 0x0000,
+     0x5288, 0x88A1, 0x2A4C},
 };
 constexpr int kCount = (int)(sizeof(kPalettes) / sizeof(kPalettes[0]));
 
