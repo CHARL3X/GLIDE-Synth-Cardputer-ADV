@@ -17,32 +17,37 @@ constexpr Palette kPalettes[] = {
     // PHOSPHOR — the original: black panel, phosphor green, amber annunciators
     {"phosphor", 0x0000, 0x10A2, 0x2104, 0xFD60, 0x8B00, 0x07E0, 0x03E0, 0xEF7D,
      0x6B4D, 0xF800, 0x42BF},
-    // INK — pure monochrome: silver trace, white-hot accents, print texture
-    {"ink", 0x0000, 0x10A2, 0x18E3, 0xFFFF, 0x8C71, 0xBDF7, 0x52AA, 0xFFFF,
-     0x632C, 0xF800, 0x7C94},
-    // AMBER — single-tube vintage terminal: everything burns warm
-    {"amber", 0x0820, 0x1880, 0x28E1, 0xFA82, 0x7981, 0xFD60, 0x7A80, 0xFF58,
-     0x7B08, 0xF800, 0xA40A},
-    // ICE — the blue CRT spec-sheet: glacier blues, white-blue hot
-    {"ice", 0x0001, 0x0863, 0x10C7, 0xBE5F, 0x5311, 0x6CDF, 0x29F0, 0xF7BF,
-     0x4AAF, 0xF800, 0x8E9C},
-    // VELLUM — dark ink on cream paper; the instrument as a printed page
-    {"vellum", 0xEF3A, 0xE6D8, 0xC5F4, 0x2367, 0x8D72, 0x20E3, 0x7BCD, 0x0000,
-     0x948F, 0xB102, 0x4B71},
-    // ULTRAVIOLET — electric purple, neon aqua accent, magenta backing:
-    // the futuristic one
-    {"ultraviolet", 0x0803, 0x1046, 0x28AA, 0x0739, 0x0BCD, 0xB27F, 0x5952,
-     0xF73F, 0x62B1, 0xF800, 0xFB39},
-    // ORCHID — hot pink phosphor with a cyan accent (the reference post's dish)
-    {"orchid", 0x0801, 0x1823, 0x3045, 0x4F3F, 0x2BD1, 0xFA7A, 0x892F, 0xFF3F,
-     0x7ACE, 0xF800, 0xB498},
-    // BLUEPRINT — white line-work on cyanotype blue; the instrument as an
-    // engineering drawing (gold annotations, cyan backing)
-    {"blueprint", 0x00C7, 0x094B, 0x1A30, 0xFE49, 0x8B85, 0xEF9F, 0x7CF9,
-     0xFFFF, 0x4B73, 0xF800, 0x6F3A},
-    // REDSHIFT — deep-space red receding to black, hot gold annunciators
-    {"redshift", 0x0800, 0x1821, 0x3882, 0xFDA9, 0x8B25, 0xFA85, 0x78E2,
-     0xFF5B, 0x7A8A, 0xF800, 0x4C7F},
+    // CASSETTE — the SUPERCASSETTE label: mint-green ink on black stock,
+    // hot-pink stripe accents, VHS cyan backing
+    {"cassette", 0x0000, 0x10A2, 0x19E7, 0xFA70, 0x894A, 0x3710, 0x13C9,
+     0xEFFE, 0x53CC, 0xF800, 0x4E9C},
+    // FUSION — the COMPULSIVE dossier: teal-mint wireframe vs blood-red data,
+    // black ground
+    {"fusion", 0x0000, 0x0862, 0x1965, 0xE1E5, 0x7903, 0x3E94, 0x1B6A,
+     0xE7FE, 0x4B8C, 0xF800, 0x95B5},
+    // ANAGLYPH — the CENTAURI plate: hot pink vs cyan-blue stereo pair; the
+    // STRING weave literally splits into its 3D channels here
+    {"anaglyph", 0x0000, 0x100A, 0x2887, 0x3D1F, 0x1AD1, 0xF9F4, 0x88EB,
+     0xFF3E, 0x7ACD, 0xF800, 0x6B7F},
+    // ULTRAVIOLET — cyberpunk vector-pack purple: electric violet, hot-pink
+    // accent, teal backing
+    {"ultraviolet", 0x0822, 0x1046, 0x28AA, 0xF96F, 0x88C8, 0x89FF, 0x4111,
+     0xF75F, 0x62B1, 0xF800, 0x2F3A},
+    // NOSTALGIA — the VHS box: neon pink-red on deep navy, terminal-green
+    // annotations
+    {"nostalgia", 0x0843, 0x10A5, 0x294A, 0x2F2B, 0x1BC6, 0xF96B, 0x88E7,
+     0xFEFC, 0x6331, 0xF800, 0x4DBF},
+    // ACID — the dither-pattern plate: chartreuse on deep moss, ember accent
+    {"acid", 0x0081, 0x0902, 0x19E5, 0xFC65, 0x8A63, 0xCF27, 0x5BC3,
+     0xF7FB, 0x4B68, 0xF800, 0x6659},
+    // MISSION — the launch-badge sheet: cream ink on warm umber, orange
+    // burn accent, gold backing
+    {"mission", 0x20C2, 0x2923, 0x41C5, 0xF2C3, 0x89C2, 0xE6D7, 0x8C0D,
+     0xFF9B, 0x7B4A, 0xF800, 0xE505},
+    // DRAFTING — the No.023 print: black ink on cool gray stock with an
+    // acid-green plate accent (the colorful light theme)
+    {"drafting", 0xDEB9, 0xCE58, 0xAD33, 0x9682, 0xB670, 0x18C3, 0x6B6C,
+     0x0000, 0x8C4F, 0xB102, 0x4B71},
     // PAPER — vellum's dimmer sibling: warm mid-gray stock at roughly half the
     // luminance (vellum at full backlight was "bright as FUCK" — the user),
     // near-black ink, deep-green annotations, pure-black hot

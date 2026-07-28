@@ -53,4 +53,17 @@ inline uint16_t blend(uint16_t a, uint16_t b, uint8_t t) {  // t=0 -> a
 // this; scale() remains for the phosphor-style glow math of the originals.
 inline uint16_t fade(uint16_t c, uint8_t f) { return blend(kBg, c, f); }
 
+// Ordered-dither fade for glow ramps. RGB565's 32/64/32 levels posterise a
+// smooth ramp into visible steps — worst exactly where a glow must be
+// smoothest, in the faint tail, which is why halos read as thick lines with
+// a hard outer edge. Perturbing the level by a Bayer threshold before
+// quantising trades a stable 4x4 pattern (invisible at this pixel pitch) for
+// ~16x the perceived level count. +-8 of 255 stays under one green step.
+inline uint16_t fadeDither(uint16_t c, int f, int x, int y) {
+    static const uint8_t kB[16] = {0, 8, 2, 10, 12, 4, 14, 6,
+                                   3, 11, 1, 9, 15, 7, 13, 5};
+    f += (int)kB[(y & 3) * 4 + (x & 3)] - 8;
+    return fade(c, (uint8_t)(f < 0 ? 0 : (f > 255 ? 255 : f)));
+}
+
 }  // namespace theme

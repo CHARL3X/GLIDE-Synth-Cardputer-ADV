@@ -416,21 +416,27 @@ void drawPitchTrail(M5Canvas& c) {
         // brightness rides loudness on a HIGH floor, so the green stays vivid and
         // punchy well across the screen and only dims as a note releases.
         const uint8_t bright = (uint8_t)((uint32_t)age * (180 + (uint32_t)lev * 75 / 255) / 255);
-        // fade (toward the theme ground), not scale (toward black): on the
-        // paper palettes scaling *raised* contrast as segments aged
-        const uint16_t body = theme::fade(baseCol, bright);
+        // fade (toward the theme ground) + ordered dither: fade keeps light
+        // palettes honest, the dither keeps the ramp's faint end from
+        // posterising into a hard halo edge (RGB565 has nowhere else to go)
+        const int px2 = kTraceX + x;
+        const uint16_t body = theme::fadeDither(baseCol, bright, px2, y);
         if (prevValid) {
             // green glow halo UNDER the body: a luminous tube, fat where loud and
             // recent, thinning to a single thread as it ages off to the left.
             if (bright > 150) {  // wider soft bloom on the brightest stretch
-                const uint16_t h2 = theme::fade(baseCol, (uint8_t)(bright / 4));
-                c.drawLine(kTraceX + x - 1, prevY - 2, kTraceX + x, y - 2, h2);
-                c.drawLine(kTraceX + x - 1, prevY + 2, kTraceX + x, y + 2, h2);
+                const int f2 = bright / 4;
+                c.drawLine(px2 - 1, prevY - 2, px2, y - 2,
+                           theme::fadeDither(baseCol, f2, px2, y - 2));
+                c.drawLine(px2 - 1, prevY + 2, px2, y + 2,
+                           theme::fadeDither(baseCol, f2, px2, y + 2));
             }
             if (bright > 50) {
-                const uint16_t h1 = theme::fade(baseCol, (uint8_t)((uint32_t)bright * 100 / 255));
-                c.drawLine(kTraceX + x - 1, prevY - 1, kTraceX + x, y - 1, h1);
-                c.drawLine(kTraceX + x - 1, prevY + 1, kTraceX + x, y + 1, h1);
+                const int f1 = (int)((uint32_t)bright * 100 / 255);
+                c.drawLine(px2 - 1, prevY - 1, px2, y - 1,
+                           theme::fadeDither(baseCol, f1, px2, y - 1));
+                c.drawLine(px2 - 1, prevY + 1, px2, y + 1,
+                           theme::fadeDither(baseCol, f1, px2, y + 1));
             }
             // the punchy green body
             c.drawLine(kTraceX + x - 1, prevY, kTraceX + x, y, body);
@@ -460,10 +466,10 @@ void drawPitchTrail(M5Canvas& c) {
         const float drv = cf.synth.drive;
         const float warm = drv <= 2.f ? 0.f : (drv >= 7.f ? 1.f : (drv - 2.f) / 5.f);
         const uint16_t core = theme::blend(theme::kIdle, theme::kAmber, (uint8_t)(warm * 130.f));
-        c.drawFastVLine(hx, prevY - 6, 13, theme::fade(theme::kGreen, 40));
-        c.drawFastVLine(hx, prevY - 4, 9, theme::fade(theme::kGreen, 120));
+        c.drawFastVLine(hx, prevY - 6, 13, theme::fadeDither(theme::kGreen, 40, hx, prevY - 6));
+        c.drawFastVLine(hx, prevY - 4, 9, theme::fadeDither(theme::kGreen, 120, hx, prevY - 4));
         c.drawFastVLine(hx, prevY - 2, 5, theme::kGreen);
-        c.fillCircle(hx, prevY, 2, theme::fade(theme::kGreen, 210));  // corona
+        c.fillCircle(hx, prevY, 2, theme::fadeDither(theme::kGreen, 210, hx, prevY));
         c.fillCircle(hx, prevY, 1, core);                              // white-hot point
     }
 }
@@ -625,6 +631,9 @@ void drawTape(M5Canvas& c) {
                                                               0.f, 255.f));
             if (!(tc.flags & 1) && tc.bl > 24)
                 base = theme::blend(base, theme::kSteel, (uint8_t)((tc.bl * 3) >> 2));
+            else if (!(tc.flags & 1) && tc.bri > 90)  // an open filter warms the
+                base = theme::blend(base, theme::kAmber,  // print toward accent
+                                    (uint8_t)((tc.bri - 90) * 2 / 3));
             if (head > 0.f) base = theme::blend(base, theme::kIdle, (uint8_t)(head * 110.f));
             const float q = b > 0.75f ? 1.f : b > 0.5f ? 0.78f : b > 0.28f ? 0.52f : 0.30f;
             const uint16_t col = theme::fade(base, (uint8_t)(q * 255.f));
@@ -732,9 +741,13 @@ void drawCymatic(M5Canvas& c) {
             const int oi = i + (int)((hash01(i, j, gVizFrame) - 0.5f) * 2.f * jmp);
             const int oj = j + (int)((hash01(j, i, gVizFrame) - 0.5f) * 2.f * jmp);
             if (oi < 0 || oi >= kTraceW || oj < 0 || oj >= kScopeH) continue;
-            const uint16_t col = boost > 0.28f
-                                     ? theme::kIdle
-                                     : (g > 0.85f ? theme::blend(base, theme::kIdle, 153) : base);
+            // two-tone sand: the line's core stays primary, its outer rim
+            // cools toward steel — depth without a third draw pass
+            const uint16_t col =
+                boost > 0.28f ? theme::kIdle
+                : g > 0.85f   ? theme::blend(base, theme::kIdle, 153)
+                : p < 0.35f   ? theme::blend(base, theme::kSteel, 102)
+                              : base;
             c.drawPixel(kTraceX + oi, kScopeY + oj,
                         theme::fade(col, (uint8_t)clampf((g + 0.15f) * 255.f, 0.f, 255.f)));
         }
@@ -796,11 +809,20 @@ void drawStringWave(M5Canvas& c) {
     for (int h = 0; h < 3; ++h)
         for (int p = 0; p < 5; ++p)
             cosTab[h][p] = cosf((float)(h + 1) * (gStrPhase + (p - 2) * 0.55f));
-    uint16_t base = f.bend ? theme::kAmber
-                           : theme::blend(theme::kGreen, theme::kIdle,
-                                          (uint8_t)(64 + lv * 115.f));
+    // chromatic exposures: earlier phases print cool (steel), later phases
+    // warm (accent), and the "now" exposure burns primary-to-hot — on the
+    // anaglyph palette this splits into a literal stereo pair, and every
+    // theme recolors the weave from its own roles instead of staying mono
+    uint16_t mid = f.bend ? theme::kAmber
+                          : theme::blend(theme::kGreen, theme::kIdle,
+                                         (uint8_t)(64 + lv * 115.f));
     if (!f.bend && f.blend01 > 0.1f)  // morph lean prints steel, same as tape
-        base = theme::blend(base, theme::kSteel, (uint8_t)(f.blend01 * 191.f));
+        mid = theme::blend(mid, theme::kSteel, (uint8_t)(f.blend01 * 191.f));
+    const uint16_t expCol[5] = {theme::kSteel,
+                                theme::blend(theme::kGreen, theme::kSteel, 128),
+                                theme::blend(mid, theme::kIdle, 76),
+                                theme::blend(theme::kGreen, theme::kAmber, 128),
+                                theme::kAmber};
     // per-column oscillators via rotation — no sin() in the hot loop
     float s[3], cR[3], sd[3], cd[3];
     for (int h = 0; h < 3; ++h) {
@@ -819,15 +841,13 @@ void drawStringWave(M5Canvas& c) {
             if (py < kScopeY + 1) py = kScopeY + 1;
             if (py > kScopeY + kScopeH - 2) py = kScopeY + kScopeH - 2;
             const int dp = p < 2 ? 2 - p : p - 2;  // distance from the "now" exposure
-            const float I = dp == 0 ? 1.f : dp == 1 ? 0.5f : 0.28f;
-            c.drawPixel(kTraceX + x, py,
-                        theme::fade(dp == 0 ? theme::blend(base, theme::kIdle, 76) : base,
-                                    (uint8_t)(I * 235.f)));
+            const float I = dp == 0 ? 1.f : dp == 1 ? 0.55f : 0.32f;
+            c.drawPixel(kTraceX + x, py, theme::fade(expCol[p], (uint8_t)(I * 235.f)));
             // dither-spray: grain bleeding off the curve, denser near the core
             const int sp = 1 + (int)(hash01(x, p, gVizFrame) * 3.f);
             const int py2 = py + ((hash3(x, p + 9, gVizFrame) & 1) ? sp : -sp);
             if (py2 > kScopeY && py2 < kScopeY + kScopeH - 1)
-                c.drawPixel(kTraceX + x, py2, theme::fade(base, (uint8_t)(I * 92.f)));
+                c.drawPixel(kTraceX + x, py2, theme::fade(expCol[p], (uint8_t)(I * 92.f)));
         }
         for (int h = 0; h < 3; ++h) {  // rotate the column oscillators
             const float ns = s[h] * cd[h] + cR[h] * sd[h];
@@ -999,17 +1019,18 @@ void drawScope(M5Canvas& c, uint32_t now) {
         if (a > wavePk) wavePk = a;
     }
     agcFeed(wavePk);
-    const uint16_t glow = theme::fade(theme::kGreen, 80);
     const uint16_t bright = theme::kGreen;
     // AGC gain: the raw mix sits far below full scale, so a fixed gain drew a
     // near-flat line — normalize so the trace fills the tube at any volume
     // (0.85 keeps full swings inside the tube around the lowered midline)
     const float gain = (kScopeH / 2 - 3) * 0.85f / gAgcTrack;
 
-    // afterglow: last frame's trace lingers like phosphor
+    // afterglow: last frame's trace lingers like phosphor (dithered so the
+    // faint ramp dissolves instead of ending at an edge)
     if (gPrevValid) {
         for (int x = 1; x < kTraceW; ++x)
-            c.drawLine(kTraceX + x - 1, gViz.wavePrev[x - 1], kTraceX + x, gViz.wavePrev[x], glow);
+            c.drawLine(kTraceX + x - 1, gViz.wavePrev[x - 1], kTraceX + x, gViz.wavePrev[x],
+                       theme::fadeDither(theme::kGreen, 80, kTraceX + x, gViz.wavePrev[x]));
     }
     int prevY = 0;
     for (int x = 0; x < kTraceW; ++x) {
