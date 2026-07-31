@@ -107,7 +107,8 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     return !stop;
 }
 
-void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) {
+void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
+                int scaleIdx, bool scaleChanged) {
     c.fillScreen(theme::kBg);
 
     char head[24];
@@ -119,7 +120,10 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) 
     c.drawString(head, 12, 8);
 
     char sub[28];
-    if (applied != g.rootPc)
+    if (scaleChanged)
+        snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[applied],
+                 dsp::kScales[scaleIdx].shortName);
+    else if (applied != g.rootPc)
         snprintf(sub, sizeof sub, "-> root %s (your scale)", dsp::kNoteNames[applied]);
     else
         snprintf(sub, sizeof sub, "root %s", dsp::kNoteNames[applied]);
@@ -131,7 +135,7 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot) 
         c.setTextColor(theme::kDim, theme::kBg);
         c.drawString("weak signal - fn+k to nudge", 12, 52);
     }
-    if (applied != prevRoot) {
+    if (applied != prevRoot || scaleChanged) {
         c.setFont(&fonts::Font0);
         c.setTextColor(theme::kAmber, theme::kBg);
         c.setTextDatum(top_right);
@@ -220,16 +224,25 @@ void run(M5Canvas& canvas) {
 
     auto& g = store::get();
     const int prevRoot = g.layout.rootSemis;
+    const int prevScale = g.layout.scaleIdx;
+    // Auto-scale: a vanilla scale swaps to its opposite-mode sibling so the
+    // home key is the song's true tonic; applyRootForScale under the POST-swap
+    // scale then returns that tonic as-is (exotic scales keep the relative
+    // shift, exactly as before).
+    const int newScale = dsp::applyScaleForKey(prevScale, ctx.guess.minor);
     const int applied = dsp::applyRootForScale(ctx.guess.rootPc, ctx.guess.minor,
-                                               g.layout.scaleIdx);
+                                               newScale);
+    const bool scaleChanged = newScale != prevScale;
+    g.layout.scaleIdx = (uint8_t)newScale;
     g.layout.rootSemis = (uint8_t)applied;
     store::markDirty();
-    Serial.printf("[listen] heard %s %s conf %.2f (%d rounds) -> root %s\n",
+    Serial.printf("[listen] heard %s %s conf %.2f (%d rounds) -> root %s (%s)\n",
                   dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
-                  ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied]);
+                  ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied],
+                  dsp::kScales[newScale].shortName);
 
     // Result card: ~1.6 s, backtick skips.
-    drawResult(canvas, ctx.guess, applied, prevRoot);
+    drawResult(canvas, ctx.guess, applied, prevRoot, newScale, scaleChanged);
     const uint32_t until = millis() + 1600;
     bool btPrev = backtickHeld();
     while ((int32_t)(until - millis()) > 0) {
@@ -238,7 +251,14 @@ void run(M5Canvas& canvas) {
         btPrev = bt;
         delay(16);
     }
-    hud::show("KEY", dsp::kNoteNames[applied], -1.f);
+    if (scaleChanged) {
+        char v[16];
+        snprintf(v, sizeof v, "%s %s", dsp::kNoteNames[applied],
+                 dsp::kScales[newScale].shortName);
+        hud::show("KEY", v, -1.f);
+    } else {
+        hud::show("KEY", dsp::kNoteNames[applied], -1.f);
+    }
 }
 
 }  // namespace listen_screen

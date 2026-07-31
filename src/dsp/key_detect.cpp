@@ -258,4 +258,14 @@ int applyRootForScale(int detectedPc, bool detectedMinor, int scaleIdx) {
     return detectedPc;
 }
 
+int applyScaleForKey(int scaleIdx, bool detectedMinor) {
+    switch (scaleIdx) {
+        case SC_MAJOR:
+        case SC_MINOR:    return detectedMinor ? SC_MINOR : SC_MAJOR;
+        case SC_MAJ_PENT:
+        case SC_MIN_PENT: return detectedMinor ? SC_MIN_PENT : SC_MAJ_PENT;
+        default:          return scaleIdx;  // exotic (or out of range): keep it
+    }
+}
+
 }  // namespace dsp

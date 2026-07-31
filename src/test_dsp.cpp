@@ -1328,6 +1328,48 @@ int main() {
               "C major song + major scale -> root C untouched");
         CHECK(applyRootForScale(9, true, SC_MIN_PENT) == 9,
               "A minor song + minor pent -> root A untouched");
+
+        // Auto-scale: the four vanilla scales swap to their opposite-mode
+        // sibling when the detected mode disagrees, so the home key can land
+        // on the song's true tonic. Exotic scales — a deliberate flavor
+        // choice — never move.
+        CHECK(applyScaleForKey(SC_MAJOR, true) == SC_MINOR,
+              "minor song swaps Major -> Natural minor");
+        CHECK(applyScaleForKey(SC_MINOR, false) == SC_MAJOR,
+              "major song swaps Natural minor -> Major");
+        CHECK(applyScaleForKey(SC_MAJ_PENT, true) == SC_MIN_PENT,
+              "minor song swaps Maj pent -> Min pent");
+        CHECK(applyScaleForKey(SC_MIN_PENT, false) == SC_MAJ_PENT,
+              "major song swaps Min pent -> Maj pent");
+        CHECK(applyScaleForKey(SC_MAJOR, false) == SC_MAJOR,
+              "matching mode leaves Major alone");
+        CHECK(applyScaleForKey(SC_MIN_PENT, true) == SC_MIN_PENT,
+              "matching mode leaves Min pent alone");
+        CHECK(applyScaleForKey(SC_BLUES, false) == SC_BLUES &&
+                  applyScaleForKey(SC_BLUES, true) == SC_BLUES,
+              "Blues never moves");
+        CHECK(applyScaleForKey(SC_DORIAN, false) == SC_DORIAN &&
+                  applyScaleForKey(SC_CHROM, true) == SC_CHROM &&
+                  applyScaleForKey(SC_HIRA, false) == SC_HIRA,
+              "exotic scales never move");
+        CHECK(applyScaleForKey(-1, true) == -1 &&
+                  applyScaleForKey(kScaleCount, false) == kScaleCount,
+              "out-of-range scale index passes through");
+        // Composition: for the vanilla scales, applyRootForScale under the
+        // POST-swap scale is the identity — the applied root IS the detected
+        // tonic, both modes, every pitch class.
+        {
+            const int vanilla[4] = {SC_MAJOR, SC_MINOR, SC_MAJ_PENT, SC_MIN_PENT};
+            bool tonicAlways = true;
+            for (int s = 0; s < 4; ++s)
+                for (int m = 0; m < 2; ++m)
+                    for (int pc = 0; pc < 12; ++pc)
+                        if (applyRootForScale(pc, m != 0,
+                                              applyScaleForKey(vanilla[s], m != 0)) != pc)
+                            tonicAlways = false;
+            CHECK(tonicAlways,
+                  "post-swap root is the true tonic for every vanilla scale");
+        }
     }
 
     if (failures == 0) {

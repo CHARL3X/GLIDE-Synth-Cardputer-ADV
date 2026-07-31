@@ -70,4 +70,13 @@ bool scaleIsMinorish(int scaleIdx);
 // root (+9), a minor song under a majorish scale the relative major (+3).
 int applyRootForScale(int detectedPc, bool detectedMinor, int scaleIdx);
 
+// The scale to actually play under a detected key: the four vanilla scales
+// swap to their opposite-mode sibling when the detected mode disagrees
+// (Major<->Natural minor, Maj pent<->Min pent), so the keyboard's home key
+// lands on the song's true tonic instead of its relative twin. Every other
+// scale — an exotic, deliberate flavor choice — is returned unchanged (and
+// keeps the relative-root behavior of applyRootForScale). Feed the result to
+// applyRootForScale: for swapped/matching scales it returns the tonic as-is.
+int applyScaleForKey(int scaleIdx, bool detectedMinor);
+
 }  // namespace dsp
