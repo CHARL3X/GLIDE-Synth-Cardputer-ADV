@@ -7,6 +7,16 @@
 **A pocket synth that slides between every note, and builds its own sounds.**
 Firmware for the M5Stack Cardputer, original (v1.1) and ADV. By **[CHARL3X](https://github.com/CHARL3X)**.
 
+<p align="center">
+  <a href="https://discord.gg/TEr9jCPyNn">
+    <img src="https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Join the GLIDE Discord">
+  </a>
+</p>
+
+<p align="center">
+  <em>Share the sounds your device rolled, get help, show what you've made.</em>
+</p>
+
 ### ▶️ See it in action
 
 <p align="center">
@@ -225,6 +235,8 @@ pio run -t upload
 Entry procedure: power OFF, hold G0, plug USB-C, release G0.
 
 No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single note gliding up an octave, played through the synth itself), play.
+
+Stuck, or want to share what you've made? **[Join the Discord](https://discord.gg/TEr9jCPyNn)** — patches travel as plain `.gpat` files, so trading sounds is just dragging an attachment onto your SD card.
 
 **Persistence and reset:** everything you touch (sounds, tweaks, octave, scale, tilt setup, jam rows) saves to flash moments after you change it and survives reboots *and* firmware updates, since NVS lives outside the app partition. Three ways back:
 - settings → *Sound reset*: current slot back to factory
