@@ -65,20 +65,10 @@ bool begin() {
 bool available() { return gAvail; }
 const char* lastError() { return gErr; }
 
+// The rules themselves are pure and host-tested — this is the seam that lets
+// env:native cover them (io/ can never be compiled on the host).
 void sanitize(const char* name, char* out, int cap) {
-    int n = 0;
-    const int lim = cap - 1 < kMaxNameLen ? cap - 1 : kMaxNameLen;
-    for (const char* c = name; *c && n < lim; ++c) {
-        char ch = *c;
-        if (ch >= 'A' && ch <= 'Z') ch = (char)(ch - 'A' + 'a');
-        const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
-                        ch == '-' || ch == '_';
-        if (ok) out[n++] = ch;
-    }
-    if (n == 0 && cap > 5) {  // never empty -> "patch"
-        out[n++] = 'p'; out[n++] = 'a'; out[n++] = 't'; out[n++] = 'c'; out[n++] = 'h';
-    }
-    out[n] = '\0';
+    store::sanitizePatchName(name, out, cap);
 }
 
 bool exists(const char* name) {

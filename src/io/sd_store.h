@@ -16,10 +16,11 @@
 #include <cstdint>
 
 #include "../storage/patch_codec.h"  // store::PatchData + the tagged codec
+#include "../storage/patch_name.h"   // the (pure, host-tested) naming rules
 
 namespace sdstore {
 
-constexpr int kMaxNameLen = 20;  // patch name, sans extension
+constexpr int kMaxNameLen = store::kMaxPatchNameLen;  // patch name, sans extension
 constexpr int kMaxList    = 96;  // browser listing cap (bounds RAM use)
 
 // Mount the card. Safe to call more than once. Returns available(). On failure
@@ -45,9 +46,10 @@ bool remove(const char* name);
 // Returns the count written (<= max, <= kMaxList), or -1 on error.
 int list(char names[][kMaxNameLen + 1], int max);
 
-// Reduce `name` to the on-card filename stem: [a-z0-9_-], lowercased, truncated
-// to kMaxNameLen, never empty (falls back to "patch"). For the rename preview
-// ("saves as: my-bass") and collision checks. out must be >= kMaxNameLen+1.
+// Reduce `name` to the on-card filename stem — CASE-PRESERVING, spaces allowed;
+// see store::sanitizePatchName in storage/patch_name.h for the exact rules. For
+// the rename preview ("saves as: Big Bass") and collision checks. out must be
+// >= kMaxNameLen+1.
 void sanitize(const char* name, char* out, int cap);
 
 // True if a patch file with this (sanitised) name already exists on the card.

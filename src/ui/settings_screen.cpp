@@ -676,10 +676,11 @@ void aSaveSd(int) {
     base[sizeof base - 1] = '\0';
     char finalName[24];
     chooseSaveName(base, gp, finalName, sizeof finalName);
-    strncpy(pd.name, finalName, sizeof pd.name - 1);
-    pd.name[sizeof pd.name - 1] = '\0';
+    // the name INSIDE the file is the filename stem, exactly — otherwise a long
+    // or punctuated live name saves as one thing and reads back as another
+    sdstore::sanitize(finalName, pd.name, sizeof pd.name);
     if (sdstore::save(finalName, pd)) {
-        strncpy(gLastSaved, finalName, sizeof gLastSaved - 1);
+        strncpy(gLastSaved, pd.name, sizeof gLastSaved - 1);
         gLastSaved[sizeof gLastSaved - 1] = '\0';
     } else {
         snprintf(gLastSaved, sizeof gLastSaved, "no SD");

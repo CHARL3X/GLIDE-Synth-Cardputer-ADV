@@ -254,12 +254,40 @@ void setLiveNameFromPatch(const PatchData& pd) {
 dsp::SynthParams gMorphSrc;
 char gMorphSrcName[24] = "";
 bool gMorphSrcValid = false;
+bool gMorphSrcDirty = false;  // the partner differs from what's in NVS -> re-persist
+                              // (gated so riding a knob never rewrites the blob)
+
+constexpr const char* kMorphKey = "msrc";  // the persisted morph partner
+// The live sound's IDENTITY. The sound itself rides the flat keys; its name and
+// its saved-or-not state can't be recovered from those (see the restore in
+// begin()), so they get keys of their own — ~3 NVS entries, name included.
+constexpr const char* kLiveNameKey = "lvnm";
+constexpr const char* kLiveCleanKey = "lvclean";
+
+void setMorphSrcName(const char* s) {
+    int i = 0;
+    for (; s[i] && i < (int)sizeof gMorphSrcName - 1; ++i) gMorphSrcName[i] = s[i];
+    gMorphSrcName[i] = '\0';
+}
+
+// Write a patch blob, and NEVER let it lose to the morph-partner blob. The
+// partner is a convenience (the blend comes back paired after a reboot); a saved
+// sound is the player's work. On a nearly-full shared partition the ~350 B patch
+// write is the first thing to fail — so reclaim the partner's 12 entries and try
+// once more before reporting failure.
+bool putPatchBytes(const char* key, const uint8_t* buf, size_t n) {
+    if (gPrefs.putBytes(key, buf, n) == n) return true;
+    if (!gPrefs.remove(kMorphKey)) return false;  // nothing to reclaim: genuinely full
+    gMorphSrcDirty = true;                        // re-persist once there is room again
+    Serial.println("[store] patch write retried after reclaiming the morph partner");
+    return gPrefs.putBytes(key, buf, n) == n;
+}
 
 void applyPatchData(const PatchData& pd) {
     gMorphSrc = gCfg.synth;  // the outgoing sound becomes the morph source
-    strncpy(gMorphSrcName, gLiveName, sizeof gMorphSrcName - 1);
-    gMorphSrcName[sizeof gMorphSrcName - 1] = '\0';
+    setMorphSrcName(gLiveName);
     gMorphSrcValid = true;
+    gMorphSrcDirty = true;   // ...and the persisted partner is now stale
 
     const float keepVol = gCfg.synth.masterVol;  // volume is the player's, not the sound's
     gCfg.synth = pd.synth;
@@ -362,7 +390,7 @@ bool writeOverride(int slot, const PatchData& pd) {
     }
     char key[3];
     patchKey(slot, key);
-    if (gPrefs.putBytes(key, buf, n) != n) {
+    if (!putPatchBytes(key, buf, n)) {  // reclaims the morph partner and retries
         noteSaveFailure(true);
         return false;
     }
@@ -408,6 +436,76 @@ void cacheSlotName(int slot) {
 }
 void cacheAllSlotNames() {
     for (int i = 0; i < dsp::kPatchCount; ++i) cacheSlotName(i);
+}
+
+// ---- morph partner persistence ---------------------------------------------
+// The morph partner — "the sound you were just on" — used to be RAM only, so
+// every reboot silently reset the tilt/G0 blend to GLIDE no matter what you were
+// actually blending against. It is a COMPLETE sound, not a slot reference
+// (applyPatchData snapshots gCfg.synth wholesale), which is what makes this
+// uniform: one blob restores it identically whether it came from a slot, an SD
+// file, an undo, or the third re-roll in a row. There is no case that half-works,
+// and it costs ONE extra sound — the current one already persists as flat keys.
+//
+// Same tagged codec as a slot (351 B, 12 NVS entries), under one key, rewritten
+// only when the partner actually changes. EXPENDABLE by design: see putPatchBytes.
+void persistMorphSource() {
+    if (!gMorphSrcDirty || !gNvsOk) return;
+    PatchData pd;
+    pd.synth = gMorphSrc;
+    pd.synth.bendCents = 0.f;  // store a sound, never a frozen bend/tilt frame
+    pd.synth.vibratoCents = 0.f;
+    pd.synth.cutoffModOct = 0.f;
+    pd.synth.volMod = 1.f;
+    int i = 0;
+    for (; gMorphSrcName[i] && i < (int)sizeof pd.name - 1; ++i) pd.name[i] = gMorphSrcName[i];
+    pd.name[i] = '\0';
+    uint8_t buf[512];
+    const size_t n = encodePatch(pd, buf, sizeof buf);
+    // A failure just leaves the flag set — the partner waits for room instead of
+    // competing, and never reports an error: nothing the player did has failed.
+    if (n != 0 && gPrefs.putBytes(kMorphKey, buf, n) == n) gMorphSrcDirty = false;
+}
+
+// Restore the persisted partner. false if there is none, or it won't decode.
+bool loadMorphSource() {
+    const size_t len = gPrefs.getBytesLength(kMorphKey);
+    if (len < 3 || len > 512) return false;
+    uint8_t buf[512];
+    if (gPrefs.getBytes(kMorphKey, buf, len) != len) return false;
+    PatchData pd;
+    pd.synth = dsp::factoryPatches()[0].synth;  // seed: fields the blob predates
+    if (!decodePatch(buf, len, pd)) return false;
+    gMorphSrc = pd.synth;
+    gMorphSrc.bendCents = 0.f;  // same hygiene applyPatchData gives a loaded sound
+    gMorphSrc.vibratoCents = 0.f;
+    gMorphSrc.cutoffModOct = 0.f;
+    gMorphSrc.volMod = 1.f;
+    gMorphSrc.voiceCount = (uint8_t)clampT<int>(gMorphSrc.voiceCount, 1, dsp::kMaxVoices);
+    if (pd.name[0]) {
+        setMorphSrcName(pd.name);
+    } else {  // nameless (a pre-naming blob): name it from its own character
+        dsp::GenPatch g;
+        g.synth = pd.synth;
+        g.tiltRoute = pd.tiltRoute;
+        g.tiltDepth = pd.tiltDepth;
+        g.tiltRouteB = pd.tiltRouteB;
+        g.tiltDepthB = pd.tiltDepthB;
+        dsp::soundNameForPatch(g, gMorphSrcName, sizeof gMorphSrcName);
+    }
+    gMorphSrcValid = true;
+    return true;
+}
+
+// Fall back to the other half of the signature pair (GLIDE <-> ACID) so the
+// blend sings from the very first boot, before any sound change has happened.
+void seedMorphFromPartner() {
+    const int partner = gCfg.currentPatch == 0 ? 1 : 0;
+    PatchData pp;
+    loadPatchData(partner, pp);
+    gMorphSrc = pp.synth;
+    setMorphSrcName(patchName(partner));
+    gMorphSrcValid = true;
 }
 
 // Push onto a capped stack; drop the oldest if full (shift down by one).
@@ -780,34 +878,43 @@ void begin() {
         gPrefs.putBool("trigv2", true);
     }
 
-    // Seed the morph partner so G0-morph sings from the very first boot: the
-    // other half of the signature pair (GLIDE <-> ACID). The first real sound
-    // change overwrites this with "the sound you were just on".
-    {
-        const int partner = gCfg.currentPatch == 0 ? 1 : 0;  // ACID, else GLIDE
-        PatchData pp;
-        loadPatchData(partner, pp);
-        gMorphSrc = pp.synth;
-        strncpy(gMorphSrcName, patchName(partner), sizeof gMorphSrcName - 1);
-        gMorphSrcName[sizeof gMorphSrcName - 1] = '\0';
-        gMorphSrcValid = true;
-    }
+    // The morph partner — "the sound you were just on", the other half of the
+    // tilt/G0 blend. Restored from NVS, so a reboot brings back the PAIR you were
+    // actually playing instead of silently re-pairing you with GLIDE. Absent or
+    // unreadable (first boot, wiped NVS, a partition too full to have taken it):
+    // fall back to the signature pair, exactly as this always did.
+    if (!loadMorphSource()) seedMorphFromPartner();
+    gMorphSrcDirty = false;  // in sync with NVS — or a fallback not worth a write
 
     // Name the live working sound (status bar / Save default) and cache the
-    // current slot's reference hash for liveDirty(). If the persisted live sound
-    // matches the current slot's stored sound, show the slot's name (so factory
-    // GLIDE reads "GLIDE", not a content name) and start un-dirty; otherwise the
-    // player powered off mid-edit — keep the canonical name and the edit reads as
-    // unsaved (correctly). Done once, here, after the live sound is loaded.
+    // current slot's reference hash for liveDirty(). Both are RESTORED, not
+    // re-derived: the live sound persists through flat, quantized NVS keys
+    // (attack in ms, detune in whole cents…) while a slot persists as exact
+    // floats, so the two round-trip to different hash buckets about half the
+    // time — 19 of the 24 continuous fields can lose a bucket. Deriving identity
+    // from that comparison is a coin flip, and when it lost it renamed the
+    // player's sound to a fresh content name ("crisp horn" -> "gleam-flare")
+    // and flagged a saved sound as unsaved. So store what we knew: the name we
+    // were showing, and whether it matched its slot. Devices that predate the
+    // keys (and first boot) fall back to the old derivation.
     {
         PatchData sp;
         loadPatchData(gCfg.currentPatch, sp);
         gCurSlotHash = patchDirtyHash(sp);
-        if (liveHash() == gCurSlotHash)
+        char nm[sizeof gLiveName] = {};
+        gPrefs.getString(kLiveNameKey, nm, sizeof nm);
+        if (nm[0]) {
+            setLiveName(nm);
+            // It was the slot's sound when we wrote it, so it still is — the
+            // quantization moved the bits, not the sound. Re-base the reference
+            // on what actually came back, or every boot would read as unsaved.
+            if (gPrefs.getBool(kLiveCleanKey, false)) gCurSlotHash = liveHash();
+        } else if (liveHash() == gCurSlotHash) {
             setLiveName(patchName(gCfg.currentPatch));
-        else
+        } else {
             refreshLiveName();  // canonical adj-noun from the NAME hash — liveHash
                                 // is the dirty hash now and must not seed names
+        }
     }
 }
 
@@ -894,6 +1001,13 @@ void persistNow() {
     gPrefs.putInt("trigdep", (int)(gCfg.triggerDepth * 100));
     gPrefs.putBool("triglat", gCfg.triggerLatch);
     gPrefs.putUShort("morphms", gCfg.morphMs);
+    // The live sound's name, and whether it was still its slot's sound. Written
+    // here so they land in the SAME flush as the sound they describe.
+    gPrefs.putString(kLiveNameKey, gLiveName);
+    gPrefs.putBool(kLiveCleanKey, liveHash() == gCurSlotHash);
+    persistMorphSource();  // last: the expendable blob never delays a real key,
+                           // and it lands in the SAME flush as the live sound, so
+                           // a power cut can only ever cost you a consistent pair
     gDirty = false;
 }
 
@@ -910,6 +1024,16 @@ void resetDefaults() {
     const bool seen = gCfg.seenIntro;  // don't re-show the intro on reset
     gCfg = GlideConfig();
     gCfg.seenIntro = seen;
+    gPrefs.remove(kMorphKey);  // the remembered blend partner is stored state too
+    gMorphSrcDirty = false;    // ...and must not be rewritten by the flush below
+    seedMorphFromPartner();    // back to the signature pair right now, not on the
+                               // next boot — the reset must LOOK like a reset
+    // The live name is identity, not config, so `gCfg = GlideConfig()` doesn't
+    // touch it: name the reset tone for what it is, and re-base the unsaved
+    // marker (the slots may still hold overrides — a settings-only reset keeps
+    // them, so differing from one is honest and must read as dirty).
+    setLiveName(dsp::factoryPatches()[gCfg.currentPatch].name);
+    refreshCurSlotHash();
     persistNow();
 }
 
@@ -970,7 +1094,7 @@ bool savePatch(int slot) {
     }
     char key[3];
     patchKey(slot, key);
-    const bool ok = gPrefs.putBytes(key, buf, n) == n;
+    const bool ok = putPatchBytes(key, buf, n);  // reclaims the morph partner and retries
     if (ok) {
         gOverrideMask |= (uint16_t)(1u << slot);
         gCfg.currentPatch = (uint8_t)slot;

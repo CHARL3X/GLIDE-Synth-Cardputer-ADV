@@ -117,8 +117,9 @@ struct GlideConfig {
 
     // ---- G0 trigger macro ---------------------------------------------------
     // Default is SYNTH MORPH, latched: tap G0 to become the previous sound,
-    // tap to come back. (The boot seeds a morph partner so this works out of
-    // the box.) Muffle — the original throw — is one menu step away.
+    // tap to come back. (The partner survives a reboot, and the boot seeds the
+    // GLIDE<->ACID pair when there is none, so this always works out of the
+    // box.) Muffle — the original throw — is one menu step away.
     uint8_t triggerAction = (uint8_t)TriggerAction::Morph;
     float   triggerDepth  = 0.70f;  // 0..1 — how hard the action drives
     bool    triggerLatch  = true;   // false = momentary (hold), true = tap-latch
@@ -204,12 +205,17 @@ void applyGenerated(const dsp::GenPatch& g);  // load a rolled/mutated sound ->
                                        // live working sound (keeps master vol;
                                        // not a slot until you save it)
 
-// ---- synth morph source (RAM only; performance state) --------------------
+// ---- synth morph source --------------------------------------------------
 // Every sound change (slot switch, roll, SD load, undo...) snapshots the
 // OUTGOING live sound as the morph source — "the sound you were just on".
 // G0's Morph action blends toward it; a switch plays the same blend in
-// reverse as its transition. Invalid until the first sound change of the
-// session, so morph can never reach for a sound that was never there.
+// reverse as its transition.
+// PERSISTED (NVS key "msrc", the same tagged codec as a slot): the partner is
+// half of what you are playing, and losing it on reboot silently re-paired
+// every sound with GLIDE. It is stored as a whole sound rather than a slot
+// reference, so a partner that came from a re-roll or an SD file restores
+// exactly like one that came from a slot. Boot falls back to the GLIDE<->ACID
+// pair when there is nothing stored, so this is never invalid in practice.
 const dsp::SynthParams& morphSource();
 const char* morphSourceName();
 bool morphSourceValid();

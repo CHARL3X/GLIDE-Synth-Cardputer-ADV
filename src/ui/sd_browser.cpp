@@ -9,6 +9,7 @@
 #include "../io/looper.h"
 #include "../io/sd_store.h"
 #include "../storage/glide_config.h"
+#include "../storage/patch_name.h"  // patchNameEqualsFold — FAT is case-insensitive
 #include "audition.h"
 #include "sound_card.h"
 #include "text_entry.h"
@@ -141,19 +142,43 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                         if (textentry::run(canvas, "RENAME SOUND", nm, sizeof nm)) {
                             store::PatchData pd;
                             if (loadFile(gNames[sel], pd)) {
-                                strncpy(pd.name, nm, sizeof pd.name - 1);
-                                pd.name[sizeof pd.name - 1] = '\0';
+                                // gNames[sel] is the card's ACTUAL spelling (it came
+                                // from the directory listing) — the only thing that
+                                // can tell us a case-only rename apart.
                                 char oldStem[sdstore::kMaxNameLen + 1];
                                 char newStem[sdstore::kMaxNameLen + 1];
-                                sdstore::sanitize(gNames[sel], oldStem, sizeof oldStem);
+                                strncpy(oldStem, gNames[sel], sizeof oldStem - 1);
+                                oldStem[sizeof oldStem - 1] = '\0';
                                 sdstore::sanitize(nm, newStem, sizeof newStem);
-                                if (sdstore::save(nm, pd)) {
-                                    if (strcmp(oldStem, newStem) != 0) sdstore::remove(gNames[sel]);
-                                    refresh();
-                                    snprintf(flash, sizeof flash, "renamed");
+                                // the name INSIDE the file is always the filename
+                                // stem, so library, status bar and slots agree
+                                strncpy(pd.name, newStem, sizeof pd.name - 1);
+                                pd.name[sizeof pd.name - 1] = '\0';
+
+                                // FAT lookup is case-INSENSITIVE: writing "Big" over
+                                // an existing "big" reuses the old directory entry,
+                                // so the card keeps spelling it "big" — and a plain
+                                // strcmp would then delete the file we just wrote.
+                                // Same file, different capitalisation: drop the old
+                                // entry FIRST so the create mints one spelled anew.
+                                const bool sameFile = store::patchNameEqualsFold(oldStem, newStem);
+                                const bool caseOnly = sameFile && strcmp(oldStem, newStem) != 0;
+                                bool ok = false, lost = false;
+                                if (caseOnly) {
+                                    sdstore::remove(oldStem);
+                                    ok = sdstore::save(newStem, pd);
+                                    // the window where the sound exists only in RAM:
+                                    // if the create failed, put it back under the
+                                    // old name rather than lose the player's work
+                                    if (!ok) lost = !sdstore::save(oldStem, pd);
                                 } else {
-                                    snprintf(flash, sizeof flash, "rename failed");
+                                    ok = sdstore::save(newStem, pd);
+                                    if (ok && !sameFile) sdstore::remove(oldStem);
                                 }
+                                refresh();
+                                snprintf(flash, sizeof flash, "%s",
+                                         ok ? "renamed"
+                                            : (lost ? "RENAME LOST FILE" : "rename failed"));
                                 flashUntil = now + 1300;
                             }
                         }

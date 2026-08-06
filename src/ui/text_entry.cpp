@@ -102,7 +102,8 @@ bool run(M5Canvas& canvas, const char* title, char* buf, int cap) {
         const int cx = 10 + canvas.textWidth(edit);
         if ((now / 400) & 1) canvas.fillRect(cx + 1, 45, 2, 16, theme::kAmber);
 
-        // sanitised filename preview — so "My Bass" -> "my-bass" is no surprise
+        // sanitised filename preview — capitals and spaces survive now, so this
+        // mostly echoes you back; it still shows what a dropped character does
         char stem[sdstore::kMaxNameLen + 1];
         sdstore::sanitize(edit, stem, sizeof stem);
         canvas.setFont(&fonts::Font0);
@@ -110,6 +111,9 @@ bool run(M5Canvas& canvas, const char* title, char* buf, int cap) {
         char prevLine[40];
         snprintf(prevLine, sizeof prevLine, "saves as: %s", stem);
         canvas.drawString(prevLine, 10, 78);
+        // the keyboard has no caps key — shift is a held modifier, and that is
+        // all you need now that case is preserved. Say so; nobody guesses it.
+        canvas.drawString("hold shift for CAPS   space ok", 10, 98);
 
         canvas.pushSprite(0, 0);
         delay(16);

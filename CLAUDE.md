@@ -95,6 +95,19 @@ Randomize/Mutate never trashes a sound the player liked. (Earlier builds filled
 ALL of w..p generatively at first boot; the `regen1` self-heal reclaims any blobs
 those left behind.)
 
+**The live sound's identity is STORED, never re-derived.** The live sound rides
+flat, quantized NVS keys (attack in ms, detune in *whole* cents) while a slot
+rides the exact-float blob, so the two do NOT round-trip to the same
+`patchHashFull` bucket — measured, 244/500 generated sounds and 5/10 factory
+patches differ, across 19 of the 24 continuous fields. Boot therefore restores
+the name (`lvnm`) and the saved-or-not state (`lvclean`) from NVS rather than
+inferring them from a live-vs-slot hash compare; inferring renamed a player's
+sound to a fresh content name and flagged saved sounds as unsaved. Absent keys
+fall back to the old derivation for devices that predate them. Never reintroduce
+a hash compare between the live sound and stored bytes — it is a coin flip.
+(Consequence, accepted: detune/auto-vibrato settle by <1 cent on the first
+reboot. Widening those keys needs a unit migration; it is sub-audible.)
+
 SD library (`io/sd_store.{h,cpp}` + `ui/sd_browser.{h,cpp}`): one `.gpat` file
 per patch, **the same tagged codec as NVS slots**, so cards and slots are
 byte-compatible. Optional + failure-visible: the instrument is fully playable
@@ -105,9 +118,17 @@ instrument depends on the card.
 `env:native` compiles `dsp/` only, so `sound_gen` IS host-tested but
 `glide_config` / `sd_store` / `sd_browser` are NOT. After touching those, keep
 the native tests green and review carefully — there's no on-device build here.
-(No `pio` in this environment; reproduce the native gate with
+(Reproduce the native gate without `pio` via
 `g++ -std=gnu++14 -DGLIDE_HOST_BUILD -I src src/test_dsp.cpp src/dsp/*.cpp
-src/storage/patch_codec.cpp`.)
+src/storage/patch_codec.cpp src/storage/patch_name.cpp`.)
+
+`storage/patch_name.{h,cpp}` is the other host-safe file: the SD patch-name
+rules (case-preserving, spaces allowed, trimmed, ≤20 chars). `sdstore::sanitize`
+is a one-line forwarder to it so `env:native` can test rules that `io/` can't
+host-build. NOTE: FAT lookup is case-INSENSITIVE — writing "Big" over an
+existing "big" keeps the OLD spelling on the card, so anything that deletes an
+old file after writing a new one must compare with `store::patchNameEqualsFold`,
+never `strcmp` (see the rename path in `ui/sd_browser.cpp`).
 
 ## Adding a sound parameter (the expansion-safe way)
 

@@ -16,6 +16,7 @@
 #include "dsp/sound_gen.h"
 #include "dsp/synth.h"
 #include "storage/patch_codec.h"  // host-safe codec (in env:native build_src_filter)
+#include "storage/patch_name.h"   // host-safe SD naming rules (same build filter)
 
 using namespace dsp;
 
@@ -1370,6 +1371,56 @@ int main() {
             CHECK(tonicAlways,
                   "post-swap root is the true tonic for every vanilla scale");
         }
+    }
+
+    // ---- SD patch-name rules -------------------------------------------
+    // Case and spaces are preserved (the card's FatFs has long filenames on);
+    // FAT's case-INSENSITIVE lookup is what patchNameEqualsFold guards.
+    {
+        char out[store::kMaxPatchNameLen + 1];
+        auto san = [&](const char* in) {
+            store::sanitizePatchName(in, out, sizeof out);
+            return (const char*)out;
+        };
+        CHECK(strcmp(san("Big Bass"), "Big Bass") == 0, "capitals and spaces survive");
+        CHECK(strcmp(san("warm-haze-3f2a"), "warm-haze-3f2a") == 0,
+              "the generated auto-names are unchanged by the new rules");
+        CHECK(strcmp(san("My/Bass?!"), "MyBass") == 0, "FAT-illegal chars are dropped");
+        CHECK(strcmp(san("Big / Bass"), "Big Bass") == 0,
+              "spaces AROUND a dropped char still separate the words");
+        CHECK(strcmp(san("   Pad   "), "Pad") == 0, "leading/trailing spaces trimmed");
+        CHECK(strcmp(san("Big   Bass"), "Big Bass") == 0, "runs of spaces collapse");
+        CHECK(strcmp(san(""), "patch") == 0, "empty name -> patch");
+        CHECK(strcmp(san("!!!"), "patch") == 0, "all-illegal name -> patch");
+        CHECK(strcmp(san("   "), "patch") == 0, "all-space name -> patch");
+        // truncation must never leave a name ending in a space: "12345678901234567890"
+        // is exactly the limit, so the 20-char boundary lands mid-word here
+        CHECK((int)strlen(san("ABCDEFGHIJKLMNOPQRSTUVWXYZ")) == store::kMaxPatchNameLen,
+              "over-long name truncates to the limit");
+        CHECK(strcmp(san("ABCDEFGHIJKLMNOPQRS TUV"), "ABCDEFGHIJKLMNOPQRS") == 0,
+              "truncation drops the trailing space rather than ending on one");
+        // idempotence: sanitize runs again inside makePath/exists/remove, so a
+        // second pass must be a no-op or a rename could chase its own tail
+        {
+            const char* cases[] = {"Big Bass", "My/Bass?!", "   Pad   ", "Big   Bass",
+                                   "", "ABCDEFGHIJKLMNOPQRS TUV", "warm-haze-3f2a"};
+            bool stable = true;
+            for (const char* c : cases) {
+                char once[store::kMaxPatchNameLen + 1], twice[store::kMaxPatchNameLen + 1];
+                store::sanitizePatchName(c, once, sizeof once);
+                store::sanitizePatchName(once, twice, sizeof twice);
+                if (strcmp(once, twice) != 0) stable = false;
+            }
+            CHECK(stable, "sanitizePatchName is idempotent");
+        }
+        // the fold compare: this is what stops a case-only rename from deleting
+        // the file it just wrote (ui/sd_browser.cpp)
+        CHECK(store::patchNameEqualsFold("big", "BIG"), "fold: big == BIG");
+        CHECK(store::patchNameEqualsFold("Big Bass", "big bass"), "fold: spaces fold too");
+        CHECK(store::patchNameEqualsFold("", ""), "fold: empty == empty");
+        CHECK(!store::patchNameEqualsFold("big", "bigg"), "fold: prefix is not equal");
+        CHECK(!store::patchNameEqualsFold("bigg", "big"), "fold: longer is not equal");
+        CHECK(!store::patchNameEqualsFold("big", "bag"), "fold: different names differ");
     }
 
     if (failures == 0) {
