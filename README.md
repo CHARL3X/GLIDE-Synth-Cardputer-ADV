@@ -20,10 +20,17 @@ Firmware for the M5Stack Cardputer, original (v1.1) and ADV. By **[CHARL3X](http
 ### ▶️ See it in action
 
 <p align="center">
-  <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">
-    <img src="https://img.youtube.com/vi/tIkbVL5VmnQ/hqdefault.jpg" alt="Watch GLIDE in action" width="300">
+  <a href="https://www.youtube.com/shorts/P5bjekoP5wY">
+    <img src="https://img.youtube.com/vi/P5bjekoP5wY/hqdefault.jpg" alt="Watch GLIDE in action" width="300">
   </a>
-  <br><em>▶️ <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">Watch the demo</a></em>
+  <br><em>▶️ <a href="https://www.youtube.com/shorts/P5bjekoP5wY">Watch the demo</a></em>
+</p>
+
+<p align="center">
+  <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">
+    <img src="https://img.youtube.com/vi/tIkbVL5VmnQ/hqdefault.jpg" alt="Watch more GLIDE" width="300">
+  </a>
+  <br><em>▶️ <a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">Watch another demo</a></em>
 </p>
 
 ### 🆕 Recently
