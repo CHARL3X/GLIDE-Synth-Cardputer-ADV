@@ -103,6 +103,7 @@ int gLaneDepth[4];
 
 uint64_t gPrevMask = 0;
 uint32_t gLastPollMs = 0;
+uint32_t gLastActivityMs = 0;  // most recent touch (idle-dim / screensaver timer)
 
 float gBendCents = 0.f;
 bool gHoldLatch = false;
@@ -816,6 +817,7 @@ void resync() {
     // through and their clocks stay live — re-arming would re-strike a chord
     // on return. progTick/jamTick self-resync if a frame was ever dropped.
     clearLeadNotes();  // drones, loop, and progression ride through settings
+    gLastActivityMs = millis();  // interacting with a modal is activity — return awake
 }
 
 void tickBacking(uint32_t nowMs) {
@@ -882,6 +884,12 @@ Actions poll(uint32_t nowMs) {
     const uint64_t released = gPrevMask & ~cur;
     const float dtMs = gLastPollMs ? (float)(nowMs - gLastPollMs) : 16.f;
     gLastPollMs = nowMs;
+
+    // Idle timer: any held key, any edge, or the G0 button is "a touch". Seed it
+    // on the first poll so a fresh boot doesn't read as already-idle. Set before
+    // the intro-card early-return so dismissing the card also counts as activity.
+    if (gLastActivityMs == 0) gLastActivityMs = nowMs ? nowMs : 1;
+    if (cur || pressed || released || gTriggerHeld) gLastActivityMs = nowMs ? nowMs : 1;
 
     // First-run intro card is modal: ANY key dismisses it, silently, and the
     // key is consumed — no note at full volume, no accidental exit, just gone.
@@ -1252,6 +1260,7 @@ bool holdLatched() { return gHoldLatch; }
 bool sustainActive() { return gSustainHeld || gHoldLatch; }
 bool tiltLatched() { return gTiltLatched; }
 bool triggerHeld() { return gTriggerHeld; }  // raw G0 level (trigger macro)
+uint32_t lastActivityMs() { return gLastActivityMs; }
 
 // ---- auto chord progression view state --------------------------------------
 bool progActive() {

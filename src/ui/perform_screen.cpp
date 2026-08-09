@@ -19,6 +19,7 @@
 #include "hud.h"
 #include "listen_screen.h"
 #include "morph.h"
+#include "screensaver.h"
 #include "settings_screen.h"
 #include "sound_card.h"
 #include "sound_viz.h"
@@ -1672,11 +1673,51 @@ void run() {
 
     uint32_t introShownAt = millis();
 
+    // ---- idle dimming / screensaver state ----------------------------------
+    // Hands-off time (keys::lastActivityMs) walks the screen through three stages:
+    // 0 full brightness, 1 dimmed, 2 the phosphor screensaver. The backlight
+    // eases between levels — dims slowly, wakes fast, so the first touch feels
+    // instant (and, since it went through keys::poll, it also plays the note).
+    // Plain locals: run() never returns, so they live for the session.
+    float briCur = (float)cfg::kBrightNormal;  // current backlight, ramped
+    int   briSet = -1;                         // last value pushed to the panel
+    int   idleStage = 0, prevIdleStage = 0;
+
     for (;;) {
         const uint32_t frameStart = millis();
         auto& cf = store::get();
 
         keys::Actions act = keys::poll(frameStart);
+
+        // Which idle stage are we in? (Guarded by the "Screen idle" setting.)
+        const uint32_t idle = frameStart - keys::lastActivityMs();
+        idleStage = 0;
+        if (cf.idleMode >= 1 && idle >= cfg::kIdleDimMs) idleStage = 1;
+        if (cf.idleMode >= 2 && idle >= cfg::kScreensaverMs) idleStage = 2;
+        // Demo mode is an unattended showcase — keep the screen lit and playing
+        // for it. (A plain loop/jam still lets the screen rest: the screensaver
+        // breathes with it, which is half the point.)
+        if (demo::active()) idleStage = 0;
+        if (idleStage != prevIdleStage) {
+            if (idleStage == 2) screensaver::reset();
+            if (prevIdleStage == 2) {  // waking from the saver: restart the short-
+                gPrevValid = false;    // history scope modes clean, like leaving settings
+                gTrailInit = false;
+                gTapeInit = false;
+            }
+            prevIdleStage = idleStage;
+        }
+        // ease the backlight toward the stage's level (wake fast, dim slowly)
+        const float briTarget = idleStage == 0   ? (float)cfg::kBrightNormal
+                                : idleStage == 1 ? (float)cfg::kBrightDim
+                                                 : (float)cfg::kBrightSaver;
+        if (briCur < briTarget) briCur = fminf(briCur + 24.f, briTarget);
+        else if (briCur > briTarget) briCur = fmaxf(briCur - 4.f, briTarget);
+        const int bi = (int)(briCur + 0.5f);
+        if (bi != briSet) {
+            M5Cardputer.Display.setBrightness((uint8_t)bi);
+            briSet = bi;
+        }
         looper::tick(frameStart);  // schedule due loop-playback events
         if (demo::pending()) demo::start(frameStart);  // armed from settings
         if (demo::active() && act.gridPressed) demo::stop();  // the takeover
@@ -1691,6 +1732,11 @@ void run() {
             ESP.restart();
         }
         if (act.openSettings) {
+            // a modal owns its own loop — hand it a full-brightness screen, and
+            // reset the ramp so returning to perform doesn't flicker back up
+            M5Cardputer.Display.setBrightness(cfg::kBrightNormal);
+            briCur = (float)cfg::kBrightNormal;
+            briSet = cfg::kBrightNormal;
             demo::stop();  // the bed survives; the melody yields to the menus
             settings::run(canvas);
             keys::resync();
@@ -1703,6 +1749,9 @@ void run() {
             continue;
         }
         if (act.listen) {
+            M5Cardputer.Display.setBrightness(cfg::kBrightNormal);
+            briCur = (float)cfg::kBrightNormal;
+            briSet = cfg::kBrightNormal;
             demo::stop();  // same yield as settings
             listen_screen::run(canvas);
             keys::resync();
@@ -1763,6 +1812,17 @@ void run() {
         }
 
         // ---- draw ----------------------------------------------------------
+        // Deep idle: the screensaver takes the whole frame. Everything above
+        // still ran (audio, tilt, LED, the loop/jam clocks), so a backing keeps
+        // playing under it — only the drawing is replaced.
+        if (idleStage >= 2) {
+            screensaver::draw(canvas, frameStart);
+            canvas.pushSprite(0, 0);
+            const uint32_t spent = millis() - frameStart;
+            if (spent < cfg::kFrameMs) delay(cfg::kFrameMs - spent);
+            continue;
+        }
+
         canvas.fillScreen(theme::kBg);
         drawStatus(canvas);
         drawScope(canvas, frameStart);

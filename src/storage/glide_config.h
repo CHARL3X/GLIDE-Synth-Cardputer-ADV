@@ -112,6 +112,9 @@ struct GlideConfig {
                               // scope modes — append-only, persists in NVS)
     uint8_t themeId = 0;      // ui/theme.cpp palette index (0 = phosphor).
                               // Append-only for the same reason as scopeMode.
+    uint8_t idleMode = 2;     // hands-off screen behaviour: 0=off (always full
+                              // brightness), 1=dim only, 2=dim then a phosphor
+                              // screensaver (default). Timings + levels in config.h.
     bool bootSound = true;
     bool seenIntro = false;
 

@@ -44,6 +44,13 @@ bool sustainActive();
 bool tiltLatched();  // mod-latch: tilt values frozen (long-press enter)
 bool triggerHeld();  // raw G0 boot-button level (the assignable trigger macro)
 
+// millis() timestamp of the most recent player touch — any key down/up edge, any
+// held key, or the G0 button. The perform screen's idle-dim / screensaver timer
+// reads this; a fresh touch always resets it (and plays the note). Seeded on the
+// first poll and refreshed when returning from a blocking screen (resync), so it
+// is never stale.
+uint32_t lastActivityMs();
+
 // auto chord progression (jam motion = progression): is the mode live, how
 // many chord steps spelled, which is playing now (-1 = idle), each step's
 // root-note label, and the grid cell of the chord sounding now — the perform

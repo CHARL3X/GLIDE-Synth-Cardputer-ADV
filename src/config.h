@@ -33,6 +33,21 @@ constexpr uint32_t kIntroMs   = 6000;  // first-run gesture card auto-dismiss
 constexpr uint32_t kRepeatDelayMs = 220;  // key auto-repeat (DAS)
 constexpr uint32_t kRepeatRateMs  = 60;   // key auto-repeat (ARR)
 
+// ---- idle dimming & screensaver ---------------------------------------
+// The instrument watches hands-off time (any key or the G0 button resets it).
+// After kIdleDimMs the backlight eases down to save the panel and battery;
+// after kScreensaverMs a phosphor screensaver takes the screen (mostly black,
+// a resting oscilloscope tracing a slow Lissajous). ANY touch snaps it back
+// and plays the note — the first key both wakes and sounds, never a wasted
+// press. The whole behaviour is a setting ("Screen idle": off / dim / saver);
+// these are the timings and the three backlight levels it steps between.
+// kBrightNormal is also the boot brightness (main.cpp) so "full" is one number.
+constexpr uint8_t  kBrightNormal   = 120;    // the playing backlight
+constexpr uint8_t  kBrightDim      = 40;     // stage 1: dimmed, UI still legible
+constexpr uint8_t  kBrightSaver    = 55;     // stage 2: enough for the trace on black
+constexpr uint32_t kIdleDimMs      = 30000;  // 30 s hands-off -> dim
+constexpr uint32_t kScreensaverMs  = 90000;  // 90 s hands-off -> screensaver
+
 // ---- storage ----------------------------------------------------------
 constexpr uint32_t kPersistDebounceMs = 500;  // NVS write debounce after edits
 constexpr const char* kNvsNamespace = "glide";

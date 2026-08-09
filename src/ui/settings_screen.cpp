@@ -398,6 +398,18 @@ void aTheme(int d) {
     theme::setTheme(g.themeId);  // live — the menu restyles under your finger
 }
 
+// Hands-off screen behaviour. off = always full brightness; dim = ease the
+// backlight down after a spell; saver = dim, then a phosphor screensaver. Any
+// key wakes it and plays. Timings/levels live in config.h.
+void fIdle(char* o, int c) {
+    static const char* kNames[3] = {"off", "dim", "dim + saver"};
+    snprintf(o, c, "%s", kNames[store::get().idleMode < 3 ? store::get().idleMode : 0]);
+}
+void aIdle(int d) {
+    auto& g = store::get();
+    g.idleMode = (uint8_t)(((int)g.idleMode + d + 3) % 3);
+}
+
 void fBoot(char* o, int c) { snprintf(o, c, "%s", store::get().bootSound ? "on" : "off"); }
 void aBoot(int) { store::get().bootSound = !store::get().bootSound; }
 
@@ -812,6 +824,7 @@ const Item kItems[] = {
     {"Demo mode", fDemo, aDemo},
     {"Display", fScopeMode, aScopeMode},
     {"Theme", fTheme, aTheme},
+    {"Screen idle", fIdle, aIdle},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
     {"How to play", fHelp, aHelp},

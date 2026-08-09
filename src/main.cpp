@@ -60,7 +60,7 @@ void setup() {
     M5Cardputer.begin(mcfg, true);
 
     M5Cardputer.Display.setRotation(1);
-    M5Cardputer.Display.setBrightness(120);
+    M5Cardputer.Display.setBrightness(cfg::kBrightNormal);
     M5Cardputer.Display.fillScreen(theme::kBg);
 
     Serial.begin(115200);

@@ -849,6 +849,7 @@ void begin() {
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
     gCfg.scopeMode = clampT<int>(gPrefs.getUChar("scopemd", d.scopeMode), 0, 7);
     gCfg.themeId = clampT<int>(gPrefs.getUChar("themeid", d.themeId), 0, 9);
+    gCfg.idleMode = clampT<int>(gPrefs.getUChar("idlemd", d.idleMode), 0, 2);
     // one-time: pitch trail became the default — adopt it even on devices that
     // saved the old waveform default before the change (runs once; the player's
     // later choice still sticks).
@@ -995,6 +996,7 @@ void persistNow() {
     gPrefs.putUChar("bendrg", gCfg.bendRange);
     gPrefs.putUChar("scopemd", gCfg.scopeMode);
     gPrefs.putUChar("themeid", gCfg.themeId);
+    gPrefs.putUChar("idlemd", gCfg.idleMode);
     gPrefs.putBool("boot", gCfg.bootSound);
     gPrefs.putBool("intro", gCfg.seenIntro);
     gPrefs.putUChar("trigact", gCfg.triggerAction);
