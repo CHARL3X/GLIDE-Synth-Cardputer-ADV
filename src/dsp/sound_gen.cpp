@@ -770,6 +770,22 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
         }
     }
 
+    // Second-wave polish (gated on the new archetypes so the v2 pool stays
+    // bit-exact — this runs no RNG). The spice flip above can turn a PURE-wave
+    // patch (sine/triangle: no partials above the fundamental) into a highpass
+    // or bandpass whose passband sits entirely above the note — measured at
+    // ~-40 dB, i.e. a dead roll, the cardinal sin. Harmonic waves survive the
+    // flip and keep it; pure ones revert to the lowpass their window painted.
+    // Wobble refuses HP outright: the sub carry IS its character.
+    if ((int)a >= kArchetypeCountV2) {
+        const bool pure = s.wave == Waveform::Sine || s.wave == Waveform::Triangle;
+        const bool thin = s.filterMode == (uint8_t)FilterMode::HP ||
+                          s.filterMode == (uint8_t)FilterMode::BP;
+        if (pure && thin) s.filterMode = (uint8_t)FilterMode::LP;
+        if (a == Archetype::Wobble && s.filterMode == (uint8_t)FilterMode::HP)
+            s.filterMode = (uint8_t)FilterMode::LP;
+    }
+
     sanitizePatch(g);
     return g;
 }

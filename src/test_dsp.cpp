@@ -913,6 +913,29 @@ int main() {
             for (int a = 0; a < (int)Archetype::Count; ++a)
                 CHECK(archSeen3[a], "every archetype (second wave included) appears in the V3 pool");
 
+            // a held note must be AUDIBLE on every second-wave roll — the spice
+            // twist once flipped pure-wave patches into an HP/BP whose passband
+            // sat above the note's only partial (~-40 dB: a dead roll). The
+            // pure-wave polish reverts those; this floor keeps them reverted.
+            Synth sa;
+            sa.init(kSr);
+            float hbuf[128];
+            auto heldPeak = [&](const GenPatch& gg) {
+                sa.setParams(gg.synth);
+                sa.handleEvent(NoteEvent::make(NoteEvent::On, 10, 0, false, 57.f));
+                float pk = 0.f;
+                for (int b = 0; b < 250; ++b) {  // one full second
+                    sa.render(hbuf, 128);
+                    for (int i = 0; i < 128; ++i) {
+                        const float v = fabsf(hbuf[i]);
+                        if (v > pk) pk = v;
+                    }
+                }
+                sa.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                for (int b = 0; b < 40; ++b) sa.render(hbuf, 128);
+                return pk;
+            };
+
             // each second-wave archetype holds its character AND lands in the
             // frozen naming family its windows were designed for — that mapping
             // is the relabel-safety contract (classifySound never changes)
@@ -927,6 +950,7 @@ int main() {
                     CHECK(s.autoVibCents >= 4.f, "whistle sings");
                     CHECK(s.sustain >= 0.75f, "whistle holds its tone");
                     CHECK(classifySound(s) == Archetype::Lead, "whistle names from the lead bank");
+                    CHECK(heldPeak(g) >= 0.04f, "a whistle roll is never near-silent");
                 }
                 {
                     const GenPatch g = generateSound(sd, Archetype::Organ);
@@ -943,6 +967,7 @@ int main() {
                     const Archetype c = classifySound(s);
                     CHECK(c == Archetype::Wild || c == Archetype::Bass,
                           "organ names from the choir/cavern or depth banks");
+                    CHECK(heldPeak(g) >= 0.04f, "an organ roll is never near-silent");
                 }
                 {
                     const GenPatch g = generateSound(sd, Archetype::Keys);
@@ -951,6 +976,7 @@ int main() {
                           "keys hold the middle sustain no pluck reaches");
                     CHECK(s.fenvOct >= 0.5f, "keys keep the tine bark");
                     CHECK(classifySound(s) == Archetype::Wild, "keys name from the generic bank");
+                    CHECK(heldPeak(g) >= 0.04f, "a keys roll is never near-silent");
                 }
                 {
                     const GenPatch g = generateSound(sd, Archetype::Wobble);
@@ -965,6 +991,9 @@ int main() {
                     CHECK(wob, "wobble routes a deep synced LFO into the cutoff");
                     CHECK(s.subLevel >= 0.5f, "wobble carries sub weight");
                     CHECK(classifySound(s) == Archetype::Bass, "wobble names from the bass bank");
+                    CHECK(s.filterMode != (uint8_t)FilterMode::HP,
+                          "wobble never loses its sub to a highpass");
+                    CHECK(heldPeak(g) >= 0.04f, "a wobble roll is never near-silent");
                 }
                 {
                     const GenPatch g = generateSound(sd, Archetype::Strings);
@@ -979,6 +1008,7 @@ int main() {
                     soundNameForPatch(g, nm3, sizeof nm3);
                     CHECK(strlen(nm3) > 0 && strchr(nm3, '-') != nullptr,
                           "a second-wave roll names like any other");
+                    CHECK(heldPeak(g) >= 0.04f, "a strings roll is never near-silent");
                 }
             }
 

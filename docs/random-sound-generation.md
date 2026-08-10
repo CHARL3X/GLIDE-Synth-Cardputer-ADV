@@ -186,6 +186,16 @@ adds `generateSoundV3(seed)` (the same paint engine over an expanded
   fresh seed (first boot, wiped NVS, Re-roll bank) — never on update.
 - **Randomize** uses the expanded pool immediately on every device (fresh
   hardware seed each press; no continuity to preserve).
+- **A pre-flight audit caught a dead-roll path before it shipped**: rendering
+  120 held rolls per new archetype found near-silent patches (peaks down to
+  0.001) — the *spice* twist flipping a pure-wave (sine/triangle) patch into a
+  highpass/bandpass whose passband sits above the note's only partial. A
+  second-wave-only polish (gated on the new archetypes, no RNG, so the v2 pool
+  stays bit-exact) reverts that flip on pure waves — and refuses HP on wobble,
+  whose sub carry is the whole point. Harmonic waves keep their spice. The
+  measured floor went from 0.001 to 0.05+, and a held-note audibility test
+  (peak ≥ 0.04 across forced rolls of all five) keeps it there. The v2 pool
+  retains a rarer, milder version of this quirk; it is frozen and stays.
 - **Naming can't relabel anyone**: `classifySound` and every word table are
   untouched. Each second-wave window is shaped to land in a frozen family
   whose words read right — whistle sings (autoVib ≥ 4) so it names from the
