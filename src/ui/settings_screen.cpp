@@ -596,7 +596,9 @@ void fRandomize(char* o, int c) { snprintf(o, c, "surprise me%c", kLRtag); }
 void aRandomize(int) {
     store::historyCheckpoint();
     keys::soundSwitchBegin();  // over a jam: freeze the backing so the roll is solo-only
-    store::applyGenerated(dsp::generateSound(esp_random()));
+    store::applyGenerated(dsp::generateSoundV3(esp_random()));  // the expanded
+    // archetype pool — Randomize always rolls with the newest engine (a fresh
+    // hardware seed each press: no stored-seed continuity to preserve)
     audition::start();
     soundcard::show();  // see the roll while you hear it
 }

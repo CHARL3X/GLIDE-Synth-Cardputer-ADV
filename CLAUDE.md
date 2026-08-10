@@ -72,6 +72,19 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
   pitch-mod depth ≤ ~1 semitone, always-glide ≤ 0.16 s so notes LAND…). The
   test suite asserts the variety, the guardrails, and that every roll lands
   the audition lick's final pitch.
+- `generateSoundV3(seed)` is the EXPANDED pool (genver 3): the same paint engine
+  over `archetypeForSeedV3`, which adds the second wave — whistle/organ/keys/
+  wobble/strings — at ~a quarter of the rolls. `generateSound(seed)` (the v2
+  nine-archetype pool) is now FROZEN exactly like the legacy engine, pinned by
+  golden hashes: genver-2 devices re-derive their o/p slots through it every
+  boot, so its output — `archetypeForSeed`, the nine v2 paint windows, and
+  `sanitizePatch` — must never drift. New archetypes go in new switch cases +
+  the V3 table only. The five second-wave paint windows are deliberately shaped
+  so the FROZEN `classifySound` names them from existing families (whistle→lead
+  words, wobble→bass, organ→wild/bass, keys→wild, strings→pad/lead) — the
+  reserved `kFamNouns` rows for them are unreachable until a future *versioned*
+  classifier exists; extending `classifySound` itself would relabel players'
+  re-derived slot names.
 - `classifySound` + `soundNameForPatch` name a sound from its own character
   (family noun + timbre adjective; word choice from `patchHash` bits). The old
   `soundName(seed)` word tables are FROZEN: genver-1 devices re-derive their
@@ -89,10 +102,11 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
 
 Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS) plus a `genver`
 flag: 1 (or absent) = the o/p slots regenerate with `generateSoundLegacy`,
-2 = with the archetype engine. `genver` moves to 2 ONLY when the seed itself is
-new (first boot, wiped NVS, or the player's own Re-roll bank) — never as a side
-effect of a firmware update. The Randomize button always uses the new engine
-(fresh random seed each press; no continuity to preserve). The bank is
+2 = with the frozen v2 archetype engine (`generateSound`), 3 = with the
+expanded pool (`generateSoundV3`). `genver` moves forward ONLY when the seed
+itself is new (first boot, wiped NVS, or the player's own Re-roll bank) — never
+as a side effect of a firmware update. The Randomize button always uses the
+newest engine (fresh random seed each press; no continuity to preserve). The bank is
 **curated**, not random: slots q..i are fixed factory sounds (q=GLIDE, w=ACID,
 e..i = presets baked from the player's SD `.gpat` files — see `dsp/patches.cpp`),
 and only the last two slots (o,p, i.e. `slot >= dsp::kFirstGenSlot`) are
@@ -127,8 +141,12 @@ instrument depends on the card.
 `glide_config` / `sd_store` / `sd_browser` are NOT. After touching those, keep
 the native tests green and review carefully — there's no on-device build here.
 (Reproduce the native gate without `pio` via
-`g++ -std=gnu++14 -DGLIDE_HOST_BUILD -I src src/test_dsp.cpp src/dsp/*.cpp
-src/storage/patch_codec.cpp src/storage/patch_name.cpp`.)
+`g++ -std=gnu++14 -O2 -msse2 -mfpmath=sse -DGLIDE_HOST_BUILD -I src
+src/test_dsp.cpp src/dsp/*.cpp src/storage/patch_codec.cpp
+src/storage/patch_name.cpp`. The SSE flags are load-bearing: the pio mingw
+toolchain is 32-bit, and its default x87 excess precision truncates one
+borderline hash-quantise product differently than the device FPU, failing a
+frozen-generator golden.)
 
 `storage/patch_name.{h,cpp}` is the other host-safe file: the SD patch-name
 rules (case-preserving, spaces allowed, trimmed, ≤20 chars). `sdstore::sanitize`

@@ -137,6 +137,72 @@ occurs (plucks, bells, pads, sub-basses, acid sweeps, brass swells, every
 waveform, every archetype across a 400-seed sweep), that every guardrail holds
 on every roll, and that the legacy generator's output is frozen.
 
+## The second wave (2026-08): five more characters, zero disturbed sounds
+
+After enough rolling, the nine families start to feel *known* — and several
+timbres the engine can clearly make were simply unreachable: no archetype
+could roll a **sustained pure wave** (Lead only draws saw/square/fat/pulse;
+Bell is percussive), an **instant-on held tone with no filter bloom**, a held
+middle sustain between pluck and pad, or **deep tempo-synced filter movement**.
+The expanded (genver-3) pool adds five archetypes aimed at exactly those holes:
+
+- **Whistle** — the slide-whistle / theremin voice, the instrument's original
+  concept made rollable: sine/triangle, env-gated breath noise, singing
+  vibrato (4–12 cents), glide-forward (65% always-glide, capped so notes still
+  LAND), tilt on vibrato like a theremin hand.
+- **Organ** — drawbars under a rotary: square/sine over a 0.4–0.8 sub (the
+  16'), instant attack, full sustain, **fenvOct stays 0** (the one envelope
+  shape nothing else rolls), LFO1→Amp rotary at spin (5–7 Hz) or chorale
+  (0.6–1.3 Hz) speed, tilt on volume — the swell pedal.
+- **Keys** — the tine piano: triangle/sine with a 0.5–1.5-oct filter bark, a
+  held 0.28–0.48 sustain no pluck reaches, wobbling-speaker tremolo, one roll
+  in five driven dirty.
+- **Wobble** — dub bass: low cutoff (500–1100 Hz), heavy sub, and LFO1
+  **tempo-synced** into the cutoff at 0.25–0.5 depth (±1–2 octaves), so the
+  filter pumps on the same clock the delay and progression share. Square LFO
+  = the gate chop. Tilt is the manual wub.
+- **Strings** — the bowed ensemble: fat-saw with 12–28 cents detune, 0.10–0.26 s
+  attack (bowed, not swelled — quicker than Pad's 0.25+), section vibrato,
+  chorus 0.45–0.7 on nine rolls in ten, occasionally a thin HP chamber voicing.
+
+Weights: a 32-entry table keeps the core nine ~three-quarters of rolls (pads
+still the most common), so the bank's identity holds and the second wave stays
+a discovery, not a takeover.
+
+### The freeze mechanics (how this shipped without changing anyone's sound)
+
+The seed contract now has *two* frozen engines. genver-2 devices re-derive
+their o/p slots through `generateSound(seed)` on every load, so the update
+adds `generateSoundV3(seed)` (the same paint engine over an expanded
+`archetypeForSeedV3` table) rather than touching the v2 path:
+
+- `archetypeForSeed`, the nine v2 paint windows, and `sanitizePatch` are
+  byte-identical — and now **pinned by golden hashes** in `test_dsp.cpp`,
+  exactly like the legacy engine (they previously weren't; the expansion
+  closed that gap). The new archetypes live in new switch cases the v2
+  selection can never reach.
+- storage gates three ways: genver 1 → `generateSoundLegacy`, 2 →
+  `generateSound`, ≥3 → `generateSoundV3`. genver moves to 3 only with a
+  fresh seed (first boot, wiped NVS, Re-roll bank) — never on update.
+- **Randomize** uses the expanded pool immediately on every device (fresh
+  hardware seed each press; no continuity to preserve).
+- **Naming can't relabel anyone**: `classifySound` and every word table are
+  untouched. Each second-wave window is shaped to land in a frozen family
+  whose words read right — whistle sings (autoVib ≥ 4) so it names from the
+  lead bank ("golden-voice", "misty-siren"); wobble carries sub so it names
+  as bass ("deep-rumble"); organ holds under 2.8 kHz and lands in the
+  choir/cavern (or depth) banks; keys name from the generic bank; strings
+  from pad or lead. `kFamNouns` gained five *reserved* rows (append-only,
+  unreachable) against a future versioned classifier. The native tests assert
+  the whole mapping per archetype, plus determinism, every guardrail, bounded
+  rendering, and the audition-lick pitch landing across the V3 pool.
+
+(Shipping note: pinning the v2 goldens surfaced a host-toolchain float trap —
+the 32-bit mingw x87 default carries excess precision through one
+hash-quantise product (`0.35f * 100`) and truncates 34 where the device FPU
+rounds 35. `env:native` now pins `-msse2 -mfpmath=sse` so host hashes mean
+the same thing the instrument computes.)
+
 ### The slot model (what changed, what didn't)
 
 The 10 NVS slots and the `fn+q..p` / `fn+shift+q..p` gestures are **unchanged**.

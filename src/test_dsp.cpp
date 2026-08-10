@@ -726,6 +726,30 @@ int main() {
                   "legacy generator frozen (seed 0xDEADBEEF)");
         }
 
+        // The v2 (nine-archetype) engine is FROZEN the same way: genver-2
+        // devices re-derive their o/p slots through generateSound(seed) every
+        // boot, so ANY drift — in archetypeForSeed, the nine paint windows, or
+        // sanitizePatch — silently changes sounds players already live with.
+        // (The expanded pool ships as generateSoundV3 precisely so these can
+        // hold.) Golden values captured from the first archetype build.
+        {
+            const Archetype kGoldenArchC0FFEE   = Archetype::Bass;
+            const uint32_t kGoldenV2NameC0FFEE  = 0x89CF064Au, kGoldenV2FullC0FFEE  = 0x19A7FDBCu;
+            const uint32_t kGoldenV2Name42      = 0x3415AEE2u, kGoldenV2Full42      = 0x1A66CF34u;
+            const uint32_t kGoldenV2NameDEADBEEF = 0x2F3E1BA5u, kGoldenV2FullDEADBEEF = 0x57CD1E5Bu;
+            const GenPatch v1 = generateSound(0xC0FFEEu);
+            CHECK(archetypeForSeed(0xC0FFEEu) == kGoldenArchC0FFEE,
+                  "v2 archetype pick frozen (seed 0xC0FFEE)");
+            CHECK(patchHash(v1) == kGoldenV2NameC0FFEE && patchHashFull(v1) == kGoldenV2FullC0FFEE,
+                  "v2 generator frozen (seed 0xC0FFEE)");
+            const GenPatch v2 = generateSound(42u);
+            CHECK(patchHash(v2) == kGoldenV2Name42 && patchHashFull(v2) == kGoldenV2Full42,
+                  "v2 generator frozen (seed 42)");
+            const GenPatch v3 = generateSound(0xDEADBEEFu);
+            CHECK(patchHash(v3) == kGoldenV2NameDEADBEEF && patchHashFull(v3) == kGoldenV2FullDEADBEEF,
+                  "v2 generator frozen (seed 0xDEADBEEF)");
+        }
+
         // the bare-seed roll IS the (seed, archetype-of-seed) roll — the
         // determinism contract a future "roll style" picker relies on
         {
@@ -787,8 +811,12 @@ int main() {
         CHECK(sawSynced, "rolls include tempo-synced movement");
         for (int w = 0; w < (int)Waveform::Count; ++w)
             CHECK(waveSeen[w], "every waveform appears across the sweep");
-        for (int a = 0; a < (int)Archetype::Count; ++a)
-            CHECK(archSeen[a], "every archetype appears across the sweep");
+        // the v2 pool holds exactly the original nine — the second wave must
+        // NOT leak into it (genver-2 devices regenerate o/p from this pool)
+        for (int a = 0; a < kArchetypeCountV2; ++a)
+            CHECK(archSeen[a], "every v2 archetype appears across the sweep");
+        for (int a = kArchetypeCountV2; a < (int)Archetype::Count; ++a)
+            CHECK(!archSeen[a], "the frozen v2 pool never rolls a second-wave archetype");
 
         // ---- the roll must PLAY: audition-phrase pitch landing --------------
         // Regression for "rolls glide so long the preview never hits a note":
@@ -826,6 +854,167 @@ int main() {
                       "preview lands its final note (no flat between-pitch smear)");
                 sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
                 runMs(200);
+            }
+        }
+
+        // ---- the expanded (genver-3) pool: the second wave ------------------
+        // Five new archetypes join the roll — whistle / organ / keys / wobble /
+        // strings — via archetypeForSeedV3, leaving the v2 pool untouched. The
+        // properties that made the first wave good must hold for the second:
+        // determinism, every guardrail, bounded rendering, glide that LANDS,
+        // and names that stay inside the frozen classifier's families.
+        {
+            // determinism + the same picker contract v2 has
+            CHECK(patchHashFull(generateSoundV3(0xB0BA7EAu)) ==
+                      patchHashFull(generateSoundV3(0xB0BA7EAu)),
+                  "generateSoundV3 deterministic");
+            const uint32_t sd0 = 0x51D3C0DEu;
+            CHECK(patchHashFull(generateSoundV3(sd0)) ==
+                      patchHashFull(generateSound(sd0, archetypeForSeedV3(sd0))),
+                  "generateSoundV3(seed) == generateSound(seed, archetypeForSeedV3(seed))");
+
+            // sweep the expanded pool: all fourteen archetypes occur, every
+            // roll obeys every guardrail, and a sample renders finite & bounded
+            bool archSeen3[(int)Archetype::Count] = {false};
+            Synth sv;
+            sv.init(kSr);
+            for (uint32_t k = 1; k <= 600; ++k) {
+                const uint32_t sd = k * 2654435761u + 77u;
+                const GenPatch g = generateSoundV3(sd);
+                const SynthParams& s = g.synth;
+                archSeen3[(int)archetypeForSeedV3(sd)] = true;
+                if (s.filterMode == (uint8_t)FilterMode::HP)
+                    CHECK(s.cutoffHz <= 1800.5f, "V3: no whisper rolls (HP keeps a body)");
+                if (s.filterMode == (uint8_t)FilterMode::BP)
+                    CHECK(s.cutoffHz >= 299.5f && s.cutoffHz <= 4500.5f, "V3: BP stays melodic");
+                if (s.resonance > 0.7f)
+                    CHECK(s.drive <= 3.51f, "V3: screaming reso never stacks on heavy drive");
+                CHECK(s.delayMix + s.reverbMix <= 0.81f, "V3: echo+hall can't wash out jointly");
+                if (s.sustain < 0.1f)
+                    CHECK(s.decayS >= 0.249f, "V3: struck sounds keep a decay body");
+                if (s.attackS > 0.5f)
+                    CHECK(s.sustain >= 0.499f && s.releaseS >= 0.399f, "V3: slow swells hold");
+                if (s.glideMode == GlideMode::Always)
+                    CHECK(s.glideS <= 0.161f, "V3: always-glide rolls stay quick enough to land");
+                for (int i = 0; i < kModSlots; ++i)
+                    if (s.slots[i].src != (uint8_t)ModSource::None &&
+                        s.slots[i].dest == (uint8_t)ModDest::Pitch)
+                        CHECK(s.slots[i].depth >= -0.081f && s.slots[i].depth <= 0.081f,
+                              "V3: pitch modulation stays within ~a semitone");
+                if (k <= 150) {
+                    sv.setParams(s);
+                    sv.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(k & 0x7F), 0, false, 62.f));
+                    const float pk = peakOf(sv, 24);
+                    CHECK(pk >= 0.f && pk < 1.6f, "V3 roll renders finite & bounded");
+                    sv.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                    peakOf(sv, 40);
+                }
+            }
+            for (int a = 0; a < (int)Archetype::Count; ++a)
+                CHECK(archSeen3[a], "every archetype (second wave included) appears in the V3 pool");
+
+            // each second-wave archetype holds its character AND lands in the
+            // frozen naming family its windows were designed for — that mapping
+            // is the relabel-safety contract (classifySound never changes)
+            for (uint32_t k = 1; k <= 40; ++k) {
+                const uint32_t sd = k * 747796405u + 11u;
+                {
+                    const GenPatch g = generateSound(sd, Archetype::Whistle);
+                    const SynthParams& s = g.synth;
+                    CHECK(s.wave == Waveform::Sine || s.wave == Waveform::Triangle,
+                          "whistle is a pure wave");
+                    CHECK(s.noiseLevel >= 0.02f, "whistle carries breath");
+                    CHECK(s.autoVibCents >= 4.f, "whistle sings");
+                    CHECK(s.sustain >= 0.75f, "whistle holds its tone");
+                    CHECK(classifySound(s) == Archetype::Lead, "whistle names from the lead bank");
+                }
+                {
+                    const GenPatch g = generateSound(sd, Archetype::Organ);
+                    const SynthParams& s = g.synth;
+                    CHECK(s.attackS <= 0.006f && s.sustain >= 0.9f, "organ is instant-on and held");
+                    CHECK(s.fenvOct == 0.f, "organ never blooms per note (its one identity)");
+                    CHECK(s.subLevel >= 0.4f, "organ stacks the 16' drawbar");
+                    bool rotary = false;
+                    for (int i = 0; i < kModSlots; ++i)
+                        if (s.slots[i].src == (uint8_t)ModSource::LFO1 &&
+                            s.slots[i].dest == (uint8_t)ModDest::Amp)
+                            rotary = true;
+                    CHECK(rotary, "organ spins a rotary tremolo");
+                    const Archetype c = classifySound(s);
+                    CHECK(c == Archetype::Wild || c == Archetype::Bass,
+                          "organ names from the choir/cavern or depth banks");
+                }
+                {
+                    const GenPatch g = generateSound(sd, Archetype::Keys);
+                    const SynthParams& s = g.synth;
+                    CHECK(s.sustain >= 0.28f && s.sustain <= 0.48f,
+                          "keys hold the middle sustain no pluck reaches");
+                    CHECK(s.fenvOct >= 0.5f, "keys keep the tine bark");
+                    CHECK(classifySound(s) == Archetype::Wild, "keys name from the generic bank");
+                }
+                {
+                    const GenPatch g = generateSound(sd, Archetype::Wobble);
+                    const SynthParams& s = g.synth;
+                    CHECK(s.lfo1Sync != 0, "wobble locks its LFO to the jam clock");
+                    bool wob = false;
+                    for (int i = 0; i < kModSlots; ++i)
+                        if (s.slots[i].src == (uint8_t)ModSource::LFO1 &&
+                            s.slots[i].dest == (uint8_t)ModDest::Cutoff &&
+                            s.slots[i].depth >= 0.249f)
+                            wob = true;
+                    CHECK(wob, "wobble routes a deep synced LFO into the cutoff");
+                    CHECK(s.subLevel >= 0.5f, "wobble carries sub weight");
+                    CHECK(classifySound(s) == Archetype::Bass, "wobble names from the bass bank");
+                }
+                {
+                    const GenPatch g = generateSound(sd, Archetype::Strings);
+                    const SynthParams& s = g.synth;
+                    CHECK(s.attackS >= 0.10f && s.attackS <= 0.26f,
+                          "strings bow in between pluck and pad");
+                    CHECK(s.autoVibCents >= 2.5f, "strings keep the section vibrato");
+                    const Archetype c = classifySound(s);
+                    CHECK(c == Archetype::Pad || c == Archetype::Lead,
+                          "strings name from the pad or lead banks");
+                    char nm3[24];
+                    soundNameForPatch(g, nm3, sizeof nm3);
+                    CHECK(strlen(nm3) > 0 && strchr(nm3, '-') != nullptr,
+                          "a second-wave roll names like any other");
+                }
+            }
+
+            // the glide-must-land law, second wave included: walk V3 rolls
+            // through the audition lick's exact timings and ids
+            {
+                Synth sp;
+                sp.init(kSr);
+                float pbuf[128];
+                auto runMs = [&](int ms) {
+                    for (int b = 0; b < ms / 4; ++b) sp.render(pbuf, 128);
+                };
+                for (uint32_t k = 1; k <= 80; ++k) {
+                    const GenPatch g = generateSoundV3(k * 2654435761u + 4242u);
+                    sp.setParams(g.synth);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
+                    runMs(300);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
+                    runMs(340);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
+                    runMs(360);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
+                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
+                    runMs(380);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
+                    runMs(480);
+                    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
+                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
+                    runMs(740);
+                    CHECK(sp.leadActive(), "V3 preview's final note still sounds at its release");
+                    const float err = sp.leadPitchMidi() - 60.f;
+                    CHECK(err > -0.35f && err < 0.35f,
+                          "V3 preview lands its final note (no between-pitch smear)");
+                    sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                    runMs(200);
+                }
             }
         }
 

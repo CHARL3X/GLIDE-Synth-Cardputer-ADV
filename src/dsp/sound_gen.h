@@ -40,33 +40,75 @@ struct GenPatch {
 // window — plucks that actually stop, pads that actually swell, acid that
 // actually squelches. Wild keeps the old anything-goes chaos in the pool.
 // Append-only (a future "roll style" picker may persist it): add before Count.
-enum class Archetype : uint8_t { Pluck, Bell, Pad, Bass, Acid, Lead, Brass, Chip, Wild, Count };
+//
+// The second wave (genver 3) fills the holes the first nine couldn't reach:
+//   Whistle — the slide-whistle / theremin lineage voice: a SUSTAINED pure
+//             wave (Lead never rolls sine/tri; Bell is percussive), breath
+//             noise, singing vibrato, glide-forward. The original instrument.
+//   Organ   — instant-on held drawbar stack (square/sine + sub) under a
+//             rotary tremolo, and NO filter envelope — no other archetype
+//             can roll a full-sustain tone with zero per-note bloom.
+//   Keys    — the tine piano: soft filter ping, a held middle sustain no
+//             pluck reaches, tremolo. The comping voice.
+//   Wobble  — sub bass whose filter breathes on a TEMPO-SYNCED LFO, locked
+//             to the jam clock like the delay is. Nothing else rolls deep
+//             synced cutoff movement.
+//   Strings — the bowed ensemble: fat-saw + heavy chorus + section vibrato,
+//             attack between pluck and pad. Brighter and quicker than a pad.
+enum class Archetype : uint8_t {
+    Pluck, Bell, Pad, Bass, Acid, Lead, Brass, Chip, Wild,
+    Whistle, Organ, Keys, Wobble, Strings, Count
+};
+// The v2 pool ends here: archetypeForSeed() (frozen) only ever returns these.
+constexpr int kArchetypeCountV2 = 9;
 
 inline const char* archetypeName(Archetype a) {
     switch (a) {
-        case Archetype::Pluck: return "pluck";
-        case Archetype::Bell:  return "bell";
-        case Archetype::Pad:   return "pad";
-        case Archetype::Bass:  return "bass";
-        case Archetype::Acid:  return "acid";
-        case Archetype::Lead:  return "lead";
-        case Archetype::Brass: return "brass";
-        case Archetype::Chip:  return "chip";
-        case Archetype::Wild:  return "wild";
-        default:               return "?";
+        case Archetype::Pluck:   return "pluck";
+        case Archetype::Bell:    return "bell";
+        case Archetype::Pad:     return "pad";
+        case Archetype::Bass:    return "bass";
+        case Archetype::Acid:    return "acid";
+        case Archetype::Lead:    return "lead";
+        case Archetype::Brass:   return "brass";
+        case Archetype::Chip:    return "chip";
+        case Archetype::Wild:    return "wild";
+        case Archetype::Whistle: return "whistle";
+        case Archetype::Organ:   return "organ";
+        case Archetype::Keys:    return "keys";
+        case Archetype::Wobble:  return "wobble";
+        case Archetype::Strings: return "strings";
+        default:                 return "?";
     }
 }
 
 // The archetype a bare seed rolls — a weighted pick (pads and plucks common,
 // brass/chip/wild the spice). Deterministic and separate from the parameter
 // paint, so generateSound(seed) == generateSound(seed, archetypeForSeed(seed)).
+// FROZEN (the v2 pool): genver-2 devices regenerate their o/p slots through
+// generateSound(seed), so this selection — like the nine paint windows it can
+// reach — must never change. The expanded pool lives in archetypeForSeedV3.
 Archetype archetypeForSeed(uint32_t seed);
+
+// The EXPANDED (genver-3) pool: everything archetypeForSeed rolls plus the
+// second-wave archetypes (whistle/organ/keys/wobble/strings), weighted so the
+// core families still dominate and a new one lands roughly every fourth roll.
+// Deterministic in seed; decorrelated from the v2 table's picks.
+Archetype archetypeForSeedV3(uint32_t seed);
 
 // Roll a brand-new patch from `seed`. Deterministic: same seed -> same patch.
 // Every field lands inside the engine's musical bounds (see the clamps in the
 // .cpp), so a roll is always playable — never a dead or blown-out sound. The
 // player's master volume is NOT touched here (the caller keeps it).
+// FROZEN in behaviour (the v2 engine): genver-2 devices re-derive their o/p
+// slots from it every boot, so its output for any seed must stay bit-exact —
+// the native tests pin it with golden hashes, exactly like the legacy engine.
 GenPatch generateSound(uint32_t seed);
+
+// The genver-3 roll: the same paint engine over the expanded archetype pool
+// (generateSound(seed, archetypeForSeedV3(seed))). This is what the Randomize
+// button and genver>=3 devices use; genver-2 seeds stay on generateSound().
+GenPatch generateSoundV3(uint32_t seed);
 
 // Same, but with the character chosen by the caller — the hook for a future
 // "roll me a pad" style picker. Deterministic in (seed, a).

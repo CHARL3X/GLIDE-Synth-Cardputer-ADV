@@ -54,10 +54,13 @@ uint8_t gGenVer = 1;         // which generator rolls the generative slots (o,p)
                              // from that seed: 1 = the frozen legacy generator
                              // (devices from before the archetype engine keep
                              // their exact rolled sounds across the update),
-                             // 2 = the archetype engine. Moves to 2 only when
-                             // the SEED itself is new — first boot, wiped NVS,
-                             // or the player's own Re-roll bank — never as a
-                             // side effect of updating. Persisted ("genver").
+                             // 2 = the archetype engine (the original nine-
+                             // character pool, now equally frozen), 3 = the
+                             // expanded pool (+ whistle/organ/keys/wobble/
+                             // strings). Moves forward only when the SEED
+                             // itself is new — first boot, wiped NVS, or the
+                             // player's own Re-roll bank — never as a side
+                             // effect of updating. Persisted ("genver").
 
 // Cached display name per slot. A factory (un-overridden) slot shows its real
 // instrument name ("GLIDE"); any custom slot — generated at first boot, saved,
@@ -199,7 +202,10 @@ bool loadPatchData(int slot, PatchData& out) {
                                            // names re-derive too, so gate them alike
             const uint32_t sv = slotSeed(gSeed, slot);
             const bool legacy = gGenVer < 2;
-            genToPatchData(legacy ? dsp::generateSoundLegacy(sv) : dsp::generateSound(sv), out, legacy);
+            const dsp::GenPatch rolled = legacy       ? dsp::generateSoundLegacy(sv)
+                                         : gGenVer < 3 ? dsp::generateSound(sv)   // frozen v2 pool
+                                                       : dsp::generateSoundV3(sv); // expanded pool
+            genToPatchData(rolled, out, legacy);
         }
         return false;  // q..i keep their curated factory patch (already seeded above)
     }
@@ -583,7 +589,7 @@ void begin() {
     if (gSeed == 0) {
         gSeed = esp_random();
         if (gSeed == 0) gSeed = 0x9E3779B9u;  // vanishingly unlikely, but never 0
-        gGenVer = 2;  // a brand-new seed rolls with the current (archetype) engine
+        gGenVer = 3;  // a brand-new seed rolls with the current (expanded) pool
         if (gNvsOk) {
             gPrefs.putUInt("seed", gSeed);
             gPrefs.putUChar("genver", gGenVer);
@@ -1201,7 +1207,7 @@ void reRollBank() {
     // regenerate on demand), so this also FREES whatever NVS the old saves held.
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
-    gGenVer = 2;  // a re-roll is the player's opt-in to the archetype engine
+    gGenVer = 3;  // a re-roll is the player's opt-in to the current (expanded) pool
     if (gNvsOk) {
         gPrefs.putUInt("seed", gSeed);
         gPrefs.putUChar("genver", gGenVer);

@@ -261,8 +261,40 @@ Archetype archetypeForSeed(uint32_t seed) {
     return kTable[r.i(0, 15)];
 }
 
+Archetype archetypeForSeedV3(uint32_t seed) {
+    // The expanded (genver-3) pool: a 32-entry weighted table. The core nine
+    // keep ~the proportions the v2 table gave them (pads still the most common
+    // — this is a glide instrument), and the second wave takes ~a quarter of
+    // the rolls between them: whistle and keys the working newcomers, organ /
+    // wobble / strings the spice. A different scramble constant than the v2
+    // table (the next word of pi's fraction) so the two pools' picks
+    // decorrelate; v2 stays frozen for genver-2 slot regeneration.
+    static const Archetype kTable[32] = {
+        Archetype::Pluck,   Archetype::Pluck,   Archetype::Pluck,
+        Archetype::Bell,    Archetype::Bell,    Archetype::Bell,
+        Archetype::Pad,     Archetype::Pad,     Archetype::Pad,   Archetype::Pad,
+        Archetype::Bass,    Archetype::Bass,    Archetype::Bass,
+        Archetype::Acid,    Archetype::Acid,    Archetype::Acid,
+        Archetype::Lead,    Archetype::Lead,    Archetype::Lead,
+        Archetype::Brass,   Archetype::Brass,
+        Archetype::Chip,    Archetype::Chip,
+        Archetype::Wild,    Archetype::Wild,
+        Archetype::Whistle, Archetype::Whistle,
+        Archetype::Organ,
+        Archetype::Keys,    Archetype::Keys,
+        Archetype::Wobble,
+        Archetype::Strings,
+    };
+    Rng r(seed ^ 0x85A308D3u);
+    return kTable[r.i(0, 31)];
+}
+
 GenPatch generateSound(uint32_t seed) {
     return generateSound(seed, archetypeForSeed(seed));
+}
+
+GenPatch generateSoundV3(uint32_t seed) {
+    return generateSound(seed, archetypeForSeedV3(seed));
 }
 
 // The archetype engine. Commit to a character first, then paint every field
@@ -515,6 +547,182 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             g.tiltRoute = (uint8_t)(r.chance(0.5f) ? TiltRoute::Volume : TiltRoute::Vibrato);
             break;
         }
+        // ---- the second wave (genver 3) — reachable only via the V3 pool ----
+        // Each window is designed to land in a family the FROZEN classifier
+        // already names well (whistle sings -> lead words, wobble carries ->
+        // bass words, organ holds -> the choir/cavern bank...), so the naming
+        // contract never moves: nobody's sound is ever relabelled by an update.
+        case Archetype::Whistle: {  // the slide whistle / theremin — a held PURE
+                                    // wave that breathes and sings. The lineage
+                                    // voice: the instrument began as one.
+            static const Waveform w[3] = {Waveform::Sine, Waveform::Sine, Waveform::Triangle};
+            s.wave = pickWave(r, w, 3);
+            s.attackS = uni(r, 0.015f, 0.08f);   // the breath onset
+            s.decayS = uni(r, 0.2f, 0.5f);
+            s.sustain = uni(r, 0.75f, 1.f);
+            s.releaseS = uni(r, 0.15f, 0.5f);
+            s.glideS = uni(r, 0.06f, 0.16f);     // gliding IS the instrument here
+            s.glideMode = r.chance(0.65f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            if (s.glideMode == GlideMode::LegatoOnly && r.chance(0.4f))
+                s.glideS = uni(r, 0.12f, 0.22f); // dreamier hammer-on slides only
+            s.filterMode = (uint8_t)FilterMode::LP;
+            s.cutoffHz = uni(r, 2500.f, 7000.f); // open: a pure wave needs no reining in
+            s.resonance = uni(r, 0.f, 0.25f);
+            s.noiseLevel = uni(r, 0.02f, 0.09f); // the breath in the tone
+            if (r.chance(0.3f)) {                // a soft over-blow bloom
+                s.fenvAtkS = uni(r, 0.004f, 0.015f);  // (< the brass-classify gate)
+                s.fenvOct = uni(r, 0.3f, 0.8f);
+                s.fenvDecS = uni(r, 0.2f, 0.5f);
+            }
+            s.drive = uni(r, 1.f, 1.6f);
+            s.autoVibCents = uni(r, 4.f, 12.f);  // it SINGS (and names as a lead)
+            if (r.chance(0.25f)) s.chorusDepth = uni(r, 0.1f, 0.3f);
+            if (r.chance(0.5f)) rollEcho(r, s, 0.15f, 0.35f, 0.25f, 0.5f);
+            if (r.chance(0.7f)) rollRoom(r, s, 0.2f, 0.45f, 0.55f, 0.85f);
+            if (r.chance(0.35f)) {               // a slow swell of air under the tone
+                s.lfo2RateHz = uni(r, 0.3f, 1.2f);
+                s.lfo2Shape = (uint8_t)LfoShape::Sine;
+                addMod(s, ModSource::LFO2, ModDest::Amp, uni(r, 0.1f, 0.25f));
+            }
+            g.tiltRoute = (uint8_t)TiltRoute::Vibrato;  // the theremin hand
+            g.tiltDepth = uni(r, 0.55f, 0.95f);
+            break;
+        }
+        case Archetype::Organ: {  // drawbars under a rotary: instant-on, held,
+                                  // and NO per-note filter bloom — the one
+                                  // envelope shape no other archetype rolls
+            static const Waveform w[5] = {Waveform::Square, Waveform::Square,
+                                          Waveform::Sine, Waveform::Sine, Waveform::Pulse};
+            s.wave = pickWave(r, w, 5);
+            s.attackS = uni(r, 0.001f, 0.006f);
+            s.decayS = uni(r, 0.05f, 0.15f);     // moot under a full sustain
+            s.sustain = uni(r, 0.9f, 1.f);
+            s.releaseS = uni(r, 0.05f, 0.18f);   // organ keys stop when you let go
+            s.glideS = uni(r, 0.02f, 0.08f);
+            s.glideMode = r.chance(0.1f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            s.filterMode = (uint8_t)(r.chance(0.2f) ? FilterMode::Notch : FilterMode::LP);
+            s.cutoffHz = uni(r, 900.f, 2800.f);  // (< the chip-classify band)
+            s.resonance = uni(r, 0.f, 0.3f);
+            // fenvOct stays 0 — that flat held face IS the organ
+            s.subLevel = uni(r, 0.4f, 0.8f);     // the 16' drawbar
+            s.drive = uni(r, 1.f, 2.4f);
+            // the rotary: fast spin or slow chorale, on the amp (and sometimes
+            // a doppler brightness flutter on the cutoff)
+            s.lfo1Shape = (uint8_t)LfoShape::Sine;
+            s.lfo1RateHz = r.chance(0.6f) ? uni(r, 5.f, 7.f) : uni(r, 0.6f, 1.3f);
+            addMod(s, ModSource::LFO1, ModDest::Amp, uni(r, 0.12f, 0.3f));
+            if (r.chance(0.5f)) addMod(s, ModSource::LFO1, ModDest::Cutoff, uni(r, 0.06f, 0.15f));
+            if (r.chance(0.55f)) s.chorusDepth = uni(r, 0.2f, 0.5f);
+            if (r.chance(0.15f)) rollEcho(r, s, 0.08f, 0.2f, 0.15f, 0.3f);
+            if (r.chance(0.65f)) rollRoom(r, s, 0.15f, 0.4f, 0.6f, 0.9f);  // the church
+            g.tiltRoute = (uint8_t)TiltRoute::Volume;  // the swell pedal
+            g.tiltDepth = uni(r, 0.5f, 0.9f);
+            g.tiltRouteB = (uint8_t)TiltRoute::Cutoff;
+            break;
+        }
+        case Archetype::Keys: {  // the tine piano — a soft ping over a held
+                                 // middle sustain no pluck reaches, tremolo'd
+            static const Waveform w[5] = {Waveform::Triangle, Waveform::Triangle,
+                                          Waveform::Triangle, Waveform::Sine, Waveform::Sine};
+            s.wave = pickWave(r, w, 5);
+            s.attackS = uni(r, 0.001f, 0.006f);
+            s.decayS = uni(r, 0.5f, 1.1f);       // the tine blooms, then settles...
+            s.sustain = uni(r, 0.28f, 0.48f);    // ...onto a body a pluck never keeps
+            s.releaseS = uni(r, 0.2f, 0.5f);
+            s.glideS = uni(r, 0.02f, 0.08f);
+            s.glideMode = r.chance(0.1f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            s.filterMode = (uint8_t)FilterMode::LP;
+            s.cutoffHz = uni(r, 1100.f, 3200.f);
+            s.resonance = uni(r, 0.05f, 0.3f);
+            s.fenvAtkS = 0.001f;                 // the bark of the tine
+            s.fenvOct = uni(r, 0.5f, 1.5f);
+            s.fenvDecS = uni(r, 0.15f, 0.4f);
+            if (r.chance(0.35f)) s.subLevel = uni(r, 0.1f, 0.3f);  // (< the bass gate)
+            if (r.chance(0.25f)) s.noiseLevel = uni(r, 0.01f, 0.05f);  // hammer thump
+            s.drive = r.chance(0.2f) ? uni(r, 2.8f, 3.6f)  // the driven, dirty EP
+                                     : uni(r, 1.f, 2.f);
+            if (r.chance(0.65f)) {               // the wobbling-speaker tremolo
+                s.lfo1Shape = (uint8_t)LfoShape::Sine;
+                s.lfo1RateHz = uni(r, 2.5f, 5.5f);
+                addMod(s, ModSource::LFO1, ModDest::Amp, uni(r, 0.15f, 0.35f));
+            }
+            if (r.chance(0.5f)) s.chorusDepth = uni(r, 0.2f, 0.5f);
+            if (r.chance(0.35f)) rollEcho(r, s, 0.1f, 0.3f, 0.2f, 0.4f);
+            if (r.chance(0.6f)) rollRoom(r, s, 0.1f, 0.3f, 0.45f, 0.7f);
+            g.tiltRoute = (uint8_t)(r.chance(0.5f) ? TiltRoute::Vibrato : TiltRoute::Cutoff);
+            break;
+        }
+        case Archetype::Wobble: {  // dub bass: the filter breathes IN TIME —
+                                   // a tempo-synced LFO rides the jam clock
+                                   // the way the delay already does
+            static const Waveform w[2] = {Waveform::Saw, Waveform::Square};
+            s.wave = pickWave(r, w, 2);
+            s.attackS = uni(r, 0.001f, 0.01f);
+            s.decayS = uni(r, 0.2f, 0.4f);
+            s.sustain = uni(r, 0.75f, 1.f);      // it has to HOLD for the wobble to show
+            s.releaseS = uni(r, 0.1f, 0.3f);
+            s.glideS = uni(r, 0.03f, 0.12f);
+            s.glideMode = r.chance(0.15f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            s.filterMode = (uint8_t)FilterMode::LP;
+            s.cutoffHz = uni(r, 500.f, 1100.f);  // the LFO opens 1-2 octaves from here
+            s.resonance = uni(r, 0.25f, 0.6f);
+            if (r.chance(0.25f)) {               // a small strike ping, sometimes
+                s.fenvOct = uni(r, 0.3f, 0.8f);
+                s.fenvDecS = uni(r, 0.1f, 0.25f);
+            }
+            s.subLevel = uni(r, 0.5f, 0.85f);    // the carry (and the bass name)
+            s.drive = uni(r, 2.f, 4.f);
+            // THE wobble: synced LFO1 into the cutoff. Square = the gate chop.
+            s.lfo1Sync = (uint8_t)r.i(1, kDelaySyncCount - 1);
+            s.lfo1Shape = (uint8_t)(r.chance(0.4f) ? LfoShape::Sine
+                                                   : (r.chance(0.5f) ? LfoShape::Tri : LfoShape::Square));
+            addMod(s, ModSource::LFO1, ModDest::Cutoff, uni(r, 0.25f, 0.5f));
+            if (r.chance(0.3f)) {                // a slow tide under the wobble
+                s.lfo2RateHz = uni(r, 0.1f, 0.4f);
+                addMod(s, ModSource::LFO2, ModDest::Resonance,
+                       uni(r, 0.15f, 0.3f) * (r.chance(0.5f) ? 1.f : -1.f));
+            }
+            if (r.chance(0.35f)) rollEcho(r, s, 0.1f, 0.25f, 0.3f, 0.55f);  // dub tails
+            if (r.chance(0.25f)) rollRoom(r, s, 0.05f, 0.15f, 0.4f, 0.6f);
+            if (r.chance(0.1f)) s.chorusDepth = uni(r, 0.1f, 0.25f);
+            g.tiltRoute = (uint8_t)TiltRoute::Cutoff;  // the manual wub over the auto one
+            g.tiltDepth = uni(r, 0.6f, 1.f);
+            break;
+        }
+        case Archetype::Strings: {  // the bowed ensemble — quicker and brighter
+                                    // than a pad: rosin, section vibrato, chorus
+            static const Waveform w[3] = {Waveform::FatSaw, Waveform::FatSaw, Waveform::Saw};
+            s.wave = pickWave(r, w, 3);
+            s.attackS = uni(r, 0.10f, 0.26f);    // bowed, not swelled
+            s.decayS = uni(r, 0.3f, 0.7f);
+            s.sustain = uni(r, 0.75f, 1.f);
+            s.releaseS = uni(r, 0.4f, 1.2f);
+            s.glideS = uni(r, 0.04f, 0.14f);
+            s.glideMode = r.chance(0.45f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            if (r.chance(0.15f)) {               // the thin chamber voicing
+                s.filterMode = (uint8_t)FilterMode::HP;
+                s.cutoffHz = uni(r, 200.f, 600.f);
+            } else {
+                s.filterMode = (uint8_t)FilterMode::LP;
+                s.cutoffHz = uni(r, 1800.f, 5000.f);  // the rosin brightness
+            }
+            s.resonance = uni(r, 0.f, 0.3f);
+            if (r.chance(0.35f)) {               // a gentle bow-pressure bloom
+                s.fenvAtkS = uni(r, 0.004f, 0.015f);  // (< the brass-classify gate)
+                s.fenvOct = uni(r, 0.3f, 0.9f);
+                s.fenvDecS = uni(r, 0.4f, 0.9f);
+            }
+            if (s.wave == Waveform::FatSaw) s.detuneCents = uni(r, 12.f, 28.f);
+            if (r.chance(0.2f)) s.noiseLevel = uni(r, 0.01f, 0.04f);  // bow air
+            s.drive = uni(r, 1.f, 1.8f);
+            s.autoVibCents = uni(r, 2.5f, 7.f);  // the section's vibrato
+            if (r.chance(0.9f)) s.chorusDepth = uni(r, 0.45f, 0.7f);  // THE ensemble
+            if (r.chance(0.25f)) rollEcho(r, s, 0.08f, 0.2f, 0.2f, 0.4f);
+            if (r.chance(0.85f)) rollRoom(r, s, 0.2f, 0.45f, 0.6f, 0.9f);
+            g.tiltRoute = (uint8_t)(r.chance(0.5f) ? TiltRoute::Volume : TiltRoute::Vibrato);
+            g.tiltDepth = uni(r, 0.45f, 0.85f);
+            break;
+        }
         case Archetype::Wild:
         default: {  // anything-goes chaos across the FULL Range table — the
                     // old spirit, kept in the pool; sanitize reels in the trash
@@ -700,7 +908,20 @@ const char* const kFamNouns[(int)Archetype::Count][8] = {
     {"voice", "spark", "comet", "flare", "siren", "arrow", "blade", "ray"},   // lead
     {"horn", "brass", "blast", "swell", "crown", "herald", "bugle", "march"}, // brass
     {"chip", "pixel", "sprite", "coin", "laser", "retro", "glitch", "bit"},   // chip
-    {"pulse", "grain", "choir", "river", "cavern", "vapor", "signal", "moss"} // wild/other
+    {"pulse", "grain", "choir", "river", "cavern", "vapor", "signal", "moss"}, // wild/other
+    // Second-wave rows: RESERVED, not yet reachable. classifySound() is frozen
+    // (its verdict names sounds that re-derive every boot, so changing it would
+    // relabel players' o/p slots) and never returns these values — second-wave
+    // rolls deliberately land in the frozen families above (whistle sings ->
+    // lead words, wobble carries -> bass words, organ holds -> choir/cavern...).
+    // The rows exist so the Count-sized array never holds a null row, and so
+    // the words are already pinned (append-only) if a future versioned
+    // classifier ever reaches them.
+    {"reed", "lark", "gale", "kite", "wisp", "breeze", "aria", "flute"},     // whistle
+    {"organ", "abbey", "nave", "pipe", "psalm", "rotor", "chapel", "vesper"},// organ
+    {"tine", "keys", "felt", "lounge", "amber", "ivory", "mallet", "suede"}, // keys
+    {"wub", "dub", "swamp", "bog", "tremor", "surge", "riddim", "quake"},    // wobble
+    {"bow", "rosin", "cello", "sonata", "velour", "arco", "viola", "octet"}  // strings
 };
 }  // namespace
 
