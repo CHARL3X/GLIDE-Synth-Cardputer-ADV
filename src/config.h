@@ -37,7 +37,7 @@ constexpr uint32_t kRepeatRateMs  = 60;   // key auto-repeat (ARR)
 // The instrument watches hands-off time (any key or the G0 button resets it).
 // After kIdleDimMs the backlight eases down to save the panel and battery;
 // after kScreensaverMs a phosphor screensaver takes the screen (mostly black,
-// a resting oscilloscope tracing a slow Lissajous). ANY touch snaps it back
+// a full-width standing wave lit by a slow traveling pulse). ANY touch snaps it back
 // and plays the note — the first key both wakes and sounds, never a wasted
 // press. The whole behaviour is a setting ("Screen idle": off / dim / saver);
 // these are the timings and the three backlight levels it steps between.

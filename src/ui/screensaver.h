@@ -1,15 +1,16 @@
-// The idle screensaver: a resting oscilloscope. After a long hands-off spell
-// the perform screen hands the frame to this — a mostly-black field with a slow
-// phosphor Lissajous tracing itself, the instrument's identity whispered dim
-// underneath. It reads the live voice, so if a loop or jam is still running the
-// figure breathes with the sound; otherwise it self-animates, morphing forever.
+// The idle screensaver: the string at rest. After a long hands-off spell the
+// perform screen hands the frame to this — a mostly-black field with a full-
+// width standing wave holding still, a soft window of light sliding along it,
+// the instrument's identity whispered dim underneath. It reads the live voice,
+// so if a loop or jam is still running the wave answers it; in silence it
+// simply breathes. The wave holds its shape on purpose: only the light moves.
 //
 // Draws into the perform screen's full-frame canvas (no allocation, a handful of
 // floats of state), so it costs nothing when idle and nothing when asleep.
 #pragma once
-#include <cstdint>
+#include <M5Cardputer.h>
 
-class M5Canvas;
+#include <cstdint>
 
 namespace screensaver {
 
