@@ -13,6 +13,7 @@ namespace soundcard {
 namespace {
 uint32_t gUntil = 0;
 uint32_t gShownAt = 0;
+char gTag[12] = "";  // rolled-character tag ("whistle"); empty = none
 
 // card geometry — sized to sit inside the scope area, hint line stays clear
 constexpr int kW = 204, kH = 88;
@@ -22,6 +23,12 @@ constexpr int kX = (240 - kW) / 2, kY = 22;
 void show(uint32_t holdMs) {
     gShownAt = millis();
     gUntil = gShownAt + holdMs;
+    gTag[0] = '\0';  // only a fresh roll carries a character tag
+}
+
+void showRolled(const char* archetype, uint32_t holdMs) {
+    show(holdMs);
+    snprintf(gTag, sizeof gTag, "%s", archetype ? archetype : "");
 }
 
 void dismiss() { gUntil = 0; }
@@ -51,7 +58,8 @@ void draw(M5Canvas& c, uint32_t nowMs) {
     snprintf(buf, sizeof buf, "%s%s", store::liveName(), store::liveDirty() ? "*" : "");
     c.setFont(&fonts::Font2);
     c.setTextDatum(top_left);
-    while (buf[0] && c.textWidth(buf) > kW - 60) buf[strlen(buf) - 1] = '\0';
+    // the right zone must fit the SOLO badge and/or the rolled-character tag
+    while (buf[0] && c.textWidth(buf) > kW - (gTag[0] ? 96 : 60)) buf[strlen(buf) - 1] = '\0';
     c.setTextColor(frame, panel);
     c.drawString(buf, kX + 8, kY + 3);
     if (store::backingLocked()) {  // the bed holds its own sound — this is the solo
@@ -60,6 +68,14 @@ void draw(M5Canvas& c, uint32_t nowMs) {
         c.setTextColor(theme::blend(theme::kSteel, theme::kBg, fade), panel);
         c.drawString("SOLO", kX + kW - 8, kY + 6);
         c.setTextDatum(top_left);
+    }
+    if (gTag[0]) {  // the character this roll committed to — sits left of SOLO
+        c.setFont(&fonts::Font0);
+        c.setTextDatum(top_right);
+        c.setTextColor(hot, panel);
+        c.drawString(gTag, kX + kW - (store::backingLocked() ? 40 : 8), kY + 6);
+        c.setTextDatum(top_left);
+        c.setFont(&fonts::Font2);
     }
 
     // the face: wave | envelope | filter, labels underneath

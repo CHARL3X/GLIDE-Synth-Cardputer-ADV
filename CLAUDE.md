@@ -72,9 +72,13 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
   pitch-mod depth ≤ ~1 semitone, always-glide ≤ 0.16 s so notes LAND…). The
   test suite asserts the variety, the guardrails, and that every roll lands
   the audition lick's final pitch.
-- `generateSoundV3(seed)` is the EXPANDED pool (genver 3): the same paint engine
-  over `archetypeForSeedV3`, which adds the second wave — whistle/organ/keys/
-  wobble/strings — at ~a quarter of the rolls. `generateSound(seed)` (the v2
+- `generateSoundV3(seed[, a])` is the EXPANDED pool (genver 3): the same paint
+  engine over `archetypeForSeedV3`, which adds the second wave — whistle/organ/
+  keys/wobble/strings — at ~a quarter of the rolls. The V3 layer also applies
+  `rollPolish` (pure rules, no RNG) to EVERY archetype — a pure sine/triangle
+  can never be stranded behind an HP/BP passband above its only partial, the
+  frozen pool's one dead-roll quirk (it made rolls audition silent yet play
+  subtle). New-roll fixes belong in that layer, never in the frozen paint. `generateSound(seed)` (the v2
   nine-archetype pool) is now FROZEN exactly like the legacy engine, pinned by
   golden hashes: genver-2 devices re-derive their o/p slots through it every
   boot, so its output — `archetypeForSeed`, the nine v2 paint windows, and

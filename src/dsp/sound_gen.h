@@ -105,10 +105,18 @@ Archetype archetypeForSeedV3(uint32_t seed);
 // the native tests pin it with golden hashes, exactly like the legacy engine.
 GenPatch generateSound(uint32_t seed);
 
-// The genver-3 roll: the same paint engine over the expanded archetype pool
-// (generateSound(seed, archetypeForSeedV3(seed))). This is what the Randomize
-// button and genver>=3 devices use; genver-2 seeds stay on generateSound().
+// The genver-3 roll: the same paint engine over the expanded archetype pool,
+// plus the roll polish for EVERY archetype (a pure sine/triangle can't be
+// stranded behind an HP/BP passband above its only partial — the frozen v2
+// pool's one known dead-roll quirk). This is what the Randomize button and
+// genver>=3 devices use; genver-2 seeds stay on the bit-exact generateSound().
 GenPatch generateSoundV3(uint32_t seed);
+
+// Same, with the character chosen by the caller — the polished counterpart of
+// generateSound(seed, a), and the form a future "roll me a pad" picker should
+// use. Deterministic in (seed, a): generateSoundV3(seed) ==
+// generateSoundV3(seed, archetypeForSeedV3(seed)).
+GenPatch generateSoundV3(uint32_t seed, Archetype a);
 
 // Same, but with the character chosen by the caller — the hook for a future
 // "roll me a pad" style picker. Deterministic in (seed, a).

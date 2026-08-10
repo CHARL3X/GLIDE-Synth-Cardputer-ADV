@@ -596,11 +596,14 @@ void fRandomize(char* o, int c) { snprintf(o, c, "surprise me%c", kLRtag); }
 void aRandomize(int) {
     store::historyCheckpoint();
     keys::soundSwitchBegin();  // over a jam: freeze the backing so the roll is solo-only
-    store::applyGenerated(dsp::generateSoundV3(esp_random()));  // the expanded
-    // archetype pool — Randomize always rolls with the newest engine (a fresh
-    // hardware seed each press: no stored-seed continuity to preserve)
+    // The expanded archetype pool — Randomize always rolls with the newest
+    // engine (a fresh hardware seed each press: no stored-seed continuity to
+    // preserve). The character is drawn explicitly so the card can NAME it.
+    const uint32_t sd = esp_random();
+    const dsp::Archetype arch = dsp::archetypeForSeedV3(sd);
+    store::applyGenerated(dsp::generateSoundV3(sd, arch));
     audition::start();
-    soundcard::show();  // see the roll while you hear it
+    soundcard::showRolled(dsp::archetypeName(arch));  // see the roll — and its character
 }
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The

@@ -189,13 +189,27 @@ adds `generateSoundV3(seed)` (the same paint engine over an expanded
 - **A pre-flight audit caught a dead-roll path before it shipped**: rendering
   120 held rolls per new archetype found near-silent patches (peaks down to
   0.001) — the *spice* twist flipping a pure-wave (sine/triangle) patch into a
-  highpass/bandpass whose passband sits above the note's only partial. A
-  second-wave-only polish (gated on the new archetypes, no RNG, so the v2 pool
-  stays bit-exact) reverts that flip on pure waves — and refuses HP on wobble,
-  whose sub carry is the whole point. Harmonic waves keep their spice. The
-  measured floor went from 0.001 to 0.05+, and a held-note audibility test
-  (peak ≥ 0.04 across forced rolls of all five) keeps it there. The v2 pool
-  retains a rarer, milder version of this quirk; it is frozen and stays.
+  highpass/bandpass whose passband sits above the note's only partial. The
+  `rollPolish` pass (pure rules, no RNG) reverts that flip on pure waves — and
+  refuses HP on wobble, whose sub carry is the whole point. Harmonic waves keep
+  their spice. The measured floor went from 0.001 to 0.05+, and a held-note
+  audibility test (peak ≥ 0.04 across forced rolls of all five) keeps it there.
+- **The polish then went pool-wide, through the V3 layer** — prompted by a
+  field report: some rolls auditioned as *fully silent* yet turned out
+  subtle-but-worth-keeping when played. Before touching anything, a host
+  harness rendered the exact audition phrase over 3000 rolls with realistic
+  free-running LFO phase, then a simulated "esc and noodle" pass. Verdict:
+  the phrase itself is honest (zero silent-preview-but-audible cases from
+  phase luck, register, or attack time) — every observed case was the same
+  pure-wave-behind-HP/BP quirk arriving through the *frozen v2 families*,
+  which are still three quarters of the expanded pool. So `generateSoundV3`
+  (both forms) now applies `rollPolish` to EVERY archetype, while
+  `generateSound(seed[, a])` stays bit-exact for genver-2 slot regeneration.
+  Re-measured after: no roll previews more than 2.5× quieter than it plays
+  (was 5.7×), and near-dead rolls dropped from 11-in-3000 to zero. The
+  audition riff was deliberately left untouched — the data said the rolls
+  were broken, not the phrase — and a native test now pins the property
+  directly: a roll that plays audibly never previews near-silent.
 - **Naming can't relabel anyone**: `classifySound` and every word table are
   untouched. Each second-wave window is shaped to land in a frozen family
   whose words read right — whistle sings (autoVib ≥ 4) so it names from the

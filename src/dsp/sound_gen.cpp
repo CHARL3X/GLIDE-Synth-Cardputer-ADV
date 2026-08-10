@@ -181,6 +181,24 @@ void sanitizePatch(GenPatch& g) {
     g.tiltDepthB = clampT(g.tiltDepthB, 0.f, 1.f);
 }
 
+// The roll polish — pure coupling rules, NO RNG, idempotent. A PURE wave
+// (sine/triangle: no partials above the fundamental) behind a highpass or
+// bandpass whose passband sits above the note is a dead roll (~-40 dB at
+// pitch, the cardinal sin) — the spice twist and a couple of native windows
+// could mint one. Harmonic waves survive those filters and keep them; pure
+// ones revert to lowpass. Wobble refuses HP outright: its sub carry IS the
+// character. Applied inside the paint for the second-wave archetypes and by
+// the V3 layer for every archetype — never by the frozen v2/legacy paths.
+void rollPolish(GenPatch& g, Archetype a) {
+    SynthParams& s = g.synth;
+    const bool pure = s.wave == Waveform::Sine || s.wave == Waveform::Triangle;
+    const bool thin = s.filterMode == (uint8_t)FilterMode::HP ||
+                      s.filterMode == (uint8_t)FilterMode::BP;
+    if (pure && thin) s.filterMode = (uint8_t)FilterMode::LP;
+    if (a == Archetype::Wobble && s.filterMode == (uint8_t)FilterMode::HP)
+        s.filterMode = (uint8_t)FilterMode::LP;
+}
+
 }  // namespace
 
 // FROZEN — the pre-archetype generator, verbatim. Devices whose generative
@@ -294,7 +312,7 @@ GenPatch generateSound(uint32_t seed) {
 }
 
 GenPatch generateSoundV3(uint32_t seed) {
-    return generateSound(seed, archetypeForSeedV3(seed));
+    return generateSoundV3(seed, archetypeForSeedV3(seed));  // through the polish
 }
 
 // The archetype engine. Commit to a character first, then paint every field
@@ -771,22 +789,26 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
     }
 
     // Second-wave polish (gated on the new archetypes so the v2 pool stays
-    // bit-exact — this runs no RNG). The spice flip above can turn a PURE-wave
-    // patch (sine/triangle: no partials above the fundamental) into a highpass
-    // or bandpass whose passband sits entirely above the note — measured at
-    // ~-40 dB, i.e. a dead roll, the cardinal sin. Harmonic waves survive the
-    // flip and keep it; pure ones revert to the lowpass their window painted.
-    // Wobble refuses HP outright: the sub carry IS its character.
-    if ((int)a >= kArchetypeCountV2) {
-        const bool pure = s.wave == Waveform::Sine || s.wave == Waveform::Triangle;
-        const bool thin = s.filterMode == (uint8_t)FilterMode::HP ||
-                          s.filterMode == (uint8_t)FilterMode::BP;
-        if (pure && thin) s.filterMode = (uint8_t)FilterMode::LP;
-        if (a == Archetype::Wobble && s.filterMode == (uint8_t)FilterMode::HP)
-            s.filterMode = (uint8_t)FilterMode::LP;
-    }
+    // bit-exact — rollPolish runs no RNG). For rolls that reach the engine
+    // through the V3 layer, generateSoundV3 applies the same polish to EVERY
+    // archetype (idempotent, so this pre-sanitize pass stays a no-op there).
+    if ((int)a >= kArchetypeCountV2) rollPolish(g, a);
 
     sanitizePatch(g);
+    return g;
+}
+
+GenPatch generateSoundV3(uint32_t seed, Archetype a) {
+    // The V3 layer: the frozen paint engine plus the roll polish for ALL
+    // archetypes. This is where a v2-family roll (bell, pad, wild… — still
+    // three quarters of the expanded pool) sheds the frozen pool's one known
+    // dead-roll quirk: the spice twist stranding a pure wave behind an HP/BP.
+    // generateSound(seed[, a]) itself stays bit-exact for genver-2 devices —
+    // only rolls minted through V3 (Randomize, genver>=3 slots) are polished.
+    // Measured before/after on 3000 rolls: the preview-silent/plays-audible
+    // tail this quirk caused drops to zero, with no other field disturbed.
+    GenPatch g = generateSound(seed, a);
+    rollPolish(g, a);
     return g;
 }
 

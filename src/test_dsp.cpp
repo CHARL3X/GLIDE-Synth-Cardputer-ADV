@@ -870,8 +870,8 @@ int main() {
                   "generateSoundV3 deterministic");
             const uint32_t sd0 = 0x51D3C0DEu;
             CHECK(patchHashFull(generateSoundV3(sd0)) ==
-                      patchHashFull(generateSound(sd0, archetypeForSeedV3(sd0))),
-                  "generateSoundV3(seed) == generateSound(seed, archetypeForSeedV3(seed))");
+                      patchHashFull(generateSoundV3(sd0, archetypeForSeedV3(sd0))),
+                  "generateSoundV3(seed) == generateSoundV3(seed, archetypeForSeedV3(seed))");
 
             // sweep the expanded pool: all fourteen archetypes occur, every
             // roll obeys every guardrail, and a sample renders finite & bounded
@@ -942,7 +942,7 @@ int main() {
             for (uint32_t k = 1; k <= 40; ++k) {
                 const uint32_t sd = k * 747796405u + 11u;
                 {
-                    const GenPatch g = generateSound(sd, Archetype::Whistle);
+                    const GenPatch g = generateSoundV3(sd, Archetype::Whistle);
                     const SynthParams& s = g.synth;
                     CHECK(s.wave == Waveform::Sine || s.wave == Waveform::Triangle,
                           "whistle is a pure wave");
@@ -953,7 +953,7 @@ int main() {
                     CHECK(heldPeak(g) >= 0.04f, "a whistle roll is never near-silent");
                 }
                 {
-                    const GenPatch g = generateSound(sd, Archetype::Organ);
+                    const GenPatch g = generateSoundV3(sd, Archetype::Organ);
                     const SynthParams& s = g.synth;
                     CHECK(s.attackS <= 0.006f && s.sustain >= 0.9f, "organ is instant-on and held");
                     CHECK(s.fenvOct == 0.f, "organ never blooms per note (its one identity)");
@@ -970,7 +970,7 @@ int main() {
                     CHECK(heldPeak(g) >= 0.04f, "an organ roll is never near-silent");
                 }
                 {
-                    const GenPatch g = generateSound(sd, Archetype::Keys);
+                    const GenPatch g = generateSoundV3(sd, Archetype::Keys);
                     const SynthParams& s = g.synth;
                     CHECK(s.sustain >= 0.28f && s.sustain <= 0.48f,
                           "keys hold the middle sustain no pluck reaches");
@@ -979,7 +979,7 @@ int main() {
                     CHECK(heldPeak(g) >= 0.04f, "a keys roll is never near-silent");
                 }
                 {
-                    const GenPatch g = generateSound(sd, Archetype::Wobble);
+                    const GenPatch g = generateSoundV3(sd, Archetype::Wobble);
                     const SynthParams& s = g.synth;
                     CHECK(s.lfo1Sync != 0, "wobble locks its LFO to the jam clock");
                     bool wob = false;
@@ -996,7 +996,7 @@ int main() {
                     CHECK(heldPeak(g) >= 0.04f, "a wobble roll is never near-silent");
                 }
                 {
-                    const GenPatch g = generateSound(sd, Archetype::Strings);
+                    const GenPatch g = generateSoundV3(sd, Archetype::Strings);
                     const SynthParams& s = g.synth;
                     CHECK(s.attackS >= 0.10f && s.attackS <= 0.26f,
                           "strings bow in between pluck and pad");
@@ -1044,6 +1044,68 @@ int main() {
                           "V3 preview lands its final note (no between-pitch smear)");
                     sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
                     runMs(200);
+                }
+            }
+
+            // ---- if a roll PLAYS, it must PREVIEW ---------------------------
+            // The field report behind this: rolls whose audition phrase read as
+            // fully silent turned out subtle-but-worth-keeping when played.
+            // Measured on 3000 rolls, every such case was a pure wave stranded
+            // behind an HP/BP by the frozen pool's spice quirk — the phrase
+            // itself reports honestly (the V3 rollPolish removes the quirk).
+            // This pins the property: a roll audible under normal playing is
+            // never near-silent across the audition phrase's own notes.
+            {
+                Synth sq;
+                sq.init(kSr);
+                float qbuf[128];
+                auto peakMs = [&](int ms) {
+                    float pk = 0.f;
+                    for (int b = 0; b < ms / 4; ++b) {
+                        sq.render(qbuf, 128);
+                        for (int i = 0; i < 128; ++i) {
+                            const float v = fabsf(qbuf[i]);
+                            if (v > pk) pk = v;
+                        }
+                    }
+                    return pk;
+                };
+                for (uint32_t k = 1; k <= 250; ++k) {
+                    const GenPatch g = generateSoundV3(k * 2654435761u + 90210u);
+                    sq.setParams(g.synth);
+                    // the audition phrase, peak-tracked (ids/timings as shipped)
+                    float prev = 0.f;
+                    auto acc = [&](float v) { if (v > prev) prev = v; };
+                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
+                    acc(peakMs(300));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
+                    acc(peakMs(340));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
+                    acc(peakMs(360));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
+                    acc(peakMs(380));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
+                    acc(peakMs(480));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
+                    acc(peakMs(740));
+                    sq.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                    peakMs(240);
+                    if (prev >= 0.02f) continue;  // preview audible — fine
+                    // preview near-silent: normal playing must be quiet too
+                    // (held notes, low through high — the "esc and noodle" test)
+                    float play = 0.f;
+                    const float notes[3] = {45.f, 60.f, 76.f};
+                    for (int i = 0; i < 3; ++i) {
+                        sq.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(40 + i), 0, false, notes[i]));
+                        const float p = peakMs(1600);
+                        if (p > play) play = p;
+                        sq.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                        peakMs(160);
+                    }
+                    CHECK(play < 0.06f,
+                          "a roll that plays audibly never previews near-silent");
                 }
             }
         }
