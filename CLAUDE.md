@@ -89,6 +89,13 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
   reserved `kFamNouns` rows for them are unreachable until a future *versioned*
   classifier exists; extending `classifySound` itself would relabel players'
   re-derived slot names.
+- The audition phrase's NOTES/ids are fixed (hard-won honesty — see
+  docs/random-sound-generation.md) but its CLOCK is per-patch:
+  `dsp/audition_plan.h` stretches the phrase and holds the final note for
+  slow-developing characters (swells, blooms, flutter, synced wobbles). Any
+  change to the phrase must update the mirrored walk in `test_dsp.cpp`
+  (`walkAuditionLick`), which enforces pitch-landing AND the plays-audibly ⇒
+  previews-audibly invariant.
 - `classifySound` + `soundNameForPatch` name a sound from its own character
   (family noun + timbre adjective; word choice from `patchHash` bits). The old
   `soundName(seed)` word tables are FROZEN: genver-1 devices re-derive their

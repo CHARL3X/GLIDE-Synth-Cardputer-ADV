@@ -106,7 +106,7 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                         store::applyStoredPatch(pd);
                         keys::soundSwitchEnd();
                         audition::start();
-                        soundcard::show();  // the previewed sound's face, over the list
+                        soundcard::show(audition::lengthMs());  // the previewed sound's face, over the list
                     }
                 }
                 if (hit(kEnter)) { mode = Mode::Sheet; sheetSel = 0; deleteArmed = false; }

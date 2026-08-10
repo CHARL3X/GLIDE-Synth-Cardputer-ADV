@@ -603,7 +603,7 @@ void aRandomize(int) {
     const dsp::Archetype arch = dsp::archetypeForSeedV3(sd);
     store::applyGenerated(dsp::generateSoundV3(sd, arch));
     audition::start();
-    soundcard::showRolled((uint8_t)arch);  // see the roll — and its character, in colour
+    soundcard::showRolled((uint8_t)arch, audition::lengthMs());  // see the roll — and its character, in colour
 }
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The
@@ -614,7 +614,7 @@ void aMutate(int) {
     keys::soundSwitchBegin();  // over a jam: evolve the SOLO, the backing holds
     store::applyGenerated(dsp::mutateSound(liveAsGen(), gMutateAmt, esp_random()));
     audition::start();
-    soundcard::show();
+    soundcard::show(audition::lengthMs());
 }
 
 void fMutAmt(char* o, int c) { snprintf(o, c, "%d %%", (int)(gMutateAmt * 100 + 0.5f)); }
@@ -631,7 +631,7 @@ void aUndo(int) {
     keys::soundSwitchBegin();  // undo/redo move the solo only; the backing holds
     store::historyUndo();
     audition::start();
-    soundcard::show();
+    soundcard::show(audition::lengthMs());
 }
 void fRedo(char* o, int c) {
     if (store::historyCanRedo()) snprintf(o, c, "step forward%c", kLRtag);
@@ -642,7 +642,7 @@ void aRedo(int) {
     keys::soundSwitchBegin();
     store::historyRedo();
     audition::start();
-    soundcard::show();
+    soundcard::show(audition::lengthMs());
 }
 
 // Save the live sound to the SD library under an auto-generated, evocative name
@@ -724,7 +724,7 @@ void aReRoll(int) {
         store::historyCheckpoint();  // the live sound stays recoverable via Undo
         store::reRollBank();         // ...the slots do not — hence the confirm
         audition::start();
-        soundcard::show();
+        soundcard::show(audition::lengthMs());
     } else {
         gReRollArmed = true;         // first tap arms; second within 3s confirms
         gReRollArmedAt = millis();
@@ -1218,7 +1218,7 @@ void run(M5Canvas& canvas) {
                 audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
                 store::persistNow();
                 audition::start();  // audition the loaded sound on return
-                soundcard::show();
+                soundcard::show(audition::lengthMs());
             }
             draw(canvas, sel, top);
             continue;

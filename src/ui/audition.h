@@ -11,12 +11,18 @@
 // frame and it fires each step as it comes due — neither the UI nor the backing
 // jam ever stalls. Shared by the settings SOUND menu and the SD browser.
 #pragma once
+#include <cstdint>
 
 namespace audition {
 
-void start();   // (re)articulate the phrase from the top on the live sound
+void start();   // (re)articulate the phrase from the top on the live sound —
+                // reads the live params and bends the phrase's CLOCK to them
+                // (dsp/audition_plan.h): slow swells, blooms, flutter and
+                // synced wobbles get the time they need; snappy sounds keep
+                // the tight base cadence
 void tick();    // call each UI frame; fires scheduled events when due
 void stop();    // silence the preview voice now (call on leaving a screen)
 bool active();  // a phrase is still being scheduled (the tail rings on after)
+uint32_t lengthMs();  // this phrase's scheduled length (for the sound card)
 
 }  // namespace audition

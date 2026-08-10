@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include "dsp/audition_plan.h"
 #include "dsp/demo_gen.h"
 #include "dsp/key_detect.h"
 #include "dsp/morph.h"
@@ -48,6 +49,58 @@ static float peakOf(Synth& s, int blocks) {
         }
     }
     return peak;
+}
+
+// Mirrors ui/audition.cpp exactly: the fixed lick's notes and ids under the
+// patch's own adaptive clock (dsp/audition_plan.h — the phrase stretches and
+// the final note holds until THIS sound's character has arrived). Returns the
+// phrase peak plus the final note's state just before its release, for the
+// pitch-landing and audibility invariants. Leaves the synth silenced.
+struct LickResult {
+    float peak;
+    float finalErr;    // final-note pitch error vs its target, in semitones
+    bool finalActive;  // the final note still sounded at its release
+};
+static LickResult walkAuditionLick(Synth& sp, const GenPatch& g) {
+    const AuditionPlan plan = planAudition(g.synth);
+    static const uint16_t kBaseAt[9] = {0, 300, 640, 1000, 1000, 1380, 1860, 1860, 2600};
+    uint16_t at[9];
+    for (int i = 0; i < 9; ++i) at[i] = (uint16_t)(kBaseAt[i] * plan.stretch + 0.5f);
+    at[8] = (uint16_t)(at[7] + plan.finalHoldMs);
+
+    sp.setParams(g.synth);
+    LickResult r;
+    r.peak = 0.f;
+    float buf[kBlock];
+    int cursor = 0;
+    auto runTo = [&](int ms) {  // 128-sample blocks at 32 kHz = 4 ms each
+        for (; cursor + 4 <= ms; cursor += 4) {
+            sp.render(buf, kBlock);
+            for (int i = 0; i < kBlock; ++i) {
+                const float a = fabsf(buf[i]);
+                if (a > r.peak) r.peak = a;
+            }
+        }
+    };
+    sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
+    runTo(at[1]);
+    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
+    runTo(at[2]);
+    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
+    runTo(at[3]);
+    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
+    sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
+    runTo(at[5]);
+    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
+    runTo(at[6]);
+    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
+    sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
+    runTo(at[8]);
+    r.finalActive = sp.leadActive();
+    r.finalErr = sp.leadPitchMidi() - 60.f;
+    sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+    runTo(cursor + 240);  // drain the release
+    return r;
 }
 
 int main() {
@@ -820,40 +873,19 @@ int main() {
 
         // ---- the roll must PLAY: audition-phrase pitch landing --------------
         // Regression for "rolls glide so long the preview never hits a note":
-        // walk every roll through ui/audition.cpp's exact lick — timings AND
-        // per-note ids (fresh attacks land like real key presses; only the
-        // Retarget slides ride the glide) — and assert the lead has LANDED its
-        // final pitch by the release, not parked flat somewhere between notes.
+        // walk every roll through ui/audition.cpp's exact lick — the notes,
+        // the per-note ids (fresh attacks land like real key presses; only the
+        // Retarget slides ride the glide), and each patch's own ADAPTIVE clock
+        // — and assert the lead has LANDED its final pitch by the release.
         {
             Synth sp;
             sp.init(kSr);
-            float pbuf[128];
-            auto runMs = [&](int ms) {  // 128-sample blocks at 32 kHz = 4 ms each
-                for (int b = 0; b < ms / 4; ++b) sp.render(pbuf, 128);
-            };
             for (uint32_t k = 1; k <= 150; ++k) {
                 const GenPatch g = generateSound(k * 2654435761u + 12345u);
-                sp.setParams(g.synth);
-                sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
-                runMs(300);
-                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
-                runMs(340);
-                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
-                runMs(360);
-                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
-                sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
-                runMs(380);
-                sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
-                runMs(480);
-                sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
-                sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
-                runMs(740);
-                CHECK(sp.leadActive(), "preview's final note still sounds at its release");
-                const float err = sp.leadPitchMidi() - 60.f;
-                CHECK(err > -0.35f && err < 0.35f,
+                const LickResult r = walkAuditionLick(sp, g);
+                CHECK(r.finalActive, "preview's final note still sounds at its release");
+                CHECK(r.finalErr > -0.35f && r.finalErr < 0.35f,
                       "preview lands its final note (no flat between-pitch smear)");
-                sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
-                runMs(200);
             }
         }
 
@@ -1013,48 +1045,28 @@ int main() {
             }
 
             // the glide-must-land law, second wave included: walk V3 rolls
-            // through the audition lick's exact timings and ids
+            // through the audition lick's exact notes, ids, and adaptive clock
             {
                 Synth sp;
                 sp.init(kSr);
-                float pbuf[128];
-                auto runMs = [&](int ms) {
-                    for (int b = 0; b < ms / 4; ++b) sp.render(pbuf, 128);
-                };
                 for (uint32_t k = 1; k <= 80; ++k) {
                     const GenPatch g = generateSoundV3(k * 2654435761u + 4242u);
-                    sp.setParams(g.synth);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
-                    runMs(300);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
-                    runMs(340);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
-                    runMs(360);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
-                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
-                    runMs(380);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
-                    runMs(480);
-                    sp.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
-                    sp.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
-                    runMs(740);
-                    CHECK(sp.leadActive(), "V3 preview's final note still sounds at its release");
-                    const float err = sp.leadPitchMidi() - 60.f;
-                    CHECK(err > -0.35f && err < 0.35f,
+                    const LickResult r = walkAuditionLick(sp, g);
+                    CHECK(r.finalActive, "V3 preview's final note still sounds at its release");
+                    CHECK(r.finalErr > -0.35f && r.finalErr < 0.35f,
                           "V3 preview lands its final note (no between-pitch smear)");
-                    sp.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
-                    runMs(200);
                 }
             }
 
             // ---- if a roll PLAYS, it must PREVIEW ---------------------------
-            // The field report behind this: rolls whose audition phrase read as
-            // fully silent turned out subtle-but-worth-keeping when played.
-            // Measured on 3000 rolls, every such case was a pure wave stranded
-            // behind an HP/BP by the frozen pool's spice quirk — the phrase
-            // itself reports honestly (the V3 rollPolish removes the quirk).
-            // This pins the property: a roll audible under normal playing is
-            // never near-silent across the audition phrase's own notes.
+            // The field report behind this: rolls whose audition phrase read
+            // faint or near-silent turned out worth keeping when played by
+            // hand. Two causes, both fixed and both pinned here: broken-quiet
+            // patches (a pure wave stranded behind an HP/BP — removed by the
+            // V3 rollPolish), and characters that need TIME the fixed clock
+            // didn't give them (slow swells, blooms, flutter — served by the
+            // adaptive clock the walk helper mirrors). The property: a roll
+            // audible under normal playing is never near-silent in preview.
             {
                 Synth sq;
                 sq.init(kSr);
@@ -1072,27 +1084,8 @@ int main() {
                 };
                 for (uint32_t k = 1; k <= 250; ++k) {
                     const GenPatch g = generateSoundV3(k * 2654435761u + 90210u);
-                    sq.setParams(g.synth);
-                    // the audition phrase, peak-tracked (ids/timings as shipped)
-                    float prev = 0.f;
-                    auto acc = [&](float v) { if (v > prev) prev = v; };
-                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 52.f));
-                    acc(peakMs(300));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 59.f));
-                    acc(peakMs(340));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 251, 0xFF, false, 55.f));
-                    acc(peakMs(360));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::Off, 251, 0xFF, false, 0.f));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 252, 0xFF, false, 64.f));
-                    acc(peakMs(380));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::Retarget, 252, 0xFF, false, 71.f));
-                    acc(peakMs(480));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::Off, 252, 0xFF, false, 0.f));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::On, 253, 0xFF, false, 60.f));
-                    acc(peakMs(740));
-                    sq.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
-                    peakMs(240);
-                    if (prev >= 0.02f) continue;  // preview audible — fine
+                    const LickResult r = walkAuditionLick(sq, g);
+                    if (r.peak >= 0.02f) continue;  // preview audible — fine
                     // preview near-silent: normal playing must be quiet too
                     // (held notes, low through high — the "esc and noodle" test)
                     float play = 0.f;

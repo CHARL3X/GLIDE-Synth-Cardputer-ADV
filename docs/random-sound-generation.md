@@ -206,10 +206,25 @@ adds `generateSoundV3(seed)` (the same paint engine over an expanded
   (both forms) now applies `rollPolish` to EVERY archetype, while
   `generateSound(seed[, a])` stays bit-exact for genver-2 slot regeneration.
   Re-measured after: no roll previews more than 2.5× quieter than it plays
-  (was 5.7×), and near-dead rolls dropped from 11-in-3000 to zero. The
-  audition riff was deliberately left untouched — the data said the rolls
-  were broken, not the phrase — and a native test now pins the property
-  directly: a roll that plays audibly never previews near-silent.
+  (was 5.7×), and near-dead rolls dropped from 11-in-3000 to zero. A native
+  test pins the property directly: a roll that plays audibly never previews
+  near-silent.
+- **The audition clock bends to the roll; its notes never change.** The
+  player's ear caught what the peak metric couldn't: some rolls are loud on
+  the keypress but need TIME to become themselves — slow swells, filter
+  blooms, flutter and rotary periods, tempo-synced wobbles — and the phrase's
+  fixed note lengths cut the character off, so it read faint and got skipped.
+  `dsp/audition_plan.h` (pure, host-tested) computes a per-patch clock from
+  the params alone: development time (amp attack + filter-bloom attack + a
+  routed mod-env rise) stretches the slide phrases up to 1.45×, and the final
+  note holds until the character arrives — a cycle and a quarter of any slow
+  routed LFO, a few steps of an S&H, two divisions of a tempo-synced one.
+  `ui/audition.cpp` keeps the lick's notes, articulation, and per-note ids
+  byte-identical (the lessons that made previews honest) and only reschedules
+  their times; the sound card rides the actual phrase length. Measured over
+  3000 rolls: 62% keep the exact tight cadence, 20% get real time, nothing
+  exceeds 5 s. Deterministic per patch, so A/B comparisons stay fair, and the
+  native lick-landing tests walk the same adaptive schedule the device plays.
 - **Naming can't relabel anyone**: `classifySound` and every word table are
   untouched. Each second-wave window is shaped to land in a frozen family
   whose words read right — whistle sings (autoVib ≥ 4) so it names from the

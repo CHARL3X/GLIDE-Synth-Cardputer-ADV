@@ -2,8 +2,10 @@
 
 #include <Arduino.h>  // millis()
 
+#include "../dsp/audition_plan.h"
 #include "../dsp/params.h"
 #include "../io/audio_engine.h"
+#include "../storage/glide_config.h"
 
 namespace audition {
 
@@ -19,8 +21,13 @@ namespace {
 // where a player would hear it.
 constexpr uint8_t kPreviewIds[3] = {251, 252, 253};
 
-// A short phrase, not a single beep — see audition.h. A fixed lick (same notes
-// every roll) makes two sounds easy to A/B.
+// A short phrase, not a single beep — see audition.h. The NOTES are fixed
+// (same lick every roll — that's what makes two sounds easy to A/B, and the
+// per-note ids below are hard-won), but the CLOCK bends per sound:
+// dsp::planAudition() stretches the slide phrases and lengthens the final
+// hold for rolls whose character needs time to arrive — slow swells, filter
+// blooms, flutter and rotary periods, tempo-synced wobbles. Snappy sounds
+// keep this exact base cadence, so the roll-listen-roll loop stays tight.
 struct PrevStep { uint16_t atMs; uint8_t type; uint8_t note; float pitch; };
 enum { kPrevOn = 0, kPrevReta = 1, kPrevOff = 2 };
 const PrevStep kPhrase[] = {
@@ -36,11 +43,19 @@ const PrevStep kPhrase[] = {
 };
 constexpr int kPhraseLen = (int)(sizeof kPhrase / sizeof kPhrase[0]);
 
-uint32_t gT0 = 0;  // phrase start time (0 = idle sentinel)
-int gStep = 0;     // next step to fire
+uint32_t gT0 = 0;                 // phrase start time (0 = idle sentinel)
+int gStep = 0;                    // next step to fire
+uint16_t gAt[kPhraseLen] = {0};   // this sound's schedule (stretched kPhrase)
+uint32_t gLenMs = 2600;           // gAt's last entry — the phrase length
 }  // namespace
 
 void start() {
+    // bend the phrase's clock to the LIVE sound (the caller just set it)
+    const dsp::AuditionPlan plan = dsp::planAudition(store::get().synth);
+    for (int i = 0; i < kPhraseLen; ++i)
+        gAt[i] = (uint16_t)(kPhrase[i].atMs * plan.stretch + 0.5f);
+    gAt[kPhraseLen - 1] = (uint16_t)(gAt[kPhraseLen - 2] + plan.finalHoldMs);
+    gLenMs = gAt[kPhraseLen - 1];
     gT0 = millis();
     if (gT0 == 0) gT0 = 1;  // 0 means idle; never let now() land there
     gStep = 0;              // a fresh roll re-articulates from the top
@@ -51,7 +66,7 @@ void tick() {
     // fresh clock, not a cached frame `now`: a cached value captured before
     // start() ran would predate gT0 and fire the whole phrase in one frame.
     const uint32_t dt = millis() - gT0;
-    while (gStep < kPhraseLen && dt >= kPhrase[gStep].atMs) {
+    while (gStep < kPhraseLen && dt >= gAt[gStep]) {
         const PrevStep& s = kPhrase[gStep];
         const uint8_t id = kPreviewIds[s.note];
         if (s.type == kPrevOff) {
@@ -73,5 +88,7 @@ void stop() {
 }
 
 bool active() { return gT0 != 0; }
+
+uint32_t lengthMs() { return gLenMs + 300; }  // phrase + a breath of the tail
 
 }  // namespace audition
