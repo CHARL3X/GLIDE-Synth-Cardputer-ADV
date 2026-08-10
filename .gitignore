@@ -1,3 +1,8 @@
 .pio/
 .vscode/
 *.pyc
+
+# support/viz_render output + binary
+viz_*.bmp
+viz_*.png
+viz_render.exe

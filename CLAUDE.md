@@ -15,6 +15,14 @@ pio run -e native          # host build of dsp/ + tests
 On this machine `pio` lives at `~\.platformio\penv\Scripts\pio.exe` and the
 native env needs `~\.platformio\packages\toolchain-gccmingw32\bin` on PATH.
 
+**Never design a screen blind — render it.** `support/viz_render/` compiles the
+REAL `ui/screensaver.cpp` over a stub canvas plus the real `ui/theme.cpp` and
+writes a contact sheet, in any of the ten palettes. Use it before asking a human
+to flash and stare at a panel for 90 s. It has already caught things invisible in
+source: a figure using a third of the panel, a depth cue that read flat, a glow
+wash quantising into bands and then stripes, and a `uint8_t` blend factor that
+wrapped and would have inverted a highlight to black. See its README.
+
 ## Hard rules
 
 1. **`src/dsp/` is pure C++.** No Arduino.h, no M5*, no ESP-IDF, no
