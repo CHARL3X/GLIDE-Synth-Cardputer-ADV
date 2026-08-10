@@ -603,7 +603,7 @@ void aRandomize(int) {
     const dsp::Archetype arch = dsp::archetypeForSeedV3(sd);
     store::applyGenerated(dsp::generateSoundV3(sd, arch));
     audition::start();
-    soundcard::showRolled(dsp::archetypeName(arch));  // see the roll — and its character
+    soundcard::showRolled((uint8_t)arch);  // see the roll — and its character, in colour
 }
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The
