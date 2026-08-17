@@ -21,6 +21,7 @@
 #include "help.h"
 #include "sd_browser.h"
 #include "sound_card.h"
+#include "text_entry.h"
 #include "sound_viz.h"
 #include "theme.h"
 
@@ -30,6 +31,7 @@ namespace {
 
 bool gOpenHelp = false;   // set by the Help item; run() opens the modal (it owns the canvas)
 bool gOpenSdLoad = false; // set by "Load from SD"; run() opens the browser modal
+bool gOpenSdSave = false; // set by "Save to SD"; run() opens the name prompt
 int gFlashRow = -1;       // a one-shot row blink confirming an action fired
 uint32_t gFlashUntil = 0;
 float gMutateAmt = 0.30f; // how far each Mutate roams (session pref; 0..1)
@@ -666,9 +668,13 @@ void chooseSaveName(const char* base, const dsp::GenPatch& gp, char* out, int ca
 
 void fSaveSd(char* o, int c) {
     if (gLastSaved[0]) snprintf(o, c, "%s", gLastSaved);
-    else               snprintf(o, c, "to SD card%c", kLRtag);
+    else               snprintf(o, c, "name & save%c", kLRtag);
 }
-void aSaveSd(int) {
+// Write the live sound to the card under `wantName`. The typed name is
+// sanitised FIRST so any collision suffix lands on the real stem, and the file
+// is then written under exactly the stem stored inside it — a long or
+// punctuated name must never save as one thing and read back as another.
+void saveLiveToSd(const char* wantName) {
     const dsp::GenPatch gp = liveAsGen();
     store::PatchData pd;
     pd.synth = gp.synth;
@@ -676,23 +682,26 @@ void aSaveSd(int) {
     pd.synth.cutoffModOct = 0.f; pd.synth.volMod = 1.f; pd.synth.tempoBpm = 120.f;
     pd.tiltRoute = gp.tiltRoute; pd.tiltDepth = gp.tiltDepth;
     pd.tiltRouteB = gp.tiltRouteB; pd.tiltDepthB = gp.tiltDepthB;
-    // name it exactly what you see (liveName) — the file carries that name too,
-    // so what you saved is what the library and any slot you assign it to show.
-    char base[24];
-    strncpy(base, store::liveName(), sizeof base - 1);
-    base[sizeof base - 1] = '\0';
+    char base[sdstore::kMaxNameLen + 1];
+    sdstore::sanitize(wantName, base, sizeof base);
     char finalName[24];
     chooseSaveName(base, gp, finalName, sizeof finalName);
-    // the name INSIDE the file is the filename stem, exactly — otherwise a long
-    // or punctuated live name saves as one thing and reads back as another
-    sdstore::sanitize(finalName, pd.name, sizeof pd.name);
-    if (sdstore::save(finalName, pd)) {
+    char stem[sdstore::kMaxNameLen + 1];   // the suffix may push past the length
+    sdstore::sanitize(finalName, stem, sizeof stem);  // cap — re-clamp, once
+    strncpy(pd.name, stem, sizeof pd.name - 1);
+    pd.name[sizeof pd.name - 1] = '\0';
+    if (sdstore::save(stem, pd)) {
         strncpy(gLastSaved, pd.name, sizeof gLastSaved - 1);
         gLastSaved[sizeof gLastSaved - 1] = '\0';
     } else {
-        snprintf(gLastSaved, sizeof gLastSaved, "no SD");
+        // WHY it failed, not a guess — "card full" and "no card" are different
+        // problems and the player can only act on the true one (Hard Rule #3).
+        snprintf(gLastSaved, sizeof gLastSaved, "%s", sdstore::lastError());
     }
 }
+
+// Naming happens in run(), which owns the canvas the prompt needs.
+void aSaveSd(int) { gOpenSdSave = true; }
 
 void fLoadSd(char* o, int c) { snprintf(o, c, "browse card%c", kLRtag); }
 void aLoadSd(int) { gOpenSdLoad = true; }  // run() opens the browser modal
@@ -1193,6 +1202,32 @@ void run(M5Canvas& canvas) {
             gOpenHelp = false;
             help::run(canvas);
             prev = ~0ULL;  // treat keys held across the modal as already-down
+            draw(canvas, sel, top);
+            continue;
+        }
+
+        if (gOpenSdSave) {  // "Save to SD" asked to name the sound first
+            gOpenSdSave = false;
+            // Check the card BEFORE the prompt. Making someone type a name and
+            // THEN telling them there's no card is the one flow worse than not
+            // asking at all.
+            if (!sdstore::available() && !sdstore::begin()) {
+                snprintf(gLastSaved, sizeof gLastSaved, "%s", sdstore::lastError());
+            } else {
+                // Pre-filled with the sound's own name, so enter-on-arrival keeps
+                // the auto-name exactly as before — naming it is opt-in, one
+                // gesture deep, and never a step you're forced through.
+                char nm[sdstore::kMaxNameLen + 1] = {0};
+                strncpy(nm, store::liveName(), sizeof nm - 1);
+                if (textentry::run(canvas, "SAVE TO SD", nm, sizeof nm)) {
+                    // Cleared the field and hit enter? Take that as "whatever you
+                    // were calling it" rather than writing a file named "patch".
+                    saveLiveToSd(nm[0] ? nm : store::liveName());
+                } else {
+                    snprintf(gLastSaved, sizeof gLastSaved, "cancelled");
+                }
+            }
+            prev = ~0ULL;  // text-entry ate keys — rebuild edge state
             draw(canvas, sel, top);
             continue;
         }

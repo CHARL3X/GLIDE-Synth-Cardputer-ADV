@@ -123,9 +123,10 @@ const Line kLines[] = {
 
     {"KEEP A SOUND", true},
     {"shift-save onto a slot (see SOUNDS),", false},
-    {"or Save to SD for the full library.", false},
-    {"Load from SD browses every saved one,", false},
-    {"named like 'warm-haze' - yours.", false},
+    {"or Save to SD for the full library -", false},
+    {"it asks for a name, already filled in", false},
+    {"with the sound's own, so enter keeps it.", false},
+    {"Load from SD browses every saved one.", false},
     {"Re-roll bank: reset to the presets and", false},
     {"roll fresh o & p. Fresh sounds anytime.", false},
 
