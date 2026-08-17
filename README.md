@@ -72,7 +72,7 @@ The Cardputer's keyboard is a 4×14 matrix with staggered rows. Physically it's 
 
 ```
  string 3 (hi) |  1  2  3  4  5  6  7  8  9  0  |  - oct-   = oct+   bksp PANIC
- string 2      |  q  w  e  r  t  y  u  i  o  p  |  [ bend-  ] bend+  \  hold latch
+ string 2      |  q  w  e  r  t  y  u  i  o  p  |  [ bend-  ] bend+  \  tap tempo
  string 1      |  a  s  d  f  g  h  j  k  l  ;  |  ' scale lock      enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
@@ -208,7 +208,7 @@ No new gesture to learn. Start the jam, then change your sound. The split appear
 
 One tempo (the *Jam tempo*) drives both the progression and the echo. Two things make a solo over that backing sound produced:
 
-- **Tap tempo** (settings → *Tap tempo*): tap `,` or `/` in time and the BPM follows your hand. Set the groove by feel, no number-nudging.
+- **Tap tempo** — on `\`, right on the keyboard, so you can match a song's groove without leaving the instrument. Tap it in time and the BPM follows your hand; the HUD reads back the tempo on every tap. A single tap after a pause only *reports* the tempo, so a stray press can't move anything — it takes two taps to make a beat. (Also in settings → *Tap tempo*, tapped with `,` or `/`; it's the same series either way, so you can start in one place and finish in the other.)
 - **Tempo-synced delay** (settings → *Delay sync*): lock the echo to a musical division (`1/4`, `1/8.` the dotted eighth and the Edge/Gilmour trick, `1/8`, `1/8T`, or `1/16`) and every repeat lands on the beat. Solo and Drift ship with it on; switch to Solo over a progression and the repeats cascade right in the pocket. (Set it to `free` for a plain ms delay.) If a division is too long for the delay line at a slow tempo, it folds down an octave so it stays on the grid instead of clipping.
 
 The whole **send-FX rack is live on-device** (settings): *Chorus*, *Delay send / time / sync / feedback*, *Reverb send / size*. Dial the space to taste and `fn`+`shift`+letter saves it with the slot, like every other sound parameter. The effects were the one thing you couldn't reach before. Now nothing about the sound is off-limits.
@@ -324,7 +324,7 @@ Audio path facts (verified against M5Unified source, not vibes): `playRaw` keeps
 | sub / noise / drive / auto-vib | 0-1 / 0-1 / 1-8 / cents | per sound | saved in sound |
 | chorus / delay / reverb send | 0-100% each | per sound | settings (live) |
 | delay time / sync / feedback | 10-600ms / free+5 divisions / 0-90% | per sound | settings (live) |
-| tap tempo | 40-240 bpm, tapped | live | settings |
+| tap tempo | 40-240 bpm, tapped | live | `\` key, settings |
 | tilt map | global (follows your hands) / per sound | global | settings |
 | tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings, enter toggles |
 | tilt depth | 0-100% | 60% | settings |

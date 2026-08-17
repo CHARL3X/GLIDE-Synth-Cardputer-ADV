@@ -39,8 +39,14 @@ const char* quickParamName(int idx);
 void quickParamValue(int idx, char* out, int cap);  // formatted current value
 float quickParamFill(int idx);  // 0..1 gauge for the edit panel, <0 = no bar
 float bendCentsNow();
-bool holdLatched();
 bool sustainActive();
+
+// Tap tempo. Each call is one beat; two or more inside 2 s set the jam BPM
+// (the progression, the tempo-synced delay and the synced LFOs all read it).
+// Returns the tempo now in force. Shared by the `\` key and the settings row
+// so one series can start in either and finish in the other; a lone tap after
+// a gap only opens a series and reports the current tempo unchanged.
+uint16_t tapTempo(uint32_t nowMs);
 bool tiltLatched();  // mod-latch: tilt values frozen (long-press enter)
 bool triggerHeld();  // raw G0 boot-button level (the assignable trigger macro)
 

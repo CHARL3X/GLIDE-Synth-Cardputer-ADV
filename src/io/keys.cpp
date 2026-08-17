@@ -30,7 +30,7 @@ constexpr int kKeyPanic = 13;      // backspace
 constexpr int kKeyTab = 14;        // tab
 constexpr int kKeyBendDown = 25;   // [
 constexpr int kKeyBendUp = 26;     // ]
-constexpr int kKeyHold = 27;       // backslash
+constexpr int kKeyTapTempo = 27;   // backslash — tap the jam tempo, live
 constexpr int kKeyFn = 28;         // fn
 constexpr int kKeyShift = 29;      // shift
 constexpr int kKeyKeyCycle = 37;   // k — fn+K cycles the root key (live retune)
@@ -106,7 +106,6 @@ uint32_t gLastPollMs = 0;
 uint32_t gLastActivityMs = 0;  // most recent touch (idle-dim / screensaver timer)
 
 float gBendCents = 0.f;
-bool gHoldLatch = false;
 bool gSustainHeld = false;
 
 // The G0 boot button (GPIO 0) doubles as a performance trigger at runtime: an
@@ -366,7 +365,7 @@ void noteRelease(int cd) {
     n.physical = false;
     if (n.drone) return;  // drones ignore the finger leaving — tap-to-stop
 
-    if (gSustainHeld || gHoldLatch) {
+    if (gSustainHeld) {
         n.sustained = true;
         if (cfgr.stringMode) laneRemove(n.string, (uint8_t)cd);
         return;
@@ -1011,11 +1010,15 @@ Actions poll(uint32_t nowMs) {
                     gRepeatStart = gRepeatLast = nowMs;
                 }
                 break;
-            case kKeyHold:
-                gHoldLatch = !gHoldLatch;
-                if (!gHoldLatch) flushSustained();
-                hud::show("HOLD", gHoldLatch ? "latched" : "off", -1.f);
+            case kKeyTapTempo: {
+                // Tap the tempo in, live, without leaving the instrument. The
+                // first tap of a series only reads the tempo back, so a stray
+                // press can't change anything — there is nothing here to undo.
+                char v[20];
+                snprintf(v, sizeof v, "%u bpm", (unsigned)tapTempo(nowMs));
+                hud::show("TEMPO", v, -1.f);
                 break;
+            }
             case kKeyScaleLock:
                 cfgr.layout.scaleLock = !cfgr.layout.scaleLock;
                 hud::show("SCALE LOCK", cfgr.layout.scaleLock ? "on (degrees)" : "off (chromatic)",
@@ -1147,7 +1150,7 @@ Actions poll(uint32_t nowMs) {
 
     // sustain pedal lifted -> let go of everything not physically held
     static bool prevSustain = false;
-    if (prevSustain && !gSustainHeld && !gHoldLatch) flushSustained();
+    if (prevSustain && !gSustainHeld) flushSustained();
     prevSustain = gSustainHeld;
 
     // ---- quick-edit auto-repeat ---------------------------------------------
@@ -1256,8 +1259,32 @@ void quickParamValue(int idx, char* out, int cap) {
     }
 }
 float bendCentsNow() { return gBendCents; }
-bool holdLatched() { return gHoldLatch; }
-bool sustainActive() { return gSustainHeld || gHoldLatch; }
+bool sustainActive() { return gSustainHeld; }
+
+// Tap tempo, one state machine for both entry points (the `\` key and the
+// settings row) so a series survives crossing between them. A gap longer than
+// kTapSeriesMs starts fresh; the running interval is a 50/50 smooth so a
+// wobbly hand settles instead of jittering, and the BPM is clamped to the same
+// 40..240 the settings row has always used.
+uint16_t tapTempo(uint32_t nowMs) {
+    constexpr uint32_t kTapSeriesMs = 2000;
+    static uint32_t lastTap = 0;
+    static float avgInt = 0.f;
+    auto& cfgr = store::get();
+    if (lastTap != 0 && nowMs - lastTap < kTapSeriesMs) {
+        const float interval = (float)(nowMs - lastTap);
+        avgInt = avgInt > 0.f ? avgInt * 0.5f + interval * 0.5f : interval;
+        int bpm = (int)(60000.f / avgInt + 0.5f);
+        if (bpm < 40) bpm = 40;
+        if (bpm > 240) bpm = 240;
+        cfgr.jamBpm = (uint16_t)bpm;
+        store::markDirty();
+    } else {
+        avgInt = 0.f;  // first tap of a fresh series: read, don't write
+    }
+    lastTap = nowMs;
+    return cfgr.jamBpm;
+}
 bool tiltLatched() { return gTiltLatched; }
 bool triggerHeld() { return gTriggerHeld; }  // raw G0 level (trigger macro)
 uint32_t lastActivityMs() { return gLastActivityMs; }

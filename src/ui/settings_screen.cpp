@@ -359,21 +359,11 @@ void aReverbSize(int d) {
 }
 
 // Tap tempo: each press here is a beat — two or more in time set the jam BPM,
-// which drives the progression AND the tempo-synced delay.
-void fTapTempo(char* o, int c) { snprintf(o, c, "%d bpm  (tap , /)", store::get().jamBpm); }
-void aTapTempo(int) {
-    static uint32_t lastTap = 0;
-    static float avgInt = 0.f;
-    const uint32_t now = millis();
-    if (lastTap != 0 && now - lastTap < 2000) {
-        const float interval = (float)(now - lastTap);
-        avgInt = avgInt > 0.f ? avgInt * 0.5f + interval * 0.5f : interval;
-        store::get().jamBpm = (uint16_t)clampT((int)(60000.f / avgInt + 0.5f), 40, 240);
-    } else {
-        avgInt = 0.f;  // first tap of a fresh series
-    }
-    lastTap = now;
-}
+// which drives the progression AND the tempo-synced delay. The state machine
+// lives in keys.cpp because `\` taps the same tempo out on the perform screen;
+// sharing it means a series can start on one and finish on the other.
+void fTapTempo(char* o, int c) { snprintf(o, c, "%d bpm  (or tap \\)", store::get().jamBpm); }
+void aTapTempo(int) { keys::tapTempo(millis()); }
 
 // The scope modes, in scopeMode order (append-only — the index persists).
 // 0/1 are the originals; 2..5 are the generative modes from the viz lab.

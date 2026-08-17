@@ -223,7 +223,7 @@ void drawStatus(M5Canvas& c) {
     c.drawString(buf, 56, 2);
 
     snprintf(buf, sizeof buf, "OCT%d", cf.layout.octave);
-    c.drawString(buf, 108, 2);  // ends 132: clears HOLD (right edge 134-158)
+    c.drawString(buf, 108, 2);  // ends 132: clears SOLO (left edge 138)
 
     // solo/backing split engaged: the backing holds its own sound while this
     // patch / octave / volume is the solo. Steel "SOLO" (the backing's colour)
@@ -249,11 +249,6 @@ void drawStatus(M5Canvas& c) {
     c.setTextColor(!cf.tiltOn ? theme::kLine : (latched ? theme::kAmber : theme::kGreen),
                    theme::kPanel);
     c.drawString(cf.tiltOn && cf.tiltDual ? "TILT2" : "TILT", x, 2);
-    x -= 30;
-    if (keys::holdLatched()) {
-        c.setTextColor(theme::kAmber, theme::kPanel);
-        c.drawString("HOLD", x, 2);
-    }
     c.setTextDatum(top_left);
 }
 

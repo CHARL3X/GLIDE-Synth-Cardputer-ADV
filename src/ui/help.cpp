@@ -48,7 +48,7 @@ const Line kLines[] = {
     {"  song and retunes the key for you", false},
     {"- / =    : octave down / up", false},
     {"[ / ]    : pitch bend down / up", false},
-    {"\\        : hold (sustain, hands free)", false},
+    {"\\        : tap tempo (tap it 4x in time)", false},
     {"space    : sustain pedal", false},
     {"ctrl/opt : volume - / + (hold to ramp)", false},
     {"enter    : tilt mode (tap cycle/hold lock)", false},
