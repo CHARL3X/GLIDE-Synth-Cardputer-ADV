@@ -5,8 +5,8 @@
     .n  { fill:#14211b; stroke:#2a4c3c; stroke-width:1; }
     .nc { fill:#4fd68f; font-size:19px; text-anchor:middle; }
     .cc { fill:#cfd6dd; font-size:12px; text-anchor:middle; }
-    .rl { fill:#d9a04a; font-size:9px;  text-anchor:middle; }
-    .rd { fill:#e05d5d; font-size:9px;  text-anchor:middle; letter-spacing:1px; }
+    .rl { fill:#d9a04a; font-size:11px; text-anchor:middle; }
+    .rd { fill:#e05d5d; font-size:11px; text-anchor:middle; letter-spacing:1px; }
     .sl { fill:#5c6875; font-size:13px; text-anchor:end; }
     .lg { fill:#4fd68f; font-size:13px; }
     .ld { fill:#aeb8c2; font-size:13px; }
@@ -22,7 +22,7 @@
   <!-- row 0 -->
   <rect class="k" x="150" y="24" width="64" height="52" rx="8"/>
   <text class="cc" x="182" y="52" style="font-size:22px">`</text>
-  <text class="rl" x="182" y="65">exit (hold)</text>
+  <text class="rl" x="182" y="65" style="font-size:9px">exit (hold)</text>
   <rect class="n" x="220" y="24" width="64" height="52" rx="8"/><text class="nc" x="252" y="57">1</text>
   <rect class="n" x="290" y="24" width="64" height="52" rx="8"/><text class="nc" x="322" y="57">2</text>
   <rect class="n" x="360" y="24" width="64" height="52" rx="8"/><text class="nc" x="392" y="57">3</text>
@@ -65,15 +65,15 @@
   <text class="rl" x="1022" y="125">bend +</text>
   <rect class="k" x="1060" y="84" width="64" height="52" rx="8"/>
   <text class="cc" x="1092" y="108">\</text>
-  <text class="rl" x="1092" y="125">tap tempo</text>
+  <text class="rl" x="1092" y="125" style="font-size:10px">tap tempo</text>
 
   <!-- row 2 -->
   <rect class="k" x="150" y="144" width="64" height="52" rx="8"/>
   <text class="cc" x="182" y="168">fn</text>
-  <text class="rl" x="182" y="185">quick-edit</text>
+  <text class="rl" x="182" y="185" style="font-size:9.5px">quick-edit</text>
   <rect class="k" x="220" y="144" width="64" height="52" rx="8"/>
   <text class="cc" x="252" y="168">shift</text>
-  <text class="rl" x="252" y="185">chromatic</text>
+  <text class="rl" x="252" y="185" style="font-size:10px">chromatic</text>
   <rect class="n" x="290" y="144" width="64" height="52" rx="8"/><text class="nc" x="322" y="177">a</text>
   <rect class="n" x="360" y="144" width="64" height="52" rx="8"/><text class="nc" x="392" y="177">s</text>
   <rect class="n" x="430" y="144" width="64" height="52" rx="8"/><text class="nc" x="462" y="177">d</text>
@@ -86,7 +86,7 @@
   <rect class="n" x="920" y="144" width="64" height="52" rx="8"/><text class="nc" x="952" y="177">;</text>
   <rect class="k" x="990" y="144" width="64" height="52" rx="8"/>
   <text class="cc" x="1022" y="168">'</text>
-  <text class="rl" x="1022" y="185">scale lock</text>
+  <text class="rl" x="1022" y="185" style="font-size:9.5px">scale lock</text>
   <rect class="k" x="1060" y="144" width="64" height="52" rx="8"/>
   <text class="cc" x="1092" y="168">enter</text>
   <text class="rl" x="1092" y="185">tilt</text>
