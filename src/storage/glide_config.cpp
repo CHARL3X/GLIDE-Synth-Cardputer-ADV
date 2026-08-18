@@ -468,9 +468,28 @@ void persistMorphSource() {
     pd.name[i] = '\0';
     uint8_t buf[512];
     const size_t n = encodePatch(pd, buf, sizeof buf);
-    // A failure just leaves the flag set — the partner waits for room instead of
-    // competing, and never reports an error: nothing the player did has failed.
-    if (n != 0 && gPrefs.putBytes(kMorphKey, buf, n) == n) gMorphSrcDirty = false;
+    if (n == 0) return;
+    if (gPrefs.putBytes(kMorphKey, buf, n) == n) {
+        gMorphSrcDirty = false;
+        return;
+    }
+    // The rewrite failed. An NVS blob rewrite needs room for the NEW copy
+    // before the old one is erased, so on a tight shared partition this is the
+    // first write to fail while every one-entry scalar still lands — leaving a
+    // FOSSIL: the blend restores against a partner from sessions ago (measured
+    // on hardware: a long-gone roll came back at every boot). A stale partner
+    // is worse than none — boot's fallback to the signature pair is at least
+    // honest — so reclaim our own old copy and retry once, exactly the
+    // putPatchBytes trick pointed at ourselves.
+    gPrefs.remove(kMorphKey);
+    if (gPrefs.putBytes(kMorphKey, buf, n) == n) {
+        gMorphSrcDirty = false;
+        Serial.println("[store] morph partner rewritten after reclaiming its old copy");
+        return;
+    }
+    // Still no room: the flag stays set (retries next flush), and says so on
+    // serial — an expendable blob, but never a silent lie.
+    Serial.println("[store] morph partner write failed (nvs full?)");
 }
 
 // Restore the persisted partner. false if there is none, or it won't decode.
