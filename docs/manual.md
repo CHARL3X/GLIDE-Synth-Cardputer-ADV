@@ -80,7 +80,7 @@ Under the hood every sound rides five engine character-makers: a paraphonic **fi
 
 The gyro debate, resolved as agreed, then promoted, because in practice it's fantastic. Tilt is an *assignable* effects modulator, toggled with `enter`, and **never pitch bend** (nobody wants to lean the instrument over again).
 
-- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) and **vibrato on left/right**, both at 60%. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Ethereal and Solo into vibrato — the table above), saved with the slot.
+- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) and **vibrato on left/right**, both at 60%. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Ethereal and Solo into vibrato, per the table above), saved with the slot.
 - **Depth** (settings): how hard the motion drives the effect, 0 to 100%.
 - **Center calibration** (settings → *Tilt center*): "flat" becomes wherever *you* hold the thing, not wherever gravity says. Set it while holding the device in playing position.
 
