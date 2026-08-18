@@ -1,4 +1,4 @@
-# GLIDE — design & internals
+# GLIDE: design and internals
 
 Where the instrument came from, the ideas it encodes, and how the firmware is built. For playing it, see the [manual](manual.md); for install, the [README](../README.md).
 
