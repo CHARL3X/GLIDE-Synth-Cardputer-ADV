@@ -767,7 +767,13 @@ void begin() {
         gPrefs.putBool("oct3", true);
     }
     l.rowIntervalSemis = clampT<int>(gPrefs.getUChar("rowint", d.layout.rowIntervalSemis), 1, 12);
-    l.scaleLock = gPrefs.getBool("lock", d.layout.scaleLock);
+    // Scale lock is SESSION state, not config: ' un-locks for the moment, but
+    // every boot starts locked (the default). Persisting it stranded players in
+    // chromatic — one accidental ' and the instrument "sounded wrong" forever
+    // after, with nothing on screen to say why. Drop the old key: reclaims an
+    // entry on the crowded shared partition, and absent keys stay absent.
+    l.scaleLock = d.layout.scaleLock;
+    if (gPrefs.isKey("lock")) gPrefs.remove("lock");
 
     gCfg.stringMode = gPrefs.getBool("strmode", d.stringMode);
     gCfg.octaveGlide = gPrefs.getBool("octgl", d.octaveGlide);
@@ -995,7 +1001,7 @@ void persistNow() {
     gPrefs.putUChar("scale", l.scaleIdx);
     gPrefs.putChar("oct", l.octave);
     gPrefs.putUChar("rowint", l.rowIntervalSemis);
-    gPrefs.putBool("lock", l.scaleLock);
+    // scaleLock deliberately NOT persisted — session state, see begin()
 
     gPrefs.putBool("strmode", gCfg.stringMode);
     gPrefs.putBool("octgl", gCfg.octaveGlide);
