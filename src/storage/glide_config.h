@@ -154,6 +154,16 @@ bool nvsHealthy();            // false if NVS failed to open -> nothing persists
 uint32_t bootCount();         // DIAGNOSTIC: boots persisted in NVS (climbs => persist works)
 bool writeProbeOk();          // DIAGNOSTIC: did this boot's write+readback succeed?
 void markDirty();             // schedule a debounced persist
+
+// ---- odometer -------------------------------------------------------------
+// Lifetime play counters, shown as one quiet read-only row in SYSTEM. Notes =
+// player-struck note starts only (lead presses, drone latches, chord-step
+// taps); never looper playback, jam re-strikes, or octave sweeps. Seconds =
+// hands-on time (accumulates while a struck note is <30 s old). Survives
+// settings resets; only a full factory wipe (boot-BKSP) clears it.
+void odoNote();               // count one player-struck note (press sites only)
+uint32_t odoNotes();
+uint32_t odoSeconds();
 void tick(uint32_t nowMs);    // call each frame; performs the deferred write
 void persistNow();
 void resetDefaults();         // restore + persist

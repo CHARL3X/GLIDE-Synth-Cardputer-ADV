@@ -20,6 +20,23 @@ uint32_t gBootCount = 0;     // DIAGNOSTIC: boots survived in NVS (see begin())
 bool gWriteProbeOk = false;  // DIAGNOSTIC: did this boot's probe write+readback?
 bool gDirty = false;
 uint32_t gDirtySince = 0;
+
+// ---- odometer -------------------------------------------------------------
+// Lifetime play counters: notes the player actually struck, and hands-on time
+// (seconds within kOdoEngagedMs of a struck note, so desk-idle never counts).
+// Persisted on their own slow cadence — an odometer must not add flash wear
+// per note — and carried by every ordinary persistNow() flush as well. Losing
+// the last few minutes to a power-off is fine; an odometer rounds down.
+uint32_t gOdoNotes = 0;
+uint32_t gOdoSecs = 0;
+uint32_t gOdoLastNoteMs = 0;   // 0 = nothing struck since boot
+uint32_t gOdoLastTickMs = 0;
+uint32_t gOdoMsAcc = 0;
+uint32_t gOdoLastWriteMs = 0;
+uint32_t gOdoWrittenNotes = 0;  // shadow of what NVS holds, to skip idle writes
+uint32_t gOdoWrittenSecs = 0;
+constexpr uint32_t kOdoEngagedMs = 30000;
+constexpr uint32_t kOdoPersistMs = 5 * 60 * 1000;
 char gSaveErr[20] = "";  // why the last save failed (HUD value width)
 
 // A patch blob is ~400 B and NVS stores blobs in 32 B entries — a nearly-full
@@ -600,6 +617,10 @@ void begin() {
                       (unsigned)st.used_entries, (unsigned)st.free_entries,
                       (unsigned)st.total_entries, (unsigned)st.namespace_count);
 
+    // Odometer: lifetime counters, read once; absent keys = a fresh instrument.
+    gOdoNotes = gOdoWrittenNotes = gPrefs.getUInt("odonotes", 0);
+    gOdoSecs = gOdoWrittenSecs = gPrefs.getUInt("odosecs", 0);
+
     // This unit's stable unique seed. Created once from the hardware RNG and
     // persisted; it's what makes one device's generated bank reproducibly
     // different from the next. esp_random() is a true HRNG once the radio/clock
@@ -1038,6 +1059,11 @@ void persistNow() {
     // here so they land in the SAME flush as the sound they describe.
     gPrefs.putString(kLiveNameKey, gLiveName);
     gPrefs.putBool(kLiveCleanKey, liveHash() == gCurSlotHash);
+    // Odometer rides along on every ordinary flush (NVS skips unchanged values).
+    gPrefs.putUInt("odonotes", gOdoNotes);
+    gPrefs.putUInt("odosecs", gOdoSecs);
+    gOdoWrittenNotes = gOdoNotes;
+    gOdoWrittenSecs = gOdoSecs;
     persistMorphSource();  // last: the expendable blob never delays a real key,
                            // and it lands in the SAME flush as the live sound, so
                            // a power cut can only ever cost you a consistent pair
@@ -1049,7 +1075,36 @@ void markDirty() {
     gDirtySince = millis();
 }
 
+void odoNote() {
+    ++gOdoNotes;
+    gOdoLastNoteMs = millis();
+}
+
+uint32_t odoNotes() { return gOdoNotes; }
+uint32_t odoSeconds() { return gOdoSecs; }
+
 void tick(uint32_t nowMs) {
+    // Odometer time: accumulate only while engaged (a note struck within the
+    // window), so hours mean hands on keys, not power on desk.
+    if (gOdoLastTickMs != 0 && gOdoLastNoteMs != 0 && nowMs - gOdoLastNoteMs < kOdoEngagedMs) {
+        gOdoMsAcc += nowMs - gOdoLastTickMs;
+        while (gOdoMsAcc >= 1000) {
+            gOdoMsAcc -= 1000;
+            ++gOdoSecs;
+        }
+    }
+    gOdoLastTickMs = nowMs;
+    // Odometer persist, on its own slow clock so play alone never hammers
+    // flash. (persistNow() also carries the counters, whenever it runs.)
+    if (gNvsOk && nowMs - gOdoLastWriteMs >= kOdoPersistMs &&
+        (gOdoNotes != gOdoWrittenNotes || gOdoSecs != gOdoWrittenSecs)) {
+        gOdoLastWriteMs = nowMs;
+        gPrefs.putUInt("odonotes", gOdoNotes);
+        gPrefs.putUInt("odosecs", gOdoSecs);
+        gOdoWrittenNotes = gOdoNotes;
+        gOdoWrittenSecs = gOdoSecs;
+    }
+
     if (gDirty && nowMs - gDirtySince >= cfg::kPersistDebounceMs) persistNow();
 }
 

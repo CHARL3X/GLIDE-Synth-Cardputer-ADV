@@ -277,6 +277,7 @@ void notePress(int cd, bool shiftHeld) {
             char v[20];
             snprintf(v, sizeof v, "%d: %s", gProgLen, dsp::pitchClassName(pp[0]));
             hud::show("PROG", v, -1.f);
+            store::odoNote();  // a chord-step tap is played, not configured
             return;
         }
         if (n.drone && n.string >= 0) {  // second tap: release the drone
@@ -290,6 +291,7 @@ void notePress(int cd, bool shiftHeld) {
         n.col = gGridCol[cd];
         n.chromAtPress = shiftHeld || !cfgr.layout.scaleLock;
         n.pitch = pitchFor(n);
+        store::odoNote();  // the latch tap counts once; jam re-strikes never do
         if (cfgr.jamMotion == kJamArp) {
             // arp: this key joins the pattern but stays SILENT until the beat
             // clock voices it one-at-a-time — single notes, so the run is clean
@@ -320,6 +322,7 @@ void notePress(int cd, bool shiftHeld) {
                                                    (uint8_t)n.string, legato, n.pitch);
     audio::pushEvent(ev);
     looper::record(ev);
+    store::odoNote();
 }
 
 void sendOff(int cd) {

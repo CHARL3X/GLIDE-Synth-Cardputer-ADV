@@ -408,6 +408,19 @@ void aBoot(int) { store::get().bootSound = !store::get().bootSound; }
 void fIntro(char* o, int c) { snprintf(o, c, "%s", store::get().seenIntro ? "hidden" : "will show"); }
 void aIntro(int) { store::get().seenIntro = !store::get().seenIntro; }
 
+// The odometer: lifetime notes struck and hands-on hours, read-only. No
+// streaks, no goals — just the instrument's life with you, counted quietly.
+void fOdo(char* o, int c) {
+    const unsigned long n = store::odoNotes();
+    const unsigned long s = store::odoSeconds();
+    const unsigned long h = s / 3600, m = (s % 3600) / 60;
+    if (h > 0)
+        snprintf(o, c, "%lu notes  %luh %lum", n, h, m);
+    else
+        snprintf(o, c, "%lu notes  %lum", n, m);
+}
+void aOdo(int) {}  // an odometer only counts forward
+
 void fReset(char* o, int c) { snprintf(o, c, "press , or /"); }
 void aReset(int) { store::resetDefaults(); }
 
@@ -832,6 +845,7 @@ const Item kItems[] = {
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
     {"How to play", fHelp, aHelp},
+    {"Odometer", fOdo, aOdo},
     {"Reset defaults", fReset, aReset},
 };
 constexpr int kItemCount = (int)(sizeof(kItems) / sizeof(kItems[0]));
