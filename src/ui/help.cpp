@@ -1,9 +1,14 @@
 #include "help.h"
 
+#include <cstring>
+
 #include "../config.h"
+#include "theme.h"
+
+#ifndef GLIDE_HOST_BUILD
 #include "../io/keys.h"
 #include "../io/looper.h"
-#include "theme.h"
+#endif
 
 namespace help {
 
@@ -15,132 +20,195 @@ constexpr int kDown = 53;   // .
 constexpr int kExit1 = 0;   // `
 constexpr int kExit2 = 14;  // tab
 
-struct Line {
-    const char* text;
-    bool header;  // amber section title vs dim body
+// The manual is a TABLE, not an essay: most rows are a key token (green chip,
+// left column) plus what it does (bright, right column), so the page scans.
+// Prose only where a concept needs it; asides/continuations sit dim in the
+// right column. Every chord spells fn explicitly — "q..p omits holding fn"
+// was a real complaint from hardware.
+enum Kind : uint8_t {
+    kHd,   // amber section title + rule
+    kKey,  // key token on a chip + what it does
+    kSub,  // dim continuation/aside, aligned under the desc column
+    kTxt,  // prose line
+    kGap,  // breathing room before a header
 };
 
-// The whole manual. Kept terse — it's a reminder, not a tutorial. A leading
-// space on body lines reads as a hanging indent under its header.
+struct Line {
+    Kind kind;
+    const char* key;   // kKey only
+    const char* text;  // desc / prose / header
+};
+
+// Column layout: key tokens ≤13 chars end by x=85 (chip to 87); descs get
+// 24 chars at x=92; prose gets 38 at x=7. Font0: 6 px/char, 240 wide.
+constexpr int kProseX = 7;
+constexpr int kDescX = 92;
+
 const Line kLines[] = {
-    {"GLIDE - a pocket slide synth", true},
-    {"4 rows = a scale. Press to play.", false},
-    {"Hold a key, press another in the", false},
-    {"same row = legato SLIDE (hammer-on).", false},
-    {"Release back onto a held key = slide", false},
-    {"down (pull-off). That glide is it.", false},
+    {kHd, nullptr, "THE SLIDE"},
+    {kTxt, nullptr, "4 rows = a scale. Just press."},
+    {kTxt, nullptr, "Hold a note, tap another in the"},
+    {kTxt, nullptr, "same row: legato slide up."},
+    {kTxt, nullptr, "Release back onto a held key:"},
+    {kTxt, nullptr, "slide down. That glide is GLIDE."},
 
-    {"YOUR SOUNDS ARE YOURS", true},
-    {"q..i are a curated bank (q=GLIDE home,", false},
-    {"w=ACID, then 6 presets). o & p are", false},
-    {"rolled unique to THIS device. But the", false},
-    {"point is you MAKE your own: settings >", false},
-    {"CREATE > Randomize gives a new one", false},
-    {"(hear it now), Mutate changes it, Undo", false},
-    {"steps back. Keep the ones you love", false},
-    {"(KEEP A SOUND, below). q is always home.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "PLAY KEYS"},
+    {kKey, "shift", "hold: off-scale notes"},
+    {kKey, "'", "scale lock on/off"},
+    {kKey, "- / =", "octave down / up"},
+    {kKey, "[ / ]", "pitch bend down / up"},
+    {kKey, "\\", "tap tempo (tap 4x)"},
+    {kKey, "space", "sustain pedal"},
+    {kKey, "ctrl / opt", "volume (hold: ramp)"},
+    {kKey, "enter", "tilt: tap cycles,"},
+    {kSub, nullptr, "hold locks"},
+    {kKey, "bksp", "panic: all notes off"},
+    {kKey, "tab", "settings (all the rest)"},
+    {kKey, "` hold", "exit GLIDE"},
 
-    {"PLAY KEYS", true},
-    {"shift (hold): chromatic (off-scale)", false},
-    {"'        : scale lock on/off", false},
-    {"fn+k     : cycle key up (match a song)", false},
-    {"fn+k HELD: LISTEN - the mic hears the", false},
-    {"  song and retunes the key for you", false},
-    {"- / =    : octave down / up", false},
-    {"[ / ]    : pitch bend down / up", false},
-    {"\\        : tap tempo (tap it 4x in time)", false},
-    {"space    : sustain pedal", false},
-    {"ctrl/opt : volume - / + (hold to ramp)", false},
-    {"enter    : tilt mode (tap cycle/hold lock)", false},
-    {"` (hold) : exit", false},
-    {"bksp     : panic (all notes off)", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "KEY & SCALE"},
+    {kKey, "fn+k", "key up (match a song)"},
+    {kKey, "fn+k hold", "LISTEN: the mic hears"},
+    {kSub, nullptr, "the song, retunes you"},
 
-    {"SOUNDS: 1 LIVE + 10 SLOTS (q..p)", true},
-    {"You always play ONE live sound.", false},
-    {"q=GLIDE (home), w=ACID, e..i are six", false},
-    {"curated presets; o & p are rolled", false},
-    {"unique to YOUR device from its seed.", false},
-    {"fn + q..p : load that slot's sound", false},
-    {"  (unsaved live edits are dropped)", false},
-    {"fn+shift+ q..p : save the live sound", false},
-    {"  ONTO that key, overwriting its slot.", false},
-    {"Tweak, then shift-save the SAME key", false},
-    {"to keep it. A different key = a copy.", false},
-    {"Saves it ALL: mods, LFOs, filter, FX.", false},
-    {"* after the name (top bar) = unsaved", false},
-    {"edits; shift-save to keep them. * in", false},
-    {"the q..p list = a slot that's your own.", false},
-    {"fn + number row : 10 live knobs,", false},
-    {"   then [ ] fine, - = coarse.", false},
-    {"tab : settings (everything else)", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "SOUNDS ON q..p"},
+    {kTxt, nullptr, "One LIVE sound + ten slots q..p:"},
+    {kTxt, nullptr, "q GLIDE  w ACID  e..i presets,"},
+    {kTxt, nullptr, "o p rolled unique to YOUR unit."},
+    {kKey, "fn+q..p", "load that slot"},
+    {kSub, nullptr, "(unsaved edits drop)"},
+    {kKey, "fn+shift+q..p", "save the live sound"},
+    {kSub, nullptr, "onto that key"},
+    {kTxt, nullptr, "* by the name (top bar) means"},
+    {kTxt, nullptr, "unsaved edits - shift-save"},
+    {kTxt, nullptr, "onto its key to keep them."},
 
-    {"JAM / BACKING", true},
-    {"Settings > Jam rows: bottom row(s)", false},
-    {"become drones/chords. Tap them to", false},
-    {"build a chord progression, then solo", false},
-    {"over it on the rows above.", false},
-    {"Settings > Jam motion = progression.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "QUICK KNOBS"},
+    {kKey, "fn+1..0", "grab a live knob"},
+    {kSub, nullptr, "keep fn held, then:"},
+    {kKey, "- / =", "turn coarse"},
+    {kKey, "[ / ]", "turn fine"},
 
-    {"LOOP  (alt = loop pedal)", true},
-    {"One button records your PLAYING, then", false},
-    {"replays it under your solo, in time.", false},
-    {"tap    : rec, then play, then overdub", false},
-    {"         - one key cycles the three.", false},
-    {"hold   : clear the whole loop.", false},
-    {"fn+alt : peel a layer (undo). Walks the", false},
-    {"         stack, bounces at the ends.", false},
-    {"It plays through whatever sound you", false},
-    {"pick - swap sounds and it re-voices.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "LOOP"},
+    {kKey, "alt tap", "rec > play > overdub"},
+    {kKey, "alt hold", "clear the loop"},
+    {kKey, "fn+alt", "peel a layer (undo)"},
+    {kTxt, nullptr, "It records your PLAYING and"},
+    {kTxt, nullptr, "replays it through whatever"},
+    {kTxt, nullptr, "sound is live - swap freely."},
 
-    {"TILT", true},
-    {"Lean to modulate - never pitch bend.", false},
-    {"Two axes, and by default:", false},
-    {"  fwd/back  = morph (blend last sound)", false},
-    {"  left/right = vibrato", false},
-    {"Re-route either in Settings > Tilt.", false},
-    {"Tilt map = global: it follows YOUR", false},
-    {"hands across every sound, no saving.", false},
-    {"Set 'per sound' to bind it per patch.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "JAM / BACKING"},
+    {kTxt, nullptr, "Settings > Jam rows: the bottom"},
+    {kTxt, nullptr, "row becomes chords. Tap one to"},
+    {kTxt, nullptr, "start a progression, then solo"},
+    {kTxt, nullptr, "on the rows above it."},
 
-    {"MOD MATRIX (settings)", true},
-    {"Pick a SOURCE (LFO, mod-env, tilt,", false},
-    {"random, key, bend), a DEST (cutoff,", false},
-    {"pitch, amp, drive, FX...), and an", false},
-    {"amount. 6 slots. This is how a sound", false},
-    {"becomes nobody else's but yours.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "TILT  (lean the unit)"},
+    {kKey, "fwd/back", "morph: blend toward"},
+    {kSub, nullptr, "the last sound"},
+    {kKey, "left/right", "vibrato"},
+    {kTxt, nullptr, "Never pitch bend. Re-route or"},
+    {kTxt, nullptr, "deepen it: Settings > Tilt."},
 
-    {"MAKE A SOUND (settings > CREATE)", true},
-    {"Randomize: a whole new patch in one", false},
-    {"tap; it auditions instantly. Roll till", false},
-    {"you love one.", false},
-    {"Mutate: change THIS sound a little or", false},
-    {"a lot (Mutate amt). Sculpt a vibe.", false},
-    {"Undo / Redo: step back to a sound you", false},
-    {"had - a roll never loses your last.", false},
-    {"Init: a blank sound to build from.", false},
-    {"Nothing saves until you keep it, so", false},
-    {"rolling can't break a sound you saved.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "MAKE A SOUND  (settings)"},
+    {kTxt, nullptr, "Randomize: a new sound each tap,"},
+    {kTxt, nullptr, "auditioned instantly. Roll away -"},
+    {kTxt, nullptr, "it can't hurt a saved slot."},
+    {kTxt, nullptr, "Mutate: nudge the sound you have."},
+    {kTxt, nullptr, "Undo / Redo: walk your history."},
+    {kTxt, nullptr, "Init: a blank canvas."},
 
-    {"KEEP A SOUND", true},
-    {"shift-save onto a slot (see SOUNDS),", false},
-    {"or Save to SD for the full library -", false},
-    {"it asks for a name, already filled in", false},
-    {"with the sound's own, so enter keeps it.", false},
-    {"Load from SD browses every saved one.", false},
-    {"Re-roll bank: reset to the presets and", false},
-    {"roll fresh o & p. Fresh sounds anytime.", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "KEEP A SOUND"},
+    {kTxt, nullptr, "shift-save it onto q..p (above),"},
+    {kTxt, nullptr, "or settings > Save to SD: comes"},
+    {kTxt, nullptr, "pre-named, enter accepts. Load"},
+    {kTxt, nullptr, "from SD browses your library."},
+    {kTxt, nullptr, "Saves survive reboots + updates."},
 
-    {"SAVES ARE FOREVER", true},
-    {"Saved sounds survive reboots AND", false},
-    {"firmware updates - never wiped. The SD", false},
-    {"library travels card-to-card too.", false},
-    {"Headphones: plug in (speaker mutes).", false},
+    {kGap, nullptr, nullptr},
+    {kHd, nullptr, "GOOD TO KNOW"},
+    {kTxt, nullptr, "Headphones mute the speaker."},
+    {kTxt, nullptr, "Sounds live IN the unit - the SD"},
+    {kTxt, nullptr, "card is your library + backup."},
 };
 constexpr int kLineCount = (int)(sizeof(kLines) / sizeof(kLines[0]));
-constexpr int kVisible = 10;  // body lines fit ~10 at this size
+constexpr int kRowH = 11;
+constexpr int kVisible = 10;  // rows below the 14 px title bar
 
 }  // namespace
 
+int lineCount() { return kLineCount; }
+int visibleLines() { return kVisible; }
+
+// One full frame at a scroll position. Pure draw — host-rendered by
+// support/viz_render (render_help.cpp) so the page is reviewed as pixels,
+// never designed blind.
+void drawPage(M5Canvas& canvas, int top) {
+    canvas.fillScreen(theme::kBg);
+    canvas.fillRect(0, 0, cfg::kScreenW, 14, theme::kPanel);
+    canvas.setFont(&fonts::Font0);
+    canvas.setTextDatum(top_left);
+    canvas.setTextColor(theme::kAmber, theme::kPanel);
+    canvas.drawString("HOW TO PLAY", 5, 3);
+    canvas.setTextColor(theme::kDim, theme::kPanel);
+    canvas.setTextDatum(top_right);
+    canvas.drawString(top + kVisible < kLineCount ? "\x1e\x1f scroll  ` back" : "` back",
+                      cfg::kScreenW - 4, 3);
+    canvas.setTextDatum(top_left);
+
+    for (int row = 0; row < kVisible; ++row) {
+        const int i = top + row;
+        if (i >= kLineCount) break;
+        const int y = 17 + row * kRowH;
+        const Line& ln = kLines[i];
+        switch (ln.kind) {
+            case kHd:
+                canvas.setTextColor(theme::kAmber, theme::kBg);
+                canvas.drawString(ln.text, 3, y);
+                canvas.drawFastHLine(3, y + 9, cfg::kScreenW - 10, theme::kLine);
+                break;
+            case kKey: {
+                const int w = (int)strlen(ln.key) * 6;
+                canvas.fillRect(kProseX - 2, y - 1, w + 4, 10, theme::kPanel);
+                canvas.setTextColor(theme::kGreen, theme::kPanel);
+                canvas.drawString(ln.key, kProseX, y);
+                canvas.setTextColor(theme::kIdle, theme::kBg);
+                canvas.drawString(ln.text, kDescX, y);
+                break;
+            }
+            case kSub:
+                canvas.setTextColor(theme::kDim, theme::kBg);
+                canvas.drawString(ln.text, kDescX, y);
+                break;
+            case kTxt:
+                canvas.setTextColor(theme::kIdle, theme::kBg);
+                canvas.drawString(ln.text, kProseX, y);
+                break;
+            case kGap:
+                break;
+        }
+    }
+
+    // scrollbar
+    if (kLineCount > kVisible) {
+        const int trackY = 17, trackH = kVisible * kRowH;
+        int thumbH = trackH * kVisible / kLineCount;
+        if (thumbH < 4) thumbH = 4;
+        const int thumbY = trackY + (trackH - thumbH) * top / (kLineCount - kVisible);
+        canvas.fillRect(cfg::kScreenW - 2, thumbY, 2, thumbH, theme::kDim);
+    }
+}
+
+#ifndef GLIDE_HOST_BUILD
 void run(M5Canvas& canvas) {
     int top = 0;
     uint64_t prev = ~0ULL;  // treat keys held on entry as already-down
@@ -175,40 +243,11 @@ void run(M5Canvas& canvas) {
         looper::tick(nowMs);       // keep a loop / chord progression alive while
         keys::tickBacking(nowMs);  // reading help — the backing never freezes
 
-        canvas.fillScreen(theme::kBg);
-        canvas.fillRect(0, 0, cfg::kScreenW, 14, theme::kPanel);
-        canvas.setFont(&fonts::Font0);
-        canvas.setTextDatum(top_left);
-        canvas.setTextColor(theme::kAmber, theme::kPanel);
-        canvas.drawString("HOW TO PLAY", 5, 3);
-        canvas.setTextColor(theme::kDim, theme::kPanel);
-        canvas.setTextDatum(top_right);
-        canvas.drawString(top + kVisible < kLineCount ? "\x1e\x1f scroll  ` back" : "` back",
-                          cfg::kScreenW - 4, 3);
-        canvas.setTextDatum(top_left);
-
-        for (int row = 0; row < kVisible; ++row) {
-            const int i = top + row;
-            if (i >= kLineCount) break;
-            const int y = 17 + row * 11;
-            canvas.setTextColor(kLines[i].header ? theme::kAmber : theme::kIdle, theme::kBg);
-            canvas.drawString(kLines[i].text, kLines[i].header ? 3 : 7, y);
-            if (kLines[i].header)
-                canvas.drawFastHLine(3, y + 9, cfg::kScreenW - 10, theme::kLine);
-        }
-
-        // scrollbar
-        if (kLineCount > kVisible) {
-            const int trackY = 17, trackH = kVisible * 11;
-            int thumbH = trackH * kVisible / kLineCount;
-            if (thumbH < 4) thumbH = 4;
-            const int thumbY = trackY + (trackH - thumbH) * top / (kLineCount - kVisible);
-            canvas.fillRect(cfg::kScreenW - 2, thumbY, 2, thumbH, theme::kDim);
-        }
-
+        drawPage(canvas, top);
         canvas.pushSprite(0, 0);
         delay(16);
     }
 }
+#endif  // GLIDE_HOST_BUILD
 
 }  // namespace help

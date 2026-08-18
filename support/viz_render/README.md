@@ -53,12 +53,33 @@ Theme indices are `theme.cpp`'s `kPalettes` order: 0 phosphor, 1 cassette,
 8 drafting, 9 paper. The last two have **light grounds** — worth checking, since
 a screen tuned on black can invert badly there.
 
+## The HOW TO PLAY page (`render_help.cpp`)
+
+The manual is a designed screen too, so it gets the same treatment: `help.cpp`
+splits its draw into a pure `drawPage(canvas, top)` (guarded by
+`GLIDE_HOST_BUILD` so the interactive loop stays out of the host build), and the
+shim carries the REAL Font0 glyph table (`shim/glcdfont.h`, vendored from
+M5GFX) so text renders with the shipping shapes and metrics. One panel per page
+of scroll:
+
+```
+g++ -std=gnu++14 -O2 -DGLIDE_HOST_BUILD -I support/viz_render/shim -I src \
+    support/viz_render/render_help.cpp src/ui/theme.cpp -o render_help
+./render_help        # phosphor
+./render_help 9      # paper (light ground)
+```
+
+Writes `help_<theme>.bmp`. First run already earned its keep: the widest key
+token (`fn+shift+q..p`) sat flush against its description column until the
+render showed it.
+
 ## Extending it
 
 The perform screen's eight scope modes are **not** renderable this way:
 `perform_screen.cpp` pulls in M5Unified, the keyboard, storage and the audio
 engine, and its viz state lives in a union sized to the scope rect. Only
-host-clean sources work — today that is `ui/screensaver.cpp`.
+host-clean sources work — today that is `ui/screensaver.cpp` and the pure
+`drawPage` half of `ui/help.cpp`.
 
 To point the harness at another screen: swap the `#include` near the top of
 `render.cpp`, stub whatever hardware namespaces it reads (as `audio::lead()` is

@@ -6,4 +6,10 @@
 
 namespace help {
 void run(M5Canvas& canvas);
+
+// The pure page draw + its extent, split out so support/viz_render can render
+// the manual on the host (drawPage has no input/timing dependencies).
+void drawPage(M5Canvas& canvas, int top);
+int lineCount();
+int visibleLines();
 }
