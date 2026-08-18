@@ -1,7 +1,10 @@
 # GLIDE — agent notes
 
-Synth firmware for the M5Stack Cardputer ADV. Read README.md first; it
-carries the design intent (the keymap, the philosophy, the audio-path facts).
+Synth firmware for the M5Stack Cardputer ADV. README.md is the end-user
+landing page (install + first five minutes); the design intent lives in
+docs/manual.md (keymap, every feature) and docs/design.md (philosophy,
+architecture, audio-path facts). Read those two first — anywhere an older
+doc says "read the README", it means them.
 
 ## Build / test
 
