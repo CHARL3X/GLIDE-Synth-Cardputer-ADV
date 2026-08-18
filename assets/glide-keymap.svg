@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1148 400" role="img" aria-label="GLIDE keymap">
+  <style>
+    text { font-family: Consolas, 'Cascadia Mono', 'SF Mono', Menlo, monospace; }
+    .k  { fill:#171c23; stroke:#29323d; stroke-width:1; }
+    .n  { fill:#14211b; stroke:#2a4c3c; stroke-width:1; }
+    .nc { fill:#4fd68f; font-size:19px; text-anchor:middle; }
+    .cc { fill:#cfd6dd; font-size:12px; text-anchor:middle; }
+    .rl { fill:#d9a04a; font-size:9px;  text-anchor:middle; }
+    .rd { fill:#e05d5d; font-size:9px;  text-anchor:middle; letter-spacing:1px; }
+    .sl { fill:#5c6875; font-size:13px; text-anchor:end; }
+    .lg { fill:#4fd68f; font-size:13px; }
+    .ld { fill:#aeb8c2; font-size:13px; }
+  </style>
+  <rect x="0" y="0" width="1148" height="400" rx="16" fill="#0e1116"/>
+
+  <!-- string labels -->
+  <text class="sl" x="136" y="54">string 3 &#183; hi</text>
+  <text class="sl" x="136" y="114">string 2</text>
+  <text class="sl" x="136" y="174">string 1</text>
+  <text class="sl" x="136" y="234">string 0 &#183; lo</text>
+
+  <!-- row 0 -->
+  <rect class="k" x="150" y="24" width="64" height="52" rx="8"/>
+  <text class="cc" x="182" y="52" style="font-size:22px">`</text>
+  <text class="rl" x="182" y="65">exit (hold)</text>
+  <rect class="n" x="220" y="24" width="64" height="52" rx="8"/><text class="nc" x="252" y="57">1</text>
+  <rect class="n" x="290" y="24" width="64" height="52" rx="8"/><text class="nc" x="322" y="57">2</text>
+  <rect class="n" x="360" y="24" width="64" height="52" rx="8"/><text class="nc" x="392" y="57">3</text>
+  <rect class="n" x="430" y="24" width="64" height="52" rx="8"/><text class="nc" x="462" y="57">4</text>
+  <rect class="n" x="500" y="24" width="64" height="52" rx="8"/><text class="nc" x="532" y="57">5</text>
+  <rect class="n" x="570" y="24" width="64" height="52" rx="8"/><text class="nc" x="602" y="57">6</text>
+  <rect class="n" x="640" y="24" width="64" height="52" rx="8"/><text class="nc" x="672" y="57">7</text>
+  <rect class="n" x="710" y="24" width="64" height="52" rx="8"/><text class="nc" x="742" y="57">8</text>
+  <rect class="n" x="780" y="24" width="64" height="52" rx="8"/><text class="nc" x="812" y="57">9</text>
+  <rect class="n" x="850" y="24" width="64" height="52" rx="8"/><text class="nc" x="882" y="57">0</text>
+  <rect class="k" x="920" y="24" width="64" height="52" rx="8"/>
+  <text class="cc" x="952" y="48">-</text>
+  <text class="rl" x="952" y="65">oct &#8722;</text>
+  <rect class="k" x="990" y="24" width="64" height="52" rx="8"/>
+  <text class="cc" x="1022" y="48">=</text>
+  <text class="rl" x="1022" y="65">oct +</text>
+  <rect class="k" x="1060" y="24" width="64" height="52" rx="8"/>
+  <text class="cc" x="1092" y="48">bksp</text>
+  <text class="rd" x="1092" y="65">PANIC</text>
+
+  <!-- row 1 -->
+  <rect class="k" x="150" y="84" width="64" height="52" rx="8"/>
+  <text class="cc" x="182" y="108">tab</text>
+  <text class="rl" x="182" y="125">settings</text>
+  <rect class="n" x="220" y="84" width="64" height="52" rx="8"/><text class="nc" x="252" y="117">q</text>
+  <rect class="n" x="290" y="84" width="64" height="52" rx="8"/><text class="nc" x="322" y="117">w</text>
+  <rect class="n" x="360" y="84" width="64" height="52" rx="8"/><text class="nc" x="392" y="117">e</text>
+  <rect class="n" x="430" y="84" width="64" height="52" rx="8"/><text class="nc" x="462" y="117">r</text>
+  <rect class="n" x="500" y="84" width="64" height="52" rx="8"/><text class="nc" x="532" y="117">t</text>
+  <rect class="n" x="570" y="84" width="64" height="52" rx="8"/><text class="nc" x="602" y="117">y</text>
+  <rect class="n" x="640" y="84" width="64" height="52" rx="8"/><text class="nc" x="672" y="117">u</text>
+  <rect class="n" x="710" y="84" width="64" height="52" rx="8"/><text class="nc" x="742" y="117">i</text>
+  <rect class="n" x="780" y="84" width="64" height="52" rx="8"/><text class="nc" x="812" y="117">o</text>
+  <rect class="n" x="850" y="84" width="64" height="52" rx="8"/><text class="nc" x="882" y="117">p</text>
+  <rect class="k" x="920" y="84" width="64" height="52" rx="8"/>
+  <text class="cc" x="952" y="108">[</text>
+  <text class="rl" x="952" y="125">bend &#8722;</text>
+  <rect class="k" x="990" y="84" width="64" height="52" rx="8"/>
+  <text class="cc" x="1022" y="108">]</text>
+  <text class="rl" x="1022" y="125">bend +</text>
+  <rect class="k" x="1060" y="84" width="64" height="52" rx="8"/>
+  <text class="cc" x="1092" y="108">\</text>
+  <text class="rl" x="1092" y="125">tap tempo</text>
+
+  <!-- row 2 -->
+  <rect class="k" x="150" y="144" width="64" height="52" rx="8"/>
+  <text class="cc" x="182" y="168">fn</text>
+  <text class="rl" x="182" y="185">quick-edit</text>
+  <rect class="k" x="220" y="144" width="64" height="52" rx="8"/>
+  <text class="cc" x="252" y="168">shift</text>
+  <text class="rl" x="252" y="185">chromatic</text>
+  <rect class="n" x="290" y="144" width="64" height="52" rx="8"/><text class="nc" x="322" y="177">a</text>
+  <rect class="n" x="360" y="144" width="64" height="52" rx="8"/><text class="nc" x="392" y="177">s</text>
+  <rect class="n" x="430" y="144" width="64" height="52" rx="8"/><text class="nc" x="462" y="177">d</text>
+  <rect class="n" x="500" y="144" width="64" height="52" rx="8"/><text class="nc" x="532" y="177">f</text>
+  <rect class="n" x="570" y="144" width="64" height="52" rx="8"/><text class="nc" x="602" y="177">g</text>
+  <rect class="n" x="640" y="144" width="64" height="52" rx="8"/><text class="nc" x="672" y="177">h</text>
+  <rect class="n" x="710" y="144" width="64" height="52" rx="8"/><text class="nc" x="742" y="177">j</text>
+  <rect class="n" x="780" y="144" width="64" height="52" rx="8"/><text class="nc" x="812" y="177">k</text>
+  <rect class="n" x="850" y="144" width="64" height="52" rx="8"/><text class="nc" x="882" y="177">l</text>
+  <rect class="n" x="920" y="144" width="64" height="52" rx="8"/><text class="nc" x="952" y="177">;</text>
+  <rect class="k" x="990" y="144" width="64" height="52" rx="8"/>
+  <text class="cc" x="1022" y="168">'</text>
+  <text class="rl" x="1022" y="185">scale lock</text>
+  <rect class="k" x="1060" y="144" width="64" height="52" rx="8"/>
+  <text class="cc" x="1092" y="168">enter</text>
+  <text class="rl" x="1092" y="185">tilt</text>
+
+  <!-- row 3 -->
+  <rect class="k" x="150" y="204" width="64" height="52" rx="8"/>
+  <text class="cc" x="182" y="228">ctrl</text>
+  <text class="rl" x="182" y="245">vol &#8722;</text>
+  <rect class="k" x="220" y="204" width="64" height="52" rx="8"/>
+  <text class="cc" x="252" y="228">opt</text>
+  <text class="rl" x="252" y="245">vol +</text>
+  <rect class="k" x="290" y="204" width="64" height="52" rx="8"/>
+  <text class="cc" x="322" y="228">alt</text>
+  <text class="rl" x="322" y="245">loop</text>
+  <rect class="n" x="360" y="204" width="64" height="52" rx="8"/><text class="nc" x="392" y="237">z</text>
+  <rect class="n" x="430" y="204" width="64" height="52" rx="8"/><text class="nc" x="462" y="237">x</text>
+  <rect class="n" x="500" y="204" width="64" height="52" rx="8"/><text class="nc" x="532" y="237">c</text>
+  <rect class="n" x="570" y="204" width="64" height="52" rx="8"/><text class="nc" x="602" y="237">v</text>
+  <rect class="n" x="640" y="204" width="64" height="52" rx="8"/><text class="nc" x="672" y="237">b</text>
+  <rect class="n" x="710" y="204" width="64" height="52" rx="8"/><text class="nc" x="742" y="237">n</text>
+  <rect class="n" x="780" y="204" width="64" height="52" rx="8"/><text class="nc" x="812" y="237">m</text>
+  <rect class="n" x="850" y="204" width="64" height="52" rx="8"/><text class="nc" x="882" y="237">,</text>
+  <rect class="n" x="920" y="204" width="64" height="52" rx="8"/><text class="nc" x="952" y="237">.</text>
+  <rect class="n" x="990" y="204" width="64" height="52" rx="8"/><text class="nc" x="1022" y="237">/</text>
+  <rect class="k" x="1060" y="204" width="64" height="52" rx="8"/>
+  <text class="cc" x="1092" y="228">space</text>
+  <text class="rl" x="1092" y="245">sustain</text>
+
+  <!-- legend -->
+  <line x1="150" y1="276" x2="1124" y2="276" stroke="#242b34" stroke-width="1"/>
+  <text class="lg" x="150" y="302">fn + q..p</text>
+  <text class="ld" x="400" y="302">switch between the ten sounds, live</text>
+  <text class="lg" x="150" y="324">fn + shift + q..p</text>
+  <text class="ld" x="400" y="324">save your current tweaks over that slot</text>
+  <text class="lg" x="150" y="346">fn + 1..0</text>
+  <text class="ld" x="400" y="346">pick a parameter, [ ] to adjust</text>
+  <text class="lg" x="150" y="368">fn + k</text>
+  <text class="ld" x="400" y="368">step the key up a semitone &#183; hold: LISTEN, retune by ear</text>
+</svg>
