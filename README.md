@@ -33,15 +33,15 @@ Firmware for the M5Stack Cardputer, original (v1.1) and ADV. By **[CHARL3X](http
   <br><em><a href="https://www.youtube.com/shorts/tIkbVL5VmnQ">Watch another demo</a></em>
 </p>
 
-<p align="center">
-  <img src="assets/glide-saver-phosphor.png" alt="GLIDE's screensaver in the phosphor palette: a standing wave held across the screen with a soft window of light on it" width="435">
-  <img src="assets/glide-saver-acid.png" alt="The same screensaver in the acid palette, answering a running loop" width="435">
-</p>
-<p align="center"><em>The screen at rest — the screensaver in two of the ten palettes. Not photos: these frames are rendered by the firmware's own draw code.</em></p>
-
 GLIDE plays like a fretless string instrument. The key rows are tuned like strings and notes glide between pitches instead of snapping, so you can slide whole chords around and bend into notes right on the keyboard.
 
 And **no two GLIDEs sound alike.** The sounds come from a generative engine: you roll them, evolve them, and keep the ones that hit. Every roll commits to a character first (a pluck, a bell, a pad, an acid squelch, a wobble bass) and then paints inside that character's bounds, so a fresh sound is always playable. The engine also seeds two of your ten slots from a number only your device has, which means your unit sounds like no one else's before you have touched a single setting. This is not an instrument where everyone who owns one sounds the same. That's the point.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/charl3x">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="200">
+  </a>
+</p>
 
 Two more headline features:
 
@@ -52,12 +52,6 @@ Two more headline features:
 - **It finds a song's key by ear.** Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key (root and major/minor), and retunes the instrument so you can solo over anything. ADV only, since it needs the mic.
 
   <img src="assets/glide-listen.svg" alt="LISTEN: a song plays in the room, hold fn+k, the mic works out the key, mode, and tempo, and the instrument retunes itself" width="100%">
-
-<p align="center">
-  <a href="https://buymeacoffee.com/charl3x">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="200">
-  </a>
-</p>
 
 ## Install
 
@@ -84,14 +78,7 @@ For developers building from source: see [building in design.md](docs/design.md#
 
 ## The first five minutes
 
-There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo.
-
-<p align="center">
-  <img src="assets/glide-help-page.png" alt="The on-device HOW TO PLAY screen, first page: THE SLIDE — hold a note, tap another in the same row, legato slide" width="480">
-  <br><em>The manual lives in your pocket too.</em>
-</p>
-
-But this is most of it:
+There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo. But this is most of it:
 
 <p align="center">
   <img src="assets/glide-keymap.svg" alt="GLIDE keymap: four note rows played as strings, control keys labeled around them, fn chords listed beneath" width="100%">
