@@ -240,7 +240,6 @@ void sendOff(int cd);
 void sendDroneOff(int cd);
 void restrikeDrone(int cd);
 void clearProg();      // defined with the progression engine, used by panic()
-bool backingActive();  // any backing layer alive (drones / loop / progression)
 
 // Append a chord step to the progression (the jam-row tap and demo mode share
 // this). Arms the beat clock and freezes the key/register on the first step.
@@ -644,8 +643,11 @@ void progTick(uint32_t nowMs) {
     gBeatFlashCd = -1;
 }
 
+}  // namespace
+
 // Is any protected backing layer currently alive? Drives the solo/backing
-// sound split: switching sound while this is true freezes the backing.
+// sound split: switching sound while this is true freezes the backing. Public
+// (keys.h): the perform loop's quiet-moment gate reads it too.
 bool backingActive() {
     if (gProgLen > 0) return true;
     if (looper::state() != looper::State::Empty) return true;
@@ -653,6 +655,8 @@ bool backingActive() {
         if (gNotes[cd].drone && gNotes[cd].string >= 0) return true;
     return false;
 }
+
+namespace {
 
 // ---- jam motion -------------------------------------------------------------
 // Collect the latched drones, sorted low->high so an arp rolls musically.

@@ -279,6 +279,7 @@ char gMorphSrcName[24] = "";
 bool gMorphSrcValid = false;
 bool gMorphSrcDirty = false;  // the partner differs from what's in NVS -> re-persist
                               // (gated so riding a knob never rewrites the blob)
+uint32_t gMorphRetryAtMs = 0;  // flushMorphPartner failure holdoff (0 = none)
 
 constexpr const char* kMorphKey = "msrc";  // the persisted morph partner
 // The live sound's IDENTITY. The sound itself rides the flat keys; its name and
@@ -1064,10 +1065,25 @@ void persistNow() {
     gPrefs.putUInt("odosecs", gOdoSecs);
     gOdoWrittenNotes = gOdoNotes;
     gOdoWrittenSecs = gOdoSecs;
-    persistMorphSource();  // last: the expendable blob never delays a real key,
-                           // and it lands in the SAME flush as the live sound, so
-                           // a power cut can only ever cost you a consistent pair
+    // The morph-partner blob does NOT ride this flush. Its erase-and-rewrite
+    // forces flash GC on a crowded shared partition (seconds), and this flush
+    // runs 500 ms after every fn+q..p switch — the stall ate the fn release and
+    // held the quick menu open on screen. flushMorphPartner() lands it at quiet
+    // moments instead (idle hands in perform, settings close, app exit). Cost,
+    // accepted: a power cut in the seconds after a sound switch restores the
+    // previous partner — one switch stale, never the sessions-old fossil.
     gDirty = false;
+}
+
+void flushMorphPartner() {
+    if (!gMorphSrcDirty || !gNvsOk) return;
+    // Called every idle frame from the perform loop: after a genuinely-full
+    // failure (both attempts, flag still set), hold off so the retry can't
+    // hammer flash with a failing erase-and-rewrite cycle per frame.
+    const uint32_t now = millis();
+    if (gMorphRetryAtMs != 0 && (int32_t)(now - gMorphRetryAtMs) < 0) return;
+    persistMorphSource();
+    gMorphRetryAtMs = gMorphSrcDirty ? now + 30000 : 0;
 }
 
 void markDirty() {
@@ -1083,7 +1099,7 @@ void odoNote() {
 uint32_t odoNotes() { return gOdoNotes; }
 uint32_t odoSeconds() { return gOdoSecs; }
 
-void tick(uint32_t nowMs) {
+void tick(uint32_t nowMs, bool allowFlush) {
     // Odometer time: accumulate only while engaged (a note struck within the
     // window), so hours mean hands on keys, not power on desk.
     if (gOdoLastTickMs != 0 && gOdoLastNoteMs != 0 && nowMs - gOdoLastNoteMs < kOdoEngagedMs) {
@@ -1105,7 +1121,7 @@ void tick(uint32_t nowMs) {
         gOdoWrittenSecs = gOdoSecs;
     }
 
-    if (gDirty && nowMs - gDirtySince >= cfg::kPersistDebounceMs) persistNow();
+    if (allowFlush && gDirty && nowMs - gDirtySince >= cfg::kPersistDebounceMs) persistNow();
 }
 
 void resetDefaults() {

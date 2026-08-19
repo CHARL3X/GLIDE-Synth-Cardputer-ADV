@@ -1723,6 +1723,7 @@ void run() {
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
             led::off();
             store::persistNow();
+            store::flushMorphPartner();  // the blend pair must survive the reboot
             delay(120);  // let the release tails fade
             ESP.restart();
         }
@@ -1793,7 +1794,17 @@ void run() {
         if (trigEngaged && !trigMorph)
             applyTrigger(leadParams, backParams, cf.triggerAction, cf.triggerDepth);
         audio::setParams(leadParams, backParams);
-        store::tick(frameStart);
+        // NVS flushes happen only at a quiet moment: hands off for a few
+        // seconds and no backing being scheduled from this loop. On a crowded
+        // shared partition the flush's flash-GC stall is SECONDS (measured:
+        // persistNow 1.5-2 s after a preset switch, morph blob ~0.4 s) — in
+        // the 500 ms debounce it froze this loop mid-gesture, eating the fn
+        // release and hanging the quick menu open until the write returned.
+        // Never quiet here = the settings-close / exit flush picks it up.
+        const bool quiet =
+            frameStart - keys::lastActivityMs() > 4000 && !keys::backingActive();
+        store::tick(frameStart, quiet);
+        if (quiet) store::flushMorphPartner();
 
         // onboard LED mirrors the lead voice: pitch -> hue, activity ->
         // brightness, fresh attacks and bends throw a white sparkle

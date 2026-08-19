@@ -1339,6 +1339,8 @@ void run(M5Canvas& canvas) {
     }
     audition::stop();  // never leave an audition note ringing if exiting mid-preview
     store::persistNow();
+    store::flushMorphPartner();  // a Randomize/Mutate/SD-load partner lands here,
+                                 // at the menu-close boundary — never mid-phrase
 }
 
 }  // namespace settings

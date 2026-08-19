@@ -57,6 +57,12 @@ bool triggerHeld();  // raw G0 boot-button level (the assignable trigger macro)
 // is never stale.
 uint32_t lastActivityMs();
 
+// Any protected backing layer alive — drones latched, a loop take present, or
+// a progression spelled. The perform loop's quiet-moment gate (deferred
+// morph-partner flush) reads this: a flash-GC stall while any of these are
+// being scheduled from the UI loop would gap the music.
+bool backingActive();
+
 // auto chord progression (jam motion = progression): is the mode live, how
 // many chord steps spelled, which is playing now (-1 = idle), each step's
 // root-note label, and the grid cell of the chord sounding now — the perform

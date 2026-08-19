@@ -164,8 +164,19 @@ void markDirty();             // schedule a debounced persist
 void odoNote();               // count one player-struck note (press sites only)
 uint32_t odoNotes();
 uint32_t odoSeconds();
-void tick(uint32_t nowMs);    // call each frame; performs the deferred write
+// Call each frame; performs the deferred write. allowFlush=false keeps the
+// odometer clock running but holds the debounced persistNow(): on a crowded
+// shared partition the flush's changed-key appends force flash GC (measured
+// 1.5-2 s after a preset switch), so the perform loop passes its quiet-moment
+// gate here — flush only with idle hands and no backing being scheduled.
+void tick(uint32_t nowMs, bool allowFlush = true);
 void persistNow();
+void flushMorphPartner();     // write the morph-partner blob if stale. NOT part
+                              // of persistNow(): on a crowded shared partition
+                              // the blob's erase-and-rewrite forces flash GC
+                              // (seconds), so it runs only at quiet moments —
+                              // idle hands, settings close, app exit — never in
+                              // the debounced flush 500 ms after a sound switch
 void resetDefaults();         // restore + persist
 void setTiltLock(bool on);    // flip the global/per-sound tilt map AND rebase the
                               // unsaved-* reference, so toggling the mode can't
