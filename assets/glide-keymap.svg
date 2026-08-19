@@ -5,7 +5,7 @@
     .n  { fill:#14211b; stroke:#2a4c3c; stroke-width:1; }
     .nc { fill:#4fd68f; font-size:19px; text-anchor:middle; }
     .cc { fill:#cfd6dd; font-size:12px; text-anchor:middle; }
-    .rl { fill:#d9a04a; font-size:11px; text-anchor:middle; }
+    .rl { fill:#4fb8d6; font-size:11px; text-anchor:middle; }
     .rd { fill:#e05d5d; font-size:11px; text-anchor:middle; letter-spacing:1px; }
     .sl { fill:#5c6875; font-size:13px; text-anchor:end; }
     .lg { fill:#4fd68f; font-size:13px; }

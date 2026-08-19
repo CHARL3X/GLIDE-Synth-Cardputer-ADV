@@ -21,7 +21,7 @@
   </style>
   <defs>
     <marker id="p1a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0 0 L8 4 L0 8 z" fill="#d9a04a"/>
+      <path d="M0 0 L8 4 L0 8 z" fill="#4fb8d6"/>
     </marker>
   </defs>
   <rect x="0" y="0" width="660" height="390" rx="16" fill="#0e1116"/>
@@ -51,8 +51,8 @@
   <rect x="288" y="92" width="56" height="44" rx="7" fill="none" stroke="#4fd68f" stroke-width="1.5" stroke-dasharray="5 4" opacity=".75"/>
 
   <!-- glide up + glide back -->
-  <line x1="162" y1="106" x2="282" y2="106" stroke="#d9a04a" stroke-width="2" marker-end="url(#p1a)"/>
-  <line x1="282" y1="124" x2="162" y2="124" stroke="#d9a04a" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#p1a)" opacity=".8"/>
+  <line x1="162" y1="106" x2="282" y2="106" stroke="#4fb8d6" stroke-width="2" marker-end="url(#p1a)"/>
+  <line x1="282" y1="124" x2="162" y2="124" stroke="#4fb8d6" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#p1a)" opacity=".8"/>
   <text x="40" y="212" fill="#aeb8c2" font-size="12">the voice glides up to the tapped key &#8212; no re-attack</text>
   <text x="40" y="230" fill="#5c6875" font-size="12">release it and the voice glides back down</text>
 
@@ -64,18 +64,18 @@
   <text x="556" y="82"  fill="#5c6875" font-size="12">&#160;&#160;in fourths</text>
 
   <!-- jam row (bottom) -->
-  <g fill="#1d1710" stroke="#4a3a20">
+  <g fill="#101a21" stroke="#2a4452">
     <rect x="40"  y="252" width="56" height="44" rx="7"/><rect x="102" y="252" width="56" height="44" rx="7"/>
     <rect x="226" y="252" width="56" height="44" rx="7"/><rect x="288" y="252" width="56" height="44" rx="7"/>
     <rect x="350" y="252" width="56" height="44" rx="7"/><rect x="412" y="252" width="56" height="44" rx="7"/>
     <rect x="474" y="252" width="56" height="44" rx="7"/>
   </g>
-  <rect class="latch" x="164" y="252" width="56" height="44" rx="7" fill="#3a2c14" stroke="#d9a04a" stroke-width="2"/>
-  <text x="192" y="280" class="latch" fill="#d9a04a" font-size="12" text-anchor="middle">&#9679;</text>
-  <text x="556" y="278" fill="#d9a04a" font-size="12">&#183; the jam row</text>
+  <rect class="latch" x="164" y="252" width="56" height="44" rx="7" fill="#123240" stroke="#4fb8d6" stroke-width="2"/>
+  <text x="192" y="280" class="latch" fill="#4fb8d6" font-size="12" text-anchor="middle">&#9679;</text>
+  <text x="556" y="278" fill="#4fb8d6" font-size="12">&#183; the jam row</text>
   <text x="40" y="320" fill="#5c6875" font-size="12">tap a pad once &#8212; a chord progression backs you while you slide above it</text>
 
   <!-- caption -->
   <text x="40" y="352" fill="#aeb8c2" font-size="14">one finger holds, one taps. <tspan fill="#4fd68f">the pitch glides between them</tspan> like a</text>
-  <text x="40" y="374" fill="#aeb8c2" font-size="14">finger on a string. <tspan fill="#d9a04a">that glide is GLIDE.</tspan></text>
+  <text x="40" y="374" fill="#aeb8c2" font-size="14">finger on a string. <tspan fill="#4fb8d6">that glide is GLIDE.</tspan></text>
 </svg>
