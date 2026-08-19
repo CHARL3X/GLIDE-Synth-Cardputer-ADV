@@ -59,5 +59,4 @@
   <rect x="378" y="246" width="52" height="22" rx="5" fill="#171c23" stroke="#29323d"/>
   <text x="404" y="261" fill="#4fd68f" font-size="13" text-anchor="middle">enter</text>
   <text x="440" y="261" fill="#aeb8c2" font-size="13">tap cycles &#183; hold locks</text>
-  <text x="680" y="287" fill="#e05d5d" font-size="13" text-anchor="end" letter-spacing="1">never pitch bend.</text>
 </svg>

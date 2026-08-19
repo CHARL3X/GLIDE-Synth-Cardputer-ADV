@@ -117,7 +117,9 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
 
   <img src="assets/glide-roll.svg" alt="Rolling a sound: one tap of Randomize commits to a character, paints every parameter inside that character's bounds, and lands a named, playable sound" width="100%">
 - **Tilt the device.** `enter` toggles the gyro: lean forward and back and the sound morphs into the one you were just on; left and right adds vibrato. Rewire either axis in settings.
-- **Match whatever's playing.** Hold `fn`+`k` and the mic listens to the room and retunes the instrument to the song's key (ADV). Single taps step the root by semitones.
+- **Match whatever's playing.** Hold `fn`+`k` and the mic listens to the room and retunes the instrument to the song's key (ADV). A single tap of `fn`+`k` changes the key by hand.
+
+  <img src="assets/glide-autokey.svg" alt="Autokey: the mic's chromagram finds the song's tonic, and the key rows retune under your unmoved fingers — same keys, now in the song's key" width="100%">
 - Lost? **bksp** is panic (silence everything); hold **`` ` ``** to exit to Launcher.
 
 Everything past that (the looper's overdub stack, the auto-progression, the mod matrix, the full tilt routing) is in the **[manual](docs/manual.md)**.
