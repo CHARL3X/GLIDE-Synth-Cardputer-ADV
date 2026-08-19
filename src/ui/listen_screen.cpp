@@ -98,7 +98,7 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.heard = true;
     ctx.heardSamples += n;
     ++ctx.audibleRounds;
-    dsp::accumulateOnsets(*ctx.beat, mono, n, (float)listen::kRateHz);
+    if (ctx.beat) dsp::accumulateOnsets(*ctx.beat, mono, n, (float)listen::kRateHz);
     dsp::accumulateChromaNormalized(mono, n, (float)listen::kRateHz, ctx.chroma);
     const int scaleIdx = store::get().layout.scaleIdx;
     ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
@@ -202,14 +202,24 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
 }  // namespace
 
 void run(M5Canvas& canvas) {
-    // The onset envelope is ~4 KB — static so the modal never leans on the
-    // UI task's stack; re-armed on every entry.
-    static dsp::BeatState beat;
-    beat = dsp::BeatState::make();
+    // The onset envelope (~4 KB) is heap-allocated for the modal's life ONLY.
+    // The frame-buffer sprite sits within ~1 KB of the RAM ceiling, so a
+    // static here breaks boot ("UI ALLOC FAILED" — measured the hard way on
+    // this very feature), and a RESIDENT heap block would shrink LISTEN's
+    // record rounds forever (perform_screen's .bss note; a 19.5 KB field
+    // once cost fn+k entirely). Allocated BEFORE capture() so the round
+    // sizing sees the true largest block; freed the moment the tempo verdict
+    // is taken. If even 4 KB can't alloc, tempo sits out and the key listen
+    // proceeds untouched.
+    dsp::BeatState* beat = (dsp::BeatState*)malloc(sizeof(dsp::BeatState));
+    if (beat) {
+        beat->len = 0;      // in-place init: BeatState::make() returns the
+        beat->prevE = -1.f; // whole 4 KB by value, which this task's stack
+    }                       // must never host
 
     Ctx ctx;
     ctx.c = &canvas;
-    ctx.beat = &beat;
+    ctx.beat = beat;
     ctx.guess = dsp::KeyGuess::make();
     for (int i = 0; i < 12; ++i) ctx.chroma[i] = 0.f;
     ctx.rounds = 0;
@@ -221,6 +231,17 @@ void run(M5Canvas& canvas) {
 
     drawListening(canvas, 0.f, 0);
     const listen::Result r = listen::capture(onProgress, &ctx, onSegment);
+
+    // Take the tempo verdict and free the envelope HERE, before the result
+    // switch: one free covers every return path below, and the 4 KB is gone
+    // before the perform screen is back.
+    dsp::TempoGuess tempo = dsp::TempoGuess::make();
+    if (beat) {
+        tempo = dsp::estimateTempo(*beat);
+        free(beat);
+        beat = nullptr;
+        ctx.beat = nullptr;
+    }
 
     switch (r) {
         case listen::Result::ResumeFailed:
@@ -258,10 +279,10 @@ void run(M5Canvas& canvas) {
     const bool scaleChanged = newScale != prevScale;
     g.layout.scaleIdx = (uint8_t)newScale;
     g.layout.rootSemis = (uint8_t)applied;
-    // Tempo, from the same capture: the jam clock (and with it the synced
-    // delay and LFOs) locks to the song's groove — but only on a confident
-    // beat. An invalid or weak guess leaves the tempo exactly where it was.
-    const dsp::TempoGuess tempo = dsp::estimateTempo(beat);
+    // Tempo, from the same capture (verdict taken above, before the result
+    // switch): the jam clock (and with it the synced delay and LFOs) locks
+    // to the song's groove — but only on a confident beat. An invalid or
+    // weak guess leaves the tempo exactly where it was.
     int appliedBpm = 0;
     if (tempo.valid && tempo.confidence >= kTempoApplyConfidence) {
         int b = (int)(tempo.bpm + 0.5f);
