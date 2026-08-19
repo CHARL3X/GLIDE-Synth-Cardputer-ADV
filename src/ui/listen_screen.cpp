@@ -104,8 +104,11 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
     if (!ctx.guess.valid) return true;
 
-    const int applied =
-        dsp::applyRootForScale(ctx.guess.rootPc, ctx.guess.minor, scaleIdx);
+    // Stability tracks the FULL verdict's root — the one applyListen will
+    // actually set — so a tonic re-seat arriving with round two's fresh b7
+    // evidence breaks the stop and earns the song more listening, instead of
+    // locking a verdict that was still moving.
+    const int applied = dsp::applyListen(scaleIdx, ctx.guess).rootPc;
     const bool stable = applied == ctx.prevApplied && ctx.audibleRounds >= 2;
     ctx.prevApplied = applied;
     if (ctx.heardSamples < kMinHeardForStop) return true;
