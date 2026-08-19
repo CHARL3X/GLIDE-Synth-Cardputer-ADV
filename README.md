@@ -45,11 +45,11 @@ And **no two GLIDEs sound alike.** The sounds come from a generative engine: you
 
 Two more headline features:
 
-- **Tilt morph.** The gyro is a performance controller. Lean the device forward and back and the sound blends continuously into a second one, or route tilt to vibrato, wah, or swell instead. One `enter` press toggles it, and it follows your hands across every sound.
+- **Tilt morph.** The gyro is a performance controller. Lean the device forward and back and the sound blends continuously into the one you were just on, or route tilt to vibrato, wah, or swell instead. One `enter` press toggles it, and it follows your hands across every sound.
 
   <img src="assets/glide-tilt.svg" alt="Tilt: lean the device forward and back to morph between the live sound and the last one; left and right adds vibrato; enter toggles; never pitch bend" width="100%">
 
-- **It finds a song's key by ear.** Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key (root and major/minor), and retunes the instrument so you can solo over anything. ADV only, since it needs the mic.
+- **It finds a song's key by ear.** Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key — root, mode, even the tempo — and retunes the instrument so you can solo over anything. ADV only, since it needs the mic.
 
   <img src="assets/glide-listen.svg" alt="LISTEN: a song plays in the room, hold fn+k, the mic works out the key, mode, and tempo, and the instrument retunes itself" width="100%">
 
@@ -78,7 +78,7 @@ For developers building from source: see [building in design.md](docs/design.md#
 
 ## The first five minutes
 
-There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo. But this is most of it:
+There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo. But two pictures carry most of it: where everything sits, and where sounds come from.
 
 <p align="center">
   <img src="assets/glide-keymap.svg" alt="GLIDE keymap: four note rows played as strings, control keys labeled around them, fn chords listed beneath" width="100%">
@@ -108,16 +108,18 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
   <img src="assets/glide-roll.svg" alt="Rolling a sound: one tap of Randomize commits to a character, paints every parameter inside that character's bounds, and lands a named, playable sound" width="100%">
 </p>
 
+From there, the first five minutes go like this:
+
 - **Press keys.** It sounds good immediately. Scale lock means every key is a scale tone, no dead notes, and the rows are strings tuned a fourth apart, like a guitar.
-- **Slide a chord.** Hold a shape across rows, then re-finger it a few columns over while the old notes still ring. Every voice glides to its new target. This is the thing.
-- **Hammer-on / pull-off.** Press a new key on the same row while holding one and the voice glides there; release and it glides back.
+- **Hammer-on / pull-off.** Hold a key and tap another on the same row: the voice glides up to it, no re-attack. Release, and it glides back. Each row behaves like a real string.
 
   <img src="assets/glide-slide.svg" alt="The slide: hold one key, tap another on the same row and the voice glides up to it; release and it glides back. The bottom row latches a chord progression under you." width="100%">
+- **Slide a chord.** The same move, with more fingers: hold a shape across rows, then re-finger it a few columns over while the old notes still ring. Every voice glides to its new target. This is the thing.
 - **Hold `shift`** to break out of the scale into pure chromatic semitones, only while held. That's the skill gate.
-- **Tap the bottom row** to latch drones and chord progressions under your solo; **alt** is a one-button loop pedal. A backing band in your left thumb.
-- **Roll your own sounds.** `tab` opens settings on two big **Randomize** and **Mutate** buttons. Every roll commits to a character (pluck, bell, pad, acid, organ, wobble bass) and auditions instantly. Undo/redo means you never lose a keeper. `fn`+`shift`+letter saves to a slot, or save it to SD with a name.
+- **Tap the bottom row** to latch drones and chord progressions under your solo (that's the amber row in the picture); **alt** is a one-button loop pedal. A backing band in your left thumb.
+- **Roll your own sounds.** `tab` opens settings on two big **Randomize** and **Mutate** buttons — the one-tap roll pictured up top. Every roll auditions instantly, undo/redo means you never lose a keeper, and `fn`+`shift`+letter saves it to a slot, or save it to SD with a name.
 - **Tilt the device.** `enter` toggles the gyro: lean forward and back and the sound morphs into the one you were just on; left and right adds vibrato. Rewire either axis in settings.
-- **Match whatever's playing.** Hold `fn`+`k` and the mic listens to the room and retunes the instrument to the song's key (ADV). A single tap of `fn`+`k` changes the key by hand.
+- **Match whatever's playing.** Hold `fn`+`k` and the mic retunes the instrument to the song's key (ADV): your shapes stay where they are, the notes underneath them move. A single tap of `fn`+`k` changes the key by hand.
 
   <img src="assets/glide-autokey.svg" alt="Autokey: the mic's chromagram finds the song's tonic, and the key rows retune under your unmoved fingers — same keys, now in the song's key" width="100%">
 - Lost? **bksp** is panic (silence everything); hold **`` ` ``** to exit to Launcher.
