@@ -44,6 +44,7 @@ const PrevStep kPhrase[] = {
 constexpr int kPhraseLen = (int)(sizeof kPhrase / sizeof kPhrase[0]);
 
 uint32_t gT0 = 0;                 // phrase start time (0 = idle sentinel)
+bool gArmed = false;              // start() ran; the clock begins on first tick()
 int gStep = 0;                    // next step to fire
 uint16_t gAt[kPhraseLen] = {0};   // this sound's schedule (stretched kPhrase)
 uint32_t gLenMs = 2600;           // gAt's last entry — the phrase length
@@ -56,12 +57,23 @@ void start() {
         gAt[i] = (uint16_t)(kPhrase[i].atMs * plan.stretch + 0.5f);
     gAt[kPhraseLen - 1] = (uint16_t)(gAt[kPhraseLen - 2] + plan.finalHoldMs);
     gLenMs = gAt[kPhraseLen - 1];
-    gT0 = millis();
-    if (gT0 == 0) gT0 = 1;  // 0 means idle; never let now() land there
+    // ARM only — the clock starts on the first tick(). start() runs inside a
+    // button handler, and anything slow between it and the loop's tick (an NVS
+    // flush of a freshly rolled patch can take seconds on the full shared
+    // partition) would land the first tick mid-phrase: the catch-up loop then
+    // fires the early On/Off pairs in one silent batch and only the final note
+    // sounds. A stall must DELAY the phrase, never swallow its opening.
+    gT0 = 0;
+    gArmed = true;
     gStep = 0;              // a fresh roll re-articulates from the top
 }
 
 void tick() {
+    if (gArmed) {
+        gArmed = false;
+        gT0 = millis();
+        if (gT0 == 0) gT0 = 1;  // 0 means idle; never let now() land there
+    }
     if (!gT0) return;
     // fresh clock, not a cached frame `now`: a cached value captured before
     // start() ran would predate gT0 and fire the whole phrase in one frame.
@@ -84,10 +96,11 @@ void stop() {
     for (uint8_t id : kPreviewIds)  // any of the phrase's notes may be sounding
         audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, id));
     gT0 = 0;
+    gArmed = false;
     gStep = 0;
 }
 
-bool active() { return gT0 != 0; }
+bool active() { return gArmed || gT0 != 0; }
 
 uint32_t lengthMs() { return gLenMs + 300; }  // phrase + a breath of the tail
 

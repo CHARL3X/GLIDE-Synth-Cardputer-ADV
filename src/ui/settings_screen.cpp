@@ -1298,7 +1298,16 @@ void run(M5Canvas& canvas) {
             if (d2 != 0) {
                 if (isActionRow(sel)) { gFlashRow = sel; gFlashUntil = now + 160; }  // confirm
                 kItems[sel].adjust(d2);
-                applyEdit(!dirFromRepeat);
+                // Action rows (Randomize/Mutate/Undo...) defer the flush: a
+                // whole-patch persistNow() rewrites ~70 NVS keys and can stall
+                // for SECONDS on the full shared partition — synchronously,
+                // right between audition::start() and the first tick(), which
+                // shipped as "Randomize is silent until the last note and the
+                // card appears with it". Their handlers markDirty(); the write
+                // lands after the phrase (see the audition gate on store::tick
+                // below) or on settings exit. Discrete VALUE taps still persist
+                // immediately — a pocket device gets its power flicked mid-edit.
+                applyEdit(!dirFromRepeat && !isActionRow(sel));
             }
         }
 
@@ -1318,7 +1327,11 @@ void run(M5Canvas& canvas) {
         if (top < 0) top = 0;                          // don't leave blank rows below
 
         draw(canvas, sel, top);
-        store::tick(now);
+        // Hold the debounced flush while a preview phrase is running: its NVS
+        // write can stall the loop long enough to batch-fire the remaining
+        // steps (On+Off in one frame = swallowed notes). The roll must reach
+        // the ear first; the write lands the frame after the phrase ends.
+        if (!audition::active()) store::tick(now);
         looper::tick(now);   // the loop plays through settings, like the drones
         keys::tickBacking(now);  // ...and so does the jam/chord progression
         audition::tick();    // fire a Randomize/preview audition's events when due
