@@ -1,6 +1,7 @@
 #include "listen_screen.h"
 
 #include "../config.h"
+#include "../dsp/beat_detect.h"
 #include "../dsp/key_detect.h"
 #include "../dsp/scales.h"
 #include "../io/listen.h"
@@ -15,6 +16,7 @@ namespace {
 struct Ctx {
     M5Canvas* c;
     dsp::KeyGuess guess;
+    dsp::BeatState* beat;  // onset envelope, summed across the same rounds
     float chroma[12];   // evidence, summed across listening rounds (each
                         // audible round normalized: one round = one vote)
     int rounds;         // segments analyzed so far
@@ -38,6 +40,10 @@ constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
 // harmonically lopsided section (a long IV vamp) can be sure and wrong.
 // Only a near-certain verdict may lock on a single round.
 constexpr float kSureConfidence = 0.85f;
+// Tempo applies only above this confidence: the jam tempo moving on a weak
+// beat guess would be worse than it staying put (fn+\ fixes it in two taps,
+// but an unasked-for wrong tempo is a betrayal; an unchanged one is honest).
+constexpr float kTempoApplyConfidence = 0.35f;
 
 // Direct positional read, splash-style: the modal owns the loop, so
 // keys::poll isn't draining the FIFO for us.
@@ -92,6 +98,7 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.heard = true;
     ctx.heardSamples += n;
     ++ctx.audibleRounds;
+    dsp::accumulateOnsets(*ctx.beat, mono, n, (float)listen::kRateHz);
     dsp::accumulateChromaNormalized(mono, n, (float)listen::kRateHz, ctx.chroma);
     const int scaleIdx = store::get().layout.scaleIdx;
     ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
@@ -108,7 +115,7 @@ bool onSegment(void* user, const int16_t* mono, int n) {
 }
 
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
-                int scaleIdx, bool scaleChanged) {
+                int scaleIdx, bool scaleChanged, int bpm) {
     c.fillScreen(theme::kBg);
 
     char head[24];
@@ -130,6 +137,14 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
     c.setFont(&fonts::Font2);
     c.setTextColor(theme::kIdle, theme::kBg);
     c.drawString(sub, 12, 34);
+    if (bpm > 0) {  // the jam tempo it locked (only shown when applied)
+        char tb[12];
+        snprintf(tb, sizeof tb, "%d BPM", bpm);
+        c.setTextDatum(top_right);
+        c.setTextColor(theme::kGreen, theme::kBg);
+        c.drawString(tb, cfg::kScreenW - 12, 34);
+        c.setTextDatum(top_left);
+    }
     if (g.confidence < 0.3f) {
         c.setFont(&fonts::Font0);
         c.setTextColor(theme::kDim, theme::kBg);
@@ -187,8 +202,14 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
 }  // namespace
 
 void run(M5Canvas& canvas) {
+    // The onset envelope is ~4 KB — static so the modal never leans on the
+    // UI task's stack; re-armed on every entry.
+    static dsp::BeatState beat;
+    beat = dsp::BeatState::make();
+
     Ctx ctx;
     ctx.c = &canvas;
+    ctx.beat = &beat;
     ctx.guess = dsp::KeyGuess::make();
     for (int i = 0; i < 12; ++i) ctx.chroma[i] = 0.f;
     ctx.rounds = 0;
@@ -225,24 +246,42 @@ void run(M5Canvas& canvas) {
     auto& g = store::get();
     const int prevRoot = g.layout.rootSemis;
     const int prevScale = g.layout.scaleIdx;
-    // Auto-scale: a vanilla scale swaps to its opposite-mode sibling so the
-    // home key is the song's true tonic; applyRootForScale under the POST-swap
-    // scale then returns that tonic as-is (exotic scales keep the relative
-    // shift, exactly as before).
-    const int newScale = dsp::applyScaleForKey(prevScale, ctx.guess.minor);
+    // Auto-scale, chroma-refined: a vanilla scale swaps to its opposite-mode
+    // sibling AND the plain seven-note canvases pick their mode by ear (a
+    // Dorian vamp lands in Dorian, not Natural minor with a sour b6);
+    // applyRootForScale under the POST-swap scale then returns the song's
+    // true tonic as-is (exotic scales keep the relative shift, as before).
+    const int newScale = dsp::applyScaleForKeyChroma(
+        prevScale, ctx.guess.minor, ctx.guess.chroma, ctx.guess.rootPc);
     const int applied = dsp::applyRootForScale(ctx.guess.rootPc, ctx.guess.minor,
                                                newScale);
     const bool scaleChanged = newScale != prevScale;
     g.layout.scaleIdx = (uint8_t)newScale;
     g.layout.rootSemis = (uint8_t)applied;
+    // Tempo, from the same capture: the jam clock (and with it the synced
+    // delay and LFOs) locks to the song's groove — but only on a confident
+    // beat. An invalid or weak guess leaves the tempo exactly where it was.
+    const dsp::TempoGuess tempo = dsp::estimateTempo(beat);
+    int appliedBpm = 0;
+    if (tempo.valid && tempo.confidence >= kTempoApplyConfidence) {
+        int b = (int)(tempo.bpm + 0.5f);
+        if (b < 40) b = 40;
+        if (b > 240) b = 240;
+        g.jamBpm = (uint16_t)b;
+        appliedBpm = b;
+    }
     store::markDirty();
-    Serial.printf("[listen] heard %s %s conf %.2f (%d rounds) -> root %s (%s)\n",
-                  dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
-                  ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied],
-                  dsp::kScales[newScale].shortName);
+    Serial.printf(
+        "[listen] heard %s %s conf %.2f (%d rounds) -> root %s (%s); tempo %s "
+        "%.1f conf %.2f%s\n",
+        dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
+        ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied],
+        dsp::kScales[newScale].shortName, tempo.valid ? "ok" : "none", tempo.bpm,
+        tempo.confidence, appliedBpm ? " (applied)" : "");
 
     // Result card: ~1.6 s, backtick skips.
-    drawResult(canvas, ctx.guess, applied, prevRoot, newScale, scaleChanged);
+    drawResult(canvas, ctx.guess, applied, prevRoot, newScale, scaleChanged,
+               appliedBpm);
     const uint32_t until = millis() + 1600;
     bool btPrev = backtickHeld();
     while ((int32_t)(until - millis()) > 0) {

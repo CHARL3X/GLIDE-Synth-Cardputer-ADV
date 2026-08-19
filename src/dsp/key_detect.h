@@ -79,4 +79,21 @@ int applyRootForScale(int detectedPc, bool detectedMinor, int scaleIdx);
 // applyRootForScale: for swapped/matching scales it returns the tonic as-is.
 int applyScaleForKey(int scaleIdx, bool detectedMinor);
 
+// applyScaleForKey, refined by the heard chroma: the Krumhansl profiles only
+// ever answer major-or-minor, but half of what a mic meets is MODAL — a
+// Dorian vamp lands "minor" and Natural minor's b6 then plays sour against
+// the song's natural 6 (the "right key, wrong scale" failure). Within the
+// plain seven-note canvases (Major / Mixolydian on the major side, Natural
+// minor / Dorian on the minor side) the distinguishing degree's own energy
+// decides the mode: a natural 6 clearly out-powering the b6 names Dorian, a
+// b7 out-powering the major 7 names Mixolydian. Weak or absent evidence
+// keeps the player's current mode if it's already on the detected side
+// (an evidence-free switch would be a coin flip), else that side's plain
+// default. Pentatonics keep the frozen swap (they omit the clash degrees —
+// that's why they're the safe default), and every other scale keeps the
+// deliberate-flavor behavior unchanged. chroma is KeyGuess::chroma
+// (peak-normalized); detectedPc is the guess's rootPc.
+int applyScaleForKeyChroma(int scaleIdx, bool detectedMinor,
+                           const float chroma[12], int detectedPc);
+
 }  // namespace dsp

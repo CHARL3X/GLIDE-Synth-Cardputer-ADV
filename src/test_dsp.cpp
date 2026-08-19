@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "dsp/audition_plan.h"
+#include "dsp/beat_detect.h"
 #include "dsp/demo_gen.h"
 #include "dsp/key_detect.h"
 #include "dsp/morph.h"
@@ -1645,6 +1646,159 @@ int main() {
             CHECK(tonicAlways,
                   "post-swap root is the true tonic for every vanilla scale");
         }
+
+        // Chroma-refined auto-scale: within the plain seven-note canvases the
+        // distinguishing degree's own energy picks the MODE — the Krumhansl
+        // profiles only ever answer major-or-minor, and a Dorian vamp under
+        // Natural minor plays a sour b6 (the "right key, wrong scale" failure).
+        {
+            // A Dorian: strong natural 6 (F#, pc 6), b6 (F, pc 5) absent.
+            float dor[12] = {0.f};
+            dor[9] = 1.f; dor[0] = .6f; dor[2] = .5f; dor[4] = .7f;
+            dor[6] = .45f; dor[7] = .5f; dor[11] = .3f; dor[5] = .02f;
+            CHECK(applyScaleForKeyChroma(SC_MINOR, true, dor, 9) == SC_DORIAN,
+                  "strong natural 6 moves Natural minor -> Dorian");
+            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, dor, 9) == SC_DORIAN,
+                  "a Dorian player stays in Dorian");
+            // A natural minor: strong b6 (F, pc 5), natural 6 (F#) absent.
+            float nat[12] = {0.f};
+            nat[9] = 1.f; nat[0] = .6f; nat[2] = .5f; nat[4] = .7f;
+            nat[5] = .45f; nat[7] = .5f; nat[11] = .3f; nat[6] = .02f;
+            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, nat, 9) == SC_MINOR,
+                  "strong b6 moves Dorian -> Natural minor");
+            CHECK(applyScaleForKeyChroma(SC_MINOR, true, nat, 9) == SC_MINOR,
+                  "Natural minor stays under a b6 song");
+            // G Mixolydian: strong b7 (F, pc 5), major 7 (F#, pc 6) absent.
+            float mix[12] = {0.f};
+            mix[7] = 1.f; mix[11] = .6f; mix[2] = .7f; mix[0] = .5f;
+            mix[5] = .5f; mix[9] = .4f; mix[4] = .3f; mix[6] = .02f;
+            CHECK(applyScaleForKeyChroma(SC_MAJOR, false, mix, 7) == SC_MIXO,
+                  "strong b7 moves Major -> Mixolydian");
+            CHECK(applyScaleForKeyChroma(SC_MIXO, false, mix, 7) == SC_MIXO,
+                  "a Mixolydian player stays put");
+            // G major: strong major 7, b7 absent — moves a Mixo player home.
+            float gmaj[12] = {0.f};
+            gmaj[7] = 1.f; gmaj[11] = .6f; gmaj[2] = .7f; gmaj[0] = .5f;
+            gmaj[6] = .45f; gmaj[9] = .4f; gmaj[4] = .3f; gmaj[5] = .02f;
+            CHECK(applyScaleForKeyChroma(SC_MIXO, false, gmaj, 7) == SC_MAJOR,
+                  "strong major 7 moves Mixolydian -> Major");
+            // Weak evidence (a pentatonic-ish song voicing neither 6th): no
+            // switch on a coin flip — the player's mode holds if it's on the
+            // detected side, else the side's plain default.
+            float pentish[12] = {0.f};
+            pentish[9] = 1.f; pentish[0] = .6f; pentish[2] = .5f;
+            pentish[4] = .7f; pentish[7] = .5f;
+            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, pentish, 9) == SC_DORIAN,
+                  "no 6th evidence: Dorian holds");
+            CHECK(applyScaleForKeyChroma(SC_MINOR, true, pentish, 9) == SC_MINOR,
+                  "no 6th evidence: Natural minor holds");
+            CHECK(applyScaleForKeyChroma(SC_MIXO, true, pentish, 9) == SC_MINOR,
+                  "crossing sides without evidence lands on the plain default");
+            // Pentatonics and deliberate flavors: exactly the frozen behavior.
+            CHECK(applyScaleForKeyChroma(SC_MIN_PENT, false, dor, 9) == SC_MAJ_PENT,
+                  "pent swap is untouched by the refinement");
+            CHECK(applyScaleForKeyChroma(SC_BLUES, true, dor, 9) == SC_BLUES &&
+                      applyScaleForKeyChroma(SC_HIRA, false, dor, 9) == SC_HIRA,
+                  "deliberate flavors still never move");
+            // The tonic invariant extends to the refined modes: Dorian is
+            // minorish and Mixolydian majorish, so applyRootForScale under
+            // the refined scale still returns the song's true tonic.
+            CHECK(applyRootForScale(9, true, SC_DORIAN) == 9 &&
+                      applyRootForScale(7, false, SC_MIXO) == 7,
+                  "refined modes keep the true tonic");
+        }
+    }
+
+    // ---- tempo detection (LISTEN) ----------------------------------------
+    {
+        constexpr float sr = 16000.f;
+        constexpr int nRound = (int)(sr * 3);  // fed in 3 s rounds, like the device
+        static int16_t tcap[nRound];
+
+        // Clicks on a beat grid: a 4 ms 2 kHz burst per beat, optionally with
+        // weaker offbeat clicks (strongEvery) — the eighth-note texture real
+        // music has. t0 is the round's global sample offset so rounds join
+        // into one continuous grid.
+        auto renderClicks = [](int16_t* out, int n, float clickBpm, long t0,
+                               int strongEvery, float weakAmp) {
+            const float period = sr * 60.f / clickBpm;
+            for (int i = 0; i < n; ++i) {
+                const long gpos = t0 + i;
+                const long beat = (long)((float)gpos / period);
+                const float ph = (float)gpos - (float)beat * period;
+                float a = 0.f;
+                if (ph < 64.f) {
+                    const bool strong = strongEvery <= 1 || (beat % strongEvery) == 0;
+                    a = (strong ? 9000.f : weakAmp) * (1.f - ph / 64.f);
+                }
+                out[i] = (int16_t)(a * sinf(6.2831853f * 2000.f * (float)gpos / sr));
+            }
+        };
+        auto tempoOf = [&](float clickBpm, int rounds, int strongEvery,
+                           float weakAmp) {
+            BeatState st = BeatState::make();
+            for (int r = 0; r < rounds; ++r) {
+                renderClicks(tcap, nRound, clickBpm, (long)r * nRound, strongEvery,
+                             weakAmp);
+                accumulateOnsets(st, tcap, nRound, sr);
+            }
+            return estimateTempo(st);
+        };
+
+        TempoGuess t = tempoOf(120.f, 2, 1, 0.f);
+        CHECK(t.valid && fabsf(t.bpm - 120.f) < 3.f, "120 BPM clicks land on 120");
+        CHECK(t.confidence > 0.35f, "a clean click track is a confident beat");
+        t = tempoOf(90.f, 2, 1, 0.f);
+        CHECK(t.valid && fabsf(t.bpm - 90.f) < 3.f,
+              "90 BPM lands despite the off-grid period");
+        t = tempoOf(132.f, 2, 1, 0.f);
+        CHECK(t.valid && fabsf(t.bpm - 132.f) < 3.f, "132 BPM lands");
+
+        // Eighth-note texture: weak offbeats between strong beats. The strong
+        // period must win over the twice-as-fast click grid (the octave-error
+        // case the prior + alternating autocorrelation exist for).
+        t = tempoOf(240.f, 2, 2, 3500.f);
+        CHECK(t.valid && fabsf(t.bpm - 120.f) < 3.f,
+              "eighth-note offbeats: the quarter-note pulse wins");
+
+        // Beatless content must refuse, never guess: a steady tone has no
+        // onsets, and broadband noise has no periodic ones.
+        {
+            BeatState st = BeatState::make();
+            for (int i = 0; i < nRound; ++i)
+                tcap[i] = (int16_t)(6000.f * sinf(6.2831853f * 220.f * (float)i / sr));
+            accumulateOnsets(st, tcap, nRound, sr);
+            accumulateOnsets(st, tcap, nRound, sr);
+            CHECK(!estimateTempo(st).valid, "a steady tone reports no beat");
+        }
+        {
+            BeatState st = BeatState::make();
+            uint32_t rng = 77777u;
+            for (int r = 0; r < 2; ++r) {
+                for (int i = 0; i < nRound; ++i) {
+                    rng = rng * 1664525u + 1013904223u;
+                    tcap[i] = (int16_t)((rng >> 16) & 8191) - 4096;
+                }
+                accumulateOnsets(st, tcap, nRound, sr);
+            }
+            const TempoGuess n = estimateTempo(st);
+            CHECK(!n.valid || n.confidence < 0.35f,
+                  "noise: no beat, or one too weak to apply");
+        }
+
+        // Too little evidence refuses (the guard, not a guess).
+        {
+            BeatState st = BeatState::make();
+            renderClicks(tcap, (int)(sr * 0.5f), 120.f, 0, 1, 0.f);
+            accumulateOnsets(st, tcap, (int)(sr * 0.5f), sr);
+            CHECK(!estimateTempo(st).valid, "half a second cannot name a tempo");
+        }
+
+        // Determinism: the same capture names the same tempo, exactly.
+        const TempoGuess a = tempoOf(120.f, 2, 1, 0.f);
+        const TempoGuess b = tempoOf(120.f, 2, 1, 0.f);
+        CHECK(a.valid && b.valid && a.bpm == b.bpm && a.confidence == b.confidence,
+              "tempo estimation is deterministic");
     }
 
     // ---- SD patch-name rules -------------------------------------------

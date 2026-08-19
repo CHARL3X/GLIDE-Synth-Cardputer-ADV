@@ -268,4 +268,42 @@ int applyScaleForKey(int scaleIdx, bool detectedMinor) {
     }
 }
 
+int applyScaleForKeyChroma(int scaleIdx, bool detectedMinor,
+                           const float chroma[12], int detectedPc) {
+    // Only the plain seven-note canvases refine by ear; pentatonics and
+    // deliberate flavors keep the frozen behavior exactly.
+    if (scaleIdx != SC_MAJOR && scaleIdx != SC_MINOR &&
+        scaleIdx != SC_DORIAN && scaleIdx != SC_MIXO)
+        return applyScaleForKey(scaleIdx, detectedMinor);
+    if (detectedPc < 0 || detectedPc >= 12)
+        return applyScaleForKey(scaleIdx, detectedMinor);
+
+    float peak = 0.f;
+    for (int i = 0; i < 12; ++i)
+        if (chroma[i] > peak) peak = chroma[i];
+    if (peak <= 1e-9f) return applyScaleForKey(scaleIdx, detectedMinor);
+
+    // The winning degree must actually be present in the song AND clearly
+    // out-power its rival — a mode switch on a coin flip is worse than none.
+    constexpr float kRatio = 1.8f;
+    const float presence = 0.20f * peak;
+
+    // Evidence-free fallback: stay in the player's mode if it's already on
+    // the detected side, else that side's plain default.
+    if (detectedMinor) {
+        const int fallback = (scaleIdx == SC_DORIAN) ? SC_DORIAN : SC_MINOR;
+        const float nat6 = chroma[(detectedPc + 9) % 12];
+        const float fl6 = chroma[(detectedPc + 8) % 12];
+        if (nat6 >= presence && nat6 >= kRatio * fl6) return SC_DORIAN;
+        if (fl6 >= presence && fl6 >= kRatio * nat6) return SC_MINOR;
+        return fallback;
+    }
+    const int fallback = (scaleIdx == SC_MIXO) ? SC_MIXO : SC_MAJOR;
+    const float maj7 = chroma[(detectedPc + 11) % 12];
+    const float fl7 = chroma[(detectedPc + 10) % 12];
+    if (fl7 >= presence && fl7 >= kRatio * maj7) return SC_MIXO;
+    if (maj7 >= presence && maj7 >= kRatio * fl7) return SC_MAJOR;
+    return fallback;
+}
+
 }  // namespace dsp
