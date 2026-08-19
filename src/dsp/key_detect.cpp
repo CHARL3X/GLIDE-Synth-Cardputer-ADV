@@ -306,4 +306,136 @@ int applyScaleForKeyChroma(int scaleIdx, bool detectedMinor,
     return fallback;
 }
 
+const char* listenModeName(uint8_t mode) {
+    switch (mode) {
+        case LM_ION:  return "MAJ";
+        case LM_DOR:  return "DOR";
+        case LM_MIXO: return "MIX";
+        default:      return "MIN";
+    }
+}
+
+namespace {
+
+// The mode-evidence gates, shared with applyScaleForKeyChroma's judgment:
+// the deciding degree must be PRESENT (vs the chroma peak) and clearly
+// out-power its rival, or the evidence is treated as absent.
+constexpr float kModeRatio = 1.8f;
+constexpr float kModePresence = 0.20f;
+// Tonic tiebreak: how close (raw Pearson) the Dorian twin must score to the
+// mixo-flavoured major winner for the tonic to move. Sized from measured
+// corridors: the Am7-D9 vamp's twin gap is ~0.08 (must fire), a tonic-clear
+// G7 groove's is ~0.50 (must not) — and the tiebreak's failure asymmetry
+// favors eagerness, since a wrong re-seat stays inside the SAME pitch set
+// (off-centre at worst), while a missed one strands a flavor-scale player
+// a whole step off the vamp's home.
+constexpr float kTiebreakEps = 0.12f;
+
+// Degree evidence at a tonic: LM_DOR/LM_MIXO when the deciding degree clears
+// the gates, else the plain side (LM_AEO/LM_ION); hasEvidence says whether
+// the gates were cleared at all (in EITHER direction).
+uint8_t modeFromChroma(bool minor, const float chroma[12], int tonicPc,
+                       bool& hasEvidence) {
+    float peak = 0.f;
+    for (int i = 0; i < 12; ++i)
+        if (chroma[i] > peak) peak = chroma[i];
+    hasEvidence = false;
+    if (peak <= 1e-9f) return minor ? LM_AEO : LM_ION;
+    const float presence = kModePresence * peak;
+    if (minor) {
+        const float nat6 = chroma[(tonicPc + 9) % 12];
+        const float fl6 = chroma[(tonicPc + 8) % 12];
+        if (nat6 >= presence && nat6 >= kModeRatio * fl6) {
+            hasEvidence = true;
+            return LM_DOR;
+        }
+        if (fl6 >= presence && fl6 >= kModeRatio * nat6) hasEvidence = true;
+        return LM_AEO;
+    }
+    const float maj7 = chroma[(tonicPc + 11) % 12];
+    const float fl7 = chroma[(tonicPc + 10) % 12];
+    if (fl7 >= presence && fl7 >= kModeRatio * maj7) {
+        hasEvidence = true;
+        return LM_MIXO;
+    }
+    if (maj7 >= presence && maj7 >= kModeRatio * fl7) hasEvidence = true;
+    return LM_ION;
+}
+
+inline bool modeMinorish(uint8_t mode) { return mode == LM_AEO || mode == LM_DOR; }
+
+}  // namespace
+
+ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
+    ListenApply out;
+    out.mode = g.minor ? (uint8_t)LM_AEO : (uint8_t)LM_ION;
+    out.tonicPc = g.rootPc;
+    out.modal = false;
+    out.tiebreak = false;
+
+    bool hasEvidence = false;
+    const uint8_t mode = modeFromChroma(g.minor, g.chroma, g.rootPc, hasEvidence);
+
+    // No readable evidence: EXACTLY the frozen behavior, whatever the scale.
+    if (!hasEvidence) {
+        out.scaleIdx = applyScaleForKey(scaleIdx, g.minor);
+        out.rootPc = applyRootForScale(g.rootPc, g.minor, out.scaleIdx);
+        return out;
+    }
+    out.mode = mode;
+    out.modal = (mode == LM_DOR || mode == LM_MIXO);
+
+    // Tonic tiebreak: "X major with a strong b7" shares its pitch set with
+    // Dorian at X+7 (D mixo == A dorian == G major's notes). If the profile
+    // score of that Dorian twin runs neck and neck with the winner, the vamp's
+    // true home is the twin — re-seat the tonic there.
+    if (mode == LM_MIXO) {
+        const float win = keyScore(g.chroma, kProfMajor, g.rootPc);
+        const float twin = keyScore(g.chroma, kProfMinor, (g.rootPc + 7) % 12);
+        if (twin >= win - kTiebreakEps) {
+            out.tonicPc = (g.rootPc + 7) % 12;
+            out.mode = LM_DOR;
+            out.tiebreak = true;
+        }
+    }
+
+    const uint8_t m = out.mode;
+    const int tonic = out.tonicPc;
+    switch (scaleIdx) {
+        // Plain canvases play the mode itself, tonic-home.
+        case SC_MAJOR:
+        case SC_MINOR:
+        case SC_DORIAN:
+        case SC_MIXO:
+            out.scaleIdx = (m == LM_DOR)    ? SC_DORIAN
+                           : (m == LM_MIXO) ? SC_MIXO
+                           : (m == LM_AEO)  ? SC_MINOR
+                                            : SC_MAJOR;
+            out.rootPc = tonic;
+            return out;
+        // Pentatonics keep the documented flavor swap, tonic-home: all four
+        // (maj pent under Ionian/Mixolydian, min pent under Aeolian/Dorian)
+        // sit fully inside the song's pitch set.
+        case SC_MAJ_PENT:
+        case SC_MIN_PENT:
+            out.scaleIdx = modeMinorish(m) ? SC_MIN_PENT : SC_MAJ_PENT;
+            out.rootPc = tonic;
+            return out;
+        // Blues is chosen spice — never switched, only re-centred: the tonic
+        // under Dorian/Aeolian (minor home) AND under Mixolydian (dominant
+        // blues, the canon move); the relative-minor boxes trick under a
+        // plain Ionian song, exactly as before.
+        case SC_BLUES:
+            out.scaleIdx = SC_BLUES;
+            out.rootPc = (m == LM_ION) ? (tonic + 9) % 12 : tonic;
+            return out;
+        // Everything else keeps the frozen relative-root behavior, fed the
+        // refined tonic and side.
+        default:
+            out.scaleIdx = applyScaleForKey(scaleIdx, modeMinorish(m));
+            out.rootPc = applyRootForScale(tonic, modeMinorish(m), out.scaleIdx);
+            return out;
+    }
+}
+
 }  // namespace dsp

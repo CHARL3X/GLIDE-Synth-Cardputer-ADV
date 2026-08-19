@@ -114,13 +114,16 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     return !stop;
 }
 
-void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
-                int scaleIdx, bool scaleChanged, int bpm) {
+void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
+                int applied, int prevRoot, int scaleIdx, bool scaleChanged,
+                int bpm) {
     c.fillScreen(theme::kBg);
 
+    // Headline: the REFINED verdict (tonic + mode) — "A DOR", not the raw
+    // profile winner a modal vamp can mislabel ("D MAJ" for an A Dorian jam).
     char head[24];
-    snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[g.rootPc],
-             g.minor ? "MIN" : "MAJ");
+    snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[ap.tonicPc],
+             dsp::listenModeName(ap.mode));
     c.setTextDatum(top_left);
     c.setFont(&fonts::Font4);
     c.setTextColor(theme::kGreen, theme::kBg);
@@ -130,10 +133,11 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
     if (scaleChanged)
         snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[applied],
                  dsp::kScales[scaleIdx].shortName);
-    else if (applied != g.rootPc)
+    else if (applied != ap.tonicPc)
         snprintf(sub, sizeof sub, "-> root %s (your scale)", dsp::kNoteNames[applied]);
     else
-        snprintf(sub, sizeof sub, "root %s", dsp::kNoteNames[applied]);
+        snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[applied],
+                 dsp::kScales[scaleIdx].shortName);
     c.setFont(&fonts::Font2);
     c.setTextColor(theme::kIdle, theme::kBg);
     c.drawString(sub, 12, 34);
@@ -158,17 +162,18 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, int applied, int prevRoot,
         c.setTextDatum(top_left);
     }
 
-    // The twelve chroma bars: what the instrument actually heard.
+    // The twelve chroma bars: what the instrument actually heard. Green =
+    // the refined tonic, amber = the applied root.
     const int bx = 12, bw = 15, bmax = 46, by0 = 118;
     for (int pc = 0; pc < 12; ++pc) {
         const int x = bx + pc * (bw + 4);
         const int h = 2 + (int)(g.chroma[pc] * (bmax - 2));
-        const uint16_t col = pc == g.rootPc     ? theme::kGreen
+        const uint16_t col = pc == ap.tonicPc   ? theme::kGreen
                              : pc == applied    ? theme::kAmber
                                                 : theme::kDim;
         c.fillRect(x, by0 - h, bw, h, col);
         c.setFont(&fonts::Font0);
-        c.setTextColor(pc == g.rootPc ? theme::kGreen : theme::kDim, theme::kBg);
+        c.setTextColor(pc == ap.tonicPc ? theme::kGreen : theme::kDim, theme::kBg);
         c.drawString(dsp::kNoteNames[pc], x + 2, by0 + 4);
     }
     c.pushSprite(0, 0);
@@ -267,15 +272,14 @@ void run(M5Canvas& canvas) {
     auto& g = store::get();
     const int prevRoot = g.layout.rootSemis;
     const int prevScale = g.layout.scaleIdx;
-    // Auto-scale, chroma-refined: a vanilla scale swaps to its opposite-mode
-    // sibling AND the plain seven-note canvases pick their mode by ear (a
-    // Dorian vamp lands in Dorian, not Natural minor with a sour b6);
-    // applyRootForScale under the POST-swap scale then returns the song's
-    // true tonic as-is (exotic scales keep the relative shift, as before).
-    const int newScale = dsp::applyScaleForKeyChroma(
-        prevScale, ctx.guess.minor, ctx.guess.chroma, ctx.guess.rootPc);
-    const int applied = dsp::applyRootForScale(ctx.guess.rootPc, ctx.guess.minor,
-                                               newScale);
+    // The full listen verdict: refined mode (Dorian/Mixolydian by degree
+    // evidence), the tonic tiebreak (a mixo-flavoured "D major" re-seats as
+    // the A Dorian vamp it is), and a landing mapped to the player's scale
+    // FAMILY — plain canvases play the mode, pentatonics swap tonic-home,
+    // Blues stays Blues and re-centres. Weak evidence = frozen behavior.
+    const dsp::ListenApply ap = dsp::applyListen(prevScale, ctx.guess);
+    const int newScale = ap.scaleIdx;
+    const int applied = ap.rootPc;
     const bool scaleChanged = newScale != prevScale;
     g.layout.scaleIdx = (uint8_t)newScale;
     g.layout.rootSemis = (uint8_t)applied;
@@ -292,16 +296,24 @@ void run(M5Canvas& canvas) {
         appliedBpm = b;
     }
     store::markDirty();
+    // Test-mode instrumentation: everything the verdict was built from, so a
+    // wrong landing can be tuned from numbers instead of vibes.
+    Serial.printf("[listen] chroma ");
+    for (int pc = 0; pc < 12; ++pc)
+        Serial.printf("%s=%.2f ", dsp::kNoteNames[pc], ctx.guess.chroma[pc]);
+    Serial.println();
     Serial.printf(
-        "[listen] heard %s %s conf %.2f (%d rounds) -> root %s (%s); tempo %s "
-        "%.1f conf %.2f%s\n",
+        "[listen] raw %s %s conf %.2f (%d rounds) -> %s %s%s%s | root %s (%s) | "
+        "tempo %s %.1f conf %.2f%s\n",
         dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
-        ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[applied],
+        ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[ap.tonicPc],
+        dsp::listenModeName(ap.mode), ap.modal ? " (modal)" : "",
+        ap.tiebreak ? " (tiebreak)" : "", dsp::kNoteNames[applied],
         dsp::kScales[newScale].shortName, tempo.valid ? "ok" : "none", tempo.bpm,
         tempo.confidence, appliedBpm ? " (applied)" : "");
 
     // Result card: ~1.6 s, backtick skips.
-    drawResult(canvas, ctx.guess, applied, prevRoot, newScale, scaleChanged,
+    drawResult(canvas, ctx.guess, ap, applied, prevRoot, newScale, scaleChanged,
                appliedBpm);
     const uint32_t until = millis() + 1600;
     bool btPrev = backtickHeld();

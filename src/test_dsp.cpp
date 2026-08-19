@@ -1707,6 +1707,110 @@ int main() {
                       applyRootForScale(7, false, SC_MIXO) == 7,
                   "refined modes keep the true tonic");
         }
+
+        // The full listen verdict (applyListen): mode + tonic tiebreak +
+        // family mapping. This is the "shuffle a playlist, hit fn+k, land
+        // right in YOUR scale" contract.
+        {
+            auto makeGuess = [](int rootPc, bool minor, const float ch[12]) {
+                KeyGuess g = KeyGuess::make();
+                g.valid = true;
+                g.rootPc = rootPc;
+                g.minor = minor;
+                for (int i = 0; i < 12; ++i) g.chroma[i] = ch[i];
+                return g;
+            };
+
+            // A Dorian evidence at a detected A minor: every family lands
+            // tonic-home on A; the plain canvas plays Dorian itself.
+            float dor[12] = {0.f};
+            dor[9] = 1.f; dor[0] = .6f; dor[2] = .5f; dor[4] = .7f;
+            dor[6] = .45f; dor[7] = .5f; dor[11] = .3f; dor[5] = .02f;
+            const KeyGuess gAm = makeGuess(9, true, dor);
+            ListenApply ap = applyListen(SC_MINOR, gAm);
+            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9 && ap.modal,
+                  "canvas player: Dorian song lands in Dorian at the tonic");
+            ap = applyListen(SC_BLUES, gAm);
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
+                  "Blues stays Blues and re-centres on the Dorian tonic");
+            ap = applyListen(SC_MIN_PENT, gAm);
+            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9,
+                  "min pent rides the Dorian tonic");
+            ap = applyListen(SC_HIRA, gAm);
+            CHECK(ap.scaleIdx == SC_HIRA && ap.rootPc == 9,
+                  "exotic flavors keep the frozen relative behavior");
+
+            // The tonic tiebreak: the SAME A Dorian world heard as "D major"
+            // (the Am7-D9 vamp's other honest reading). Strong C natural
+            // marks it mixo-flavoured; the Dorian twin at A runs close, so
+            // the tonic re-seats — and Blues lands on A, not B.
+            float oye[12] = {0.f};
+            oye[9] = 1.f;  oye[2] = .85f; oye[4] = .75f; oye[0] = .55f;
+            oye[7] = .6f;  oye[6] = .4f;  oye[11] = .25f;
+            const KeyGuess gDmaj = makeGuess(2, false, oye);
+            ap = applyListen(SC_BLUES, gDmaj);
+            CHECK(ap.tiebreak && ap.mode == LM_DOR && ap.tonicPc == 9,
+                  "mixo-flavoured D major re-seats as the A Dorian vamp");
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
+                  "Blues over Oye Como Va lands home on A");
+            ap = applyListen(SC_MINOR, gDmaj);
+            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9,
+                  "canvas player gets Dorian at A from the D-major reading");
+            // End-to-end: whatever twin the profiles pick from this chroma,
+            // the applied root must be A.
+            const KeyGuess gAuto = classifyChroma(oye);
+            CHECK(gAuto.valid, "the vamp chroma classifies");
+            ap = applyListen(SC_BLUES, gAuto);
+            CHECK(ap.rootPc == 9,
+                  "whichever twin wins the profiles, Blues lands on A");
+
+            // A genuinely tonic-clear Mixolydian song (a G7 vamp): the twin
+            // is far, so NO tiebreak — canvas gets Mixo at G, Blues gets the
+            // dominant-blues tonic, maj pent rides tonic-home in-set.
+            float gmix[12] = {0.f};
+            gmix[7] = 1.f; gmix[11] = .55f; gmix[2] = .6f; gmix[5] = .45f;
+            gmix[0] = .35f; gmix[4] = .3f; gmix[9] = .25f; gmix[6] = .02f;
+            const KeyGuess gG = makeGuess(7, false, gmix);
+            ap = applyListen(SC_MAJOR, gG);
+            CHECK(ap.scaleIdx == SC_MIXO && ap.rootPc == 7 && !ap.tiebreak,
+                  "tonic-clear mixo: canvas plays Mixolydian at the tonic");
+            ap = applyListen(SC_BLUES, gG);
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 7,
+                  "dominant blues: Blues sits on the mixo tonic");
+            ap = applyListen(SC_MAJ_PENT, gG);
+            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 7,
+                  "maj pent rides the mixo tonic, fully in-set");
+
+            // A plain Ionian song: Blues keeps the boxes trick (relative
+            // minor root), pents sit tonic-home — the frozen promises.
+            float ion[12] = {0.f};
+            ion[0] = 1.f; ion[4] = .7f; ion[7] = .65f; ion[11] = .45f;
+            ion[2] = .4f; ion[5] = .35f; ion[9] = .3f; ion[10] = .02f;
+            const KeyGuess gC = makeGuess(0, false, ion);
+            ap = applyListen(SC_BLUES, gC);
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
+                  "Ionian song: Blues keeps the relative-minor boxes trick");
+            ap = applyListen(SC_MIN_PENT, gC);
+            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 0,
+                  "Ionian song: pent swaps and sits tonic-home");
+
+            // No readable evidence: EVERY family collapses to the frozen
+            // behavior exactly.
+            float pentish[12] = {0.f};
+            pentish[9] = 1.f; pentish[0] = .6f; pentish[2] = .5f;
+            pentish[4] = .7f; pentish[7] = .5f;
+            const KeyGuess gPent = makeGuess(9, true, pentish);
+            const int frozenScales[5] = {SC_MINOR, SC_BLUES, SC_MIN_PENT,
+                                         SC_MAJ_PENT, SC_HIRA};
+            bool frozenOk = true;
+            for (int i = 0; i < 5; ++i) {
+                const ListenApply a2 = applyListen(frozenScales[i], gPent);
+                const int fs = applyScaleForKey(frozenScales[i], true);
+                const int fr = applyRootForScale(9, true, fs);
+                if (a2.scaleIdx != fs || a2.rootPc != fr) frozenOk = false;
+            }
+            CHECK(frozenOk, "no evidence: applyListen == the frozen behavior");
+        }
     }
 
     // ---- tempo detection (LISTEN) ----------------------------------------

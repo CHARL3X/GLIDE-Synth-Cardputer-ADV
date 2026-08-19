@@ -96,4 +96,49 @@ int applyScaleForKey(int scaleIdx, bool detectedMinor);
 int applyScaleForKeyChroma(int scaleIdx, bool detectedMinor,
                            const float chroma[12], int detectedPc);
 
+// ---- the full LISTEN verdict: mode, tonic, and a landing for EVERY scale --
+// The Krumhansl profiles answer major-or-minor at some root; real rooms are
+// full of modal music where that's the wrong question — an Am7-D9 Dorian vamp
+// reads "D major" as honestly as "A minor", and a flavor-scale player then
+// lands home on the wrong note (B blues over an A Dorian song: nothing sour,
+// everything off-centre). applyListen turns the raw guess into a refined
+// (tonic, mode) and maps it to the player's scale FAMILY:
+//
+//   1. Degree evidence upgrades the mode: strong b7 over the major 7 makes a
+//      major verdict Mixolydian; a natural 6 over the b6 makes a minor one
+//      Dorian (same gates as applyScaleForKeyChroma — weak evidence changes
+//      NOTHING and every output collapses to the frozen behavior).
+//   2. The tonic tiebreak: a Mixolydian-flavoured major verdict at X shares
+//      its pitch set with Dorian at X+7. If the profile score of (X+7 minor)
+//      sits within kTiebreakEps of the winner, the tonic moves there and the
+//      mode becomes Dorian — the Oye Como Va fix.
+//   3. Family mapping, tonic-home wherever the set allows it:
+//      - plain canvases play the mode itself at the tonic;
+//      - pentatonics keep their documented flavor swap, at the tonic (maj
+//        pent for Ionian/Mixolydian, min pent for Aeolian/Dorian — all four
+//        land fully inside the song's pitch set);
+//      - Blues stays Blues (spice is chosen, never imposed) and re-centres:
+//        tonic over Dorian/Aeolian/Mixolydian (dominant blues is the canon
+//        move), relative minor over plain Ionian (the boxes trick);
+//      - every other scale keeps the frozen relative-root behavior, fed the
+//        REFINED tonic and side.
+//
+// Scale/tonic corrections sit behind stricter gates than the key retune
+// itself: presence + ratio for the mode, kTiebreakEps for the tonic. chroma
+// is KeyGuess::chroma (peak-normalized; correlation is scale-invariant).
+enum ListenMode : uint8_t { LM_ION = 0, LM_DOR = 1, LM_MIXO = 2, LM_AEO = 3 };
+
+const char* listenModeName(uint8_t mode);  // "MAJ" "DOR" "MIX" "MIN"
+
+struct ListenApply {
+    int rootPc;     // root to apply
+    int scaleIdx;   // scale to apply (== input scale unless a canvas moved)
+    uint8_t mode;   // the song's refined mode (ListenMode)
+    int tonicPc;    // the song's tonic under that mode (HUD/card truth)
+    bool modal;     // degree evidence upgraded the plain verdict
+    bool tiebreak;  // the tonic moved off the raw K-S winner
+};
+
+ListenApply applyListen(int scaleIdx, const KeyGuess& g);
+
 }  // namespace dsp
