@@ -1,0 +1,42 @@
+name: download-stats
+
+# GitHub only stores a running download total per release asset — no history.
+# This snapshots every asset's count once a day into stats/downloads.csv so
+# daily numbers can be derived by subtracting consecutive rows.
+# (Counts reset if an asset is ever re-uploaded/clobbered; don't do that.)
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Append today's counts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=stats/downloads.csv
+          mkdir -p stats
+          [ -f "$f" ] || echo "date,tag,asset,downloads" > "$f"
+          today=$(date -u +%F)
+          # one row per asset per day; new releases show up automatically
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"' \
+            | sed "s/^/$today,/" >> "$f"
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stats/downloads.csv
+          git diff --cached --quiet && exit 0
+          git commit -m "stats: download snapshot $(date -u +%F)"
+          git push
