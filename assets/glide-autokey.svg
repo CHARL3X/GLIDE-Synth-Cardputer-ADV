@@ -40,7 +40,7 @@
   </g>
   <text x="168" y="232" fill="#5c6875" font-size="12" text-anchor="middle">the notes the song leans on</text>
 
-  <text x="310" y="150" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+  <text x="310" y="150" fill="#4fb8d6" font-size="16" text-anchor="middle">&#8594;</text>
 
   <!-- the retuning key row -->
   <g text-anchor="middle" font-size="13">
@@ -63,8 +63,8 @@
     <text x="526" y="112">A</text><text x="580" y="112">C</text><text x="634" y="112">D</text>
     <text x="688" y="112">F</text>
   </g>
-  <circle cx="472" cy="106" r="17" fill="none" stroke="#d9a04a" stroke-width="1.5" stroke-dasharray="3 3"/>
-  <text x="472" y="152" fill="#d9a04a" font-size="11" text-anchor="middle">your finger hasn&#8217;t moved</text>
+  <circle cx="472" cy="106" r="17" fill="none" stroke="#4fb8d6" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <text x="472" y="152" fill="#4fb8d6" font-size="11" text-anchor="middle">your finger hasn&#8217;t moved</text>
 
   <text x="340" y="188" fill="#aeb8c2" font-size="12">same keys, same shapes &#8212; every key is still</text>
   <text x="340" y="206" fill="#aeb8c2" font-size="12">a scale tone, now in the song&#8217;s key</text>

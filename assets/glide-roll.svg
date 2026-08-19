@@ -55,7 +55,7 @@
   <text x="130" y="212" fill="#aeb8c2" font-size="12" text-anchor="middle">it commits to a</text>
   <text x="130" y="228" fill="#aeb8c2" font-size="12" text-anchor="middle">character first</text>
 
-  <text x="235" y="160" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+  <text x="235" y="160" fill="#4fb8d6" font-size="16" text-anchor="middle">&#8594;</text>
 
   <!-- 2: painting inside the bounds -->
   <text x="386" y="52" fill="#aeb8c2" font-size="13" text-anchor="middle">then paints inside its bounds</text>
@@ -91,14 +91,14 @@
   <text x="278" y="274" fill="#5c6875" font-size="12">guardrails: never dead, never shrill,</text>
   <text x="278" y="290" fill="#5c6875" font-size="12">always lands in tune</text>
 
-  <text x="516" y="160" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+  <text x="516" y="160" fill="#4fb8d6" font-size="16" text-anchor="middle">&#8594;</text>
 
   <!-- 3: the sound you get -->
   <rect x="540" y="66" width="196" height="132" rx="9" fill="#171c23" stroke="#29323d"/>
   <rect x="548" y="74" width="180" height="18" rx="3" fill="#1c232c"/>
-  <text x="556" y="87" fill="#d9a04a" font-size="11" letter-spacing="2">NEW SOUND</text>
+  <text x="556" y="87" fill="#4fb8d6" font-size="11" letter-spacing="2">NEW SOUND</text>
   <text x="556" y="126" fill="#4fd68f" font-size="20" font-weight="700">warm-haze-3f</text>
-  <text x="556" y="148" fill="#d9a04a" font-size="13">wobble &#183; rubbery</text>
+  <text x="556" y="148" fill="#4fb8d6" font-size="13">wobble &#183; rubbery</text>
   <text x="556" y="172" fill="#aeb8c2" font-size="12">auditions instantly.</text>
   <text x="556" y="188" fill="#aeb8c2" font-size="12">love it or roll again.</text>
 
@@ -108,5 +108,5 @@
     <text x="638" y="250">keep it: fn+shift+key or SD</text>
   </g>
 
-  <text x="40" y="316" fill="#aeb8c2" font-size="12">a whole new <tspan fill="#4fd68f">kind</tspan> of sound each tap &#8212; and two slots your device rolled from a seed <tspan fill="#d9a04a">only it has.</tspan></text>
+  <text x="40" y="316" fill="#aeb8c2" font-size="12">a whole new <tspan fill="#4fd68f">kind</tspan> of sound each tap &#8212; and two slots your device rolled from a seed <tspan fill="#4fb8d6">only it has.</tspan></text>
 </svg>

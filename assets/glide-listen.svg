@@ -25,7 +25,7 @@
   <text x="78" y="192" fill="#aeb8c2" font-size="13" text-anchor="middle">any song,</text>
   <text x="78" y="210" fill="#aeb8c2" font-size="13" text-anchor="middle">out loud</text>
 
-  <text x="205" y="123" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+  <text x="205" y="123" fill="#4fb8d6" font-size="16" text-anchor="middle">&#8594;</text>
 
   <!-- 2: the device listens -->
   <rect x="248" y="82" width="150" height="86" rx="9" fill="#171c23" stroke="#29323d"/>
@@ -39,14 +39,14 @@
   <text x="316" y="199" fill="#4fd68f" font-size="13" text-anchor="middle">fn+k &#183; hold</text>
   <text x="323" y="228" fill="#aeb8c2" font-size="13" text-anchor="middle">the mic hears the room</text>
 
-  <text x="435" y="123" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+  <text x="435" y="123" fill="#4fb8d6" font-size="16" text-anchor="middle">&#8594;</text>
 
   <!-- 3: the verdict, drawn like the shipping result card -->
   <rect x="474" y="62" width="240" height="126" rx="9" fill="#171c23" stroke="#29323d"/>
   <rect x="482" y="70" width="224" height="18" rx="3" fill="#1c232c"/>
-  <text x="490" y="83" fill="#d9a04a" font-size="11" letter-spacing="2">LISTEN</text>
+  <text x="490" y="83" fill="#4fb8d6" font-size="11" letter-spacing="2">LISTEN</text>
   <text x="490" y="128" fill="#4fd68f" font-size="30" font-weight="700">A DORIAN</text>
-  <text x="490" y="152" fill="#d9a04a" font-size="15">92 BPM</text>
+  <text x="490" y="152" fill="#4fb8d6" font-size="15">92 BPM</text>
   <text x="560" y="152" fill="#5c6875" font-size="12">&#183; jam clock locked</text>
   <text x="490" y="174" fill="#aeb8c2" font-size="12">retuned. solo away.</text>
   <text x="594" y="216" fill="#5c6875" font-size="12" text-anchor="middle">it hears the mode and the groove,</text>
