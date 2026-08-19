@@ -35,11 +35,13 @@ struct Ctx {
 // to the same applied root, so its closeness no longer blocks the lock.
 constexpr float kEnoughConfidence = 0.5f;
 constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
-// A merely-confident verdict must also be STABLE — two consecutive audible
-// rounds agreeing on the applied root — before it may stop the listen: one
-// harmonically lopsided section (a long IV vamp) can be sure and wrong.
-// Only a near-certain verdict may lock on a single round.
-constexpr float kSureConfidence = 0.85f;
+// EVERY stop requires stability — two consecutive audible rounds agreeing on
+// the applied root. There used to be a near-certain (0.85) single-round
+// bypass; a field capture killed it: LISTEN hit at a vamp's A7 bar, one
+// chord scored enormously on its own key, and the listen locked A major
+// before the song's Em half had sounded once. Single-round certainty is
+// exactly the certainty a two-chord song fakes best. Costs one extra round
+// (~2-3 s) on easy songs; the ceiling is still 9 s.
 // Tempo applies only above this confidence: the jam tempo moving on a weak
 // beat guess would be worse than it staying put (fn+\ fixes it in two taps,
 // but an unasked-for wrong tempo is a betrayal; an unchanged one is honest).
@@ -87,10 +89,10 @@ bool onProgress(void* user, float frac) {
 }
 
 // One round of evidence. Returns true to keep listening: a single round can
-// catch one chord and name ITS key, so a merely-confident verdict must also
-// hold steady across two audible rounds before it stops the listen (a
-// near-certain one may stop alone). Rounds accumulate NORMALIZED — one round,
-// one vote — so a loud chorus can't out-vote quiet honest verses.
+// catch one chord and name ITS key, so every stop requires a confident
+// verdict that has ALSO held steady across two audible rounds. Rounds
+// accumulate NORMALIZED — one round, one vote — so a loud chorus can't
+// out-vote quiet honest verses.
 bool onSegment(void* user, const int16_t* mono, int n) {
     Ctx& ctx = *(Ctx*)user;
     ++ctx.rounds;
@@ -112,9 +114,7 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     const bool stable = applied == ctx.prevApplied && ctx.audibleRounds >= 2;
     ctx.prevApplied = applied;
     if (ctx.heardSamples < kMinHeardForStop) return true;
-    const bool stop = ctx.guess.confidence >= kSureConfidence ||
-                      (ctx.guess.confidence >= kEnoughConfidence && stable);
-    return !stop;
+    return !(stable && ctx.guess.confidence >= kEnoughConfidence);
 }
 
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
