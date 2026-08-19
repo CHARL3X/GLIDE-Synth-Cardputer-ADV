@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 268" role="img" aria-label="LISTEN flow: a song plays in the room, hold fn plus k, the mic works out the key and tempo, and the instrument retunes">
+  <style>
+    text { font-family: Consolas, 'Cascadia Mono', 'SF Mono', Menlo, monospace; }
+    .arc1 { animation: ping 2.4s linear infinite; }
+    .arc2 { animation: ping 2.4s linear .8s infinite; }
+    .arc3 { animation: ping 2.4s linear 1.6s infinite; }
+    @keyframes ping { 0% { opacity: 0; } 25% { opacity: .9; } 70% { opacity: 0; } 100% { opacity: 0; } }
+    .dot { animation: dotty 1.8s steps(1) infinite; }
+    @keyframes dotty { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .arc1, .arc2, .arc3 { animation: none; opacity: .6; }
+      .dot { animation: none; opacity: 1; }
+    }
+  </style>
+  <rect x="0" y="0" width="760" height="268" rx="16" fill="#0e1116"/>
+
+  <!-- 1: the room -->
+  <rect x="46" y="72" width="64" height="92" rx="8" fill="#171c23" stroke="#29323d"/>
+  <circle cx="78" cy="100" r="12" fill="#0e1116" stroke="#29323d"/>
+  <circle cx="78" cy="138" r="17" fill="#0e1116" stroke="#29323d"/>
+  <circle cx="78" cy="138" r="6" fill="#29323d"/>
+  <path class="arc1" d="M122 100 a38 38 0 0 1 0 72" fill="none" stroke="#5c6875" stroke-width="2"/>
+  <path class="arc2" d="M134 88  a54 54 0 0 1 0 96" fill="none" stroke="#5c6875" stroke-width="2"/>
+  <path class="arc3" d="M146 76  a70 70 0 0 1 0 120" fill="none" stroke="#5c6875" stroke-width="2"/>
+  <text x="78" y="192" fill="#aeb8c2" font-size="13" text-anchor="middle">any song,</text>
+  <text x="78" y="210" fill="#aeb8c2" font-size="13" text-anchor="middle">out loud</text>
+
+  <text x="205" y="123" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+
+  <!-- 2: the device listens -->
+  <rect x="248" y="82" width="150" height="86" rx="9" fill="#171c23" stroke="#29323d"/>
+  <rect x="258" y="92" width="130" height="50" rx="4" fill="#0b0e13" stroke="#1c232c"/>
+  <text x="268" y="114" fill="#4fd68f" font-size="12">listening</text>
+  <text x="326" y="114" fill="#4fd68f" font-size="12"><tspan class="dot">.</tspan><tspan class="dot" style="animation-delay:.6s">.</tspan><tspan class="dot" style="animation-delay:1.2s">.</tspan></text>
+  <text x="268" y="132" fill="#5c6875" font-size="10">key &#183; mode &#183; tempo</text>
+  <circle cx="392" cy="88" r="3" fill="#e05d5d"/>
+  <rect x="266" y="150" width="114" height="12" rx="2" fill="#14211b"/>
+  <rect x="272" y="184" width="88" height="22" rx="5" fill="#14211b" stroke="#2a4c3c"/>
+  <text x="316" y="199" fill="#4fd68f" font-size="13" text-anchor="middle">fn+k &#183; hold</text>
+  <text x="323" y="228" fill="#aeb8c2" font-size="13" text-anchor="middle">the mic hears the room</text>
+
+  <text x="435" y="123" fill="#d9a04a" font-size="16" text-anchor="middle">&#8594;</text>
+
+  <!-- 3: the verdict, drawn like the shipping result card -->
+  <rect x="474" y="62" width="240" height="126" rx="9" fill="#171c23" stroke="#29323d"/>
+  <rect x="482" y="70" width="224" height="18" rx="3" fill="#1c232c"/>
+  <text x="490" y="83" fill="#d9a04a" font-size="11" letter-spacing="2">LISTEN</text>
+  <text x="490" y="128" fill="#4fd68f" font-size="30" font-weight="700">A DORIAN</text>
+  <text x="490" y="152" fill="#d9a04a" font-size="15">92 BPM</text>
+  <text x="560" y="152" fill="#5c6875" font-size="12">&#183; jam clock locked</text>
+  <text x="490" y="174" fill="#aeb8c2" font-size="12">retuned. solo away.</text>
+  <text x="594" y="216" fill="#5c6875" font-size="12" text-anchor="middle">it hears the mode and the groove,</text>
+  <text x="594" y="234" fill="#5c6875" font-size="12" text-anchor="middle">not just a root note</text>
+
+  <text x="46" y="254" fill="#5c6875" font-size="12">ADV only &#8212; it needs the mic &#183; single taps of fn+k step the root by semitones</text>
+</svg>
