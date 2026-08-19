@@ -1810,6 +1810,58 @@ int main() {
                 if (a2.scaleIdx != fs || a2.rootPc != fr) frozenOk = false;
             }
             CHECK(frozenOk, "no evidence: applyListen == the frozen behavior");
+
+            // The Ionian-parent re-seat: a G-major song heard D-first (the
+            // Wish You Were Here capture). The C natural is REAL (the verse
+            // chords), so the D reading is honestly mixo-flavoured — but the
+            // set's Ionian parent G runs close while the Dorian twin is far,
+            // so the tonic re-seats HOME and every family lands where the
+            // record's own solos do.
+            float wy[12] = {0.f};
+            wy[2] = 1.f; wy[9] = .7f; wy[6] = .55f; wy[7] = .68f;
+            wy[0] = .5f; wy[4] = .45f; wy[11] = .35f; wy[5] = .03f; wy[1] = .03f;
+            const KeyGuess gWy = makeGuess(2, false, wy);
+            ap = applyListen(SC_MAJOR, gWy);
+            CHECK(ap.tiebreak && ap.mode == LM_ION && ap.tonicPc == 7,
+                  "D-heard G-major song re-seats to the Ionian parent");
+            CHECK(ap.scaleIdx == SC_MAJOR && ap.rootPc == 7,
+                  "canvas lands plain Major at G");
+            ap = applyListen(SC_BLUES, gWy);
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 4,
+                  "Blues lands on E, where the record's own solos live");
+        }
+
+        // The 7th-harmonic trap: a bright tonic paints its own b7 two
+        // octaves up (7f = two octaves + a minor 7th - 31 cents, inside the
+        // constant-Q bin), so guitar-bright major music kept reading
+        // Mixolydian (measured: Wish You Were Here locked G MIXO on a song
+        // with no F natural in it). A plain major chord with strong odd
+        // partials must not leave enough phantom b7 to clear the
+        // mode-evidence floor.
+        {
+            // The tonic in two octaves (a song leans on its root) plus the
+            // triad, all with guitar-bright partials through a small
+            // speaker's distortion: harmonics 2, 3, and a strong 7th.
+            const int chord[4] = {48, 60, 52, 55};  // C3 C4 E3 G3
+            for (int i = 0; i < nCap; ++i) cap[i] = 0;
+            for (int t = 0; t < 4; ++t) {
+                const float f = 440.f * powf(2.f, (chord[t] - 69) / 12.f);
+                for (int i = 0; i < nCap; ++i) {
+                    const float ph = 6.2831853f * f * (float)i / sr;
+                    cap[i] = (int16_t)((float)cap[i] +
+                                       (sinf(ph) + .5f * sinf(2.f * ph) +
+                                        .25f * sinf(3.f * ph) +
+                                        .5f * sinf(7.f * ph)) *
+                                           1800.f);
+                }
+            }
+            float acc[12] = {0.f};
+            accumulateChroma(cap, nCap, sr, acc);
+            float pk = 0.f;
+            for (int i = 0; i < 12; ++i)
+                if (acc[i] > pk) pk = acc[i];
+            CHECK(pk > 0.f && acc[10] < 0.20f * pk,
+                  "bright partials: the phantom b7 stays under the mode floor");
         }
     }
 

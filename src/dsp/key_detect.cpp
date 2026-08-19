@@ -140,11 +140,17 @@ void accumulateChroma(const int16_t* mono, int n, float sampleRate,
     // up at the same pitch class; its 3rd lands one band up a fifth higher
     // (bin pc has a 3rd-harmonic parent at pc+5). Without this, the dominant
     // routinely out-scores the tonic and every key reads a fifth sharp.
-    constexpr float kH2 = 0.45f, kH3 = 0.25f;
+    // The 7th harmonic lands TWO bands up a minor seventh higher (7f = two
+    // octaves + 969 cents; -31 cents off the bin centre, well inside the
+    // 16-cycle window), so bin pc also has a 7th-harmonic parent two bands
+    // down at pc+2 — without that term, a bright tonic paints its own b7
+    // and guitar-heavy major music leans Mixolydian.
+    constexpr float kH2 = 0.45f, kH3 = 0.25f, kH7 = 0.15f;
     for (int oct = 1; oct < kOctaves; ++oct) {
         for (int pc = 0; pc < 12; ++pc) {
-            const float v = band[oct][pc] - kH2 * band[oct - 1][pc] -
-                            kH3 * band[oct - 1][(pc + 5) % 12];
+            float v = band[oct][pc] - kH2 * band[oct - 1][pc] -
+                      kH3 * band[oct - 1][(pc + 5) % 12];
+            if (oct >= 2) v -= kH7 * band[oct - 2][(pc + 2) % 12];
             band[oct][pc] = v > 0.f ? v : 0.f;
         }
     }
@@ -319,9 +325,14 @@ namespace {
 
 // The mode-evidence gates, shared with applyScaleForKeyChroma's judgment:
 // the deciding degree must be PRESENT (vs the chroma peak) and clearly
-// out-power its rival, or the evidence is treated as absent.
+// out-power its rival, or the evidence is treated as absent. The b7 bin
+// answers to a HIGHER floor: it's the phantom-prone one (the tonic's own
+// 7th harmonic lands there — measured on hardware as a G-major song locking
+// G MIXO), while a genuine mixo groove plays its b7 as a whole loud chord
+// and clears 0.30 without trying.
 constexpr float kModeRatio = 1.8f;
 constexpr float kModePresence = 0.20f;
+constexpr float kModePresenceB7 = 0.30f;
 // Tonic tiebreak: how close (raw Pearson) the Dorian twin must score to the
 // mixo-flavoured major winner for the tonic to move. Sized from measured
 // corridors: the Am7-D9 vamp's twin gap is ~0.08 (must fire), a tonic-clear
@@ -354,7 +365,7 @@ uint8_t modeFromChroma(bool minor, const float chroma[12], int tonicPc,
     }
     const float maj7 = chroma[(tonicPc + 11) % 12];
     const float fl7 = chroma[(tonicPc + 10) % 12];
-    if (fl7 >= presence && fl7 >= kModeRatio * maj7) {
+    if (fl7 >= kModePresenceB7 * peak && fl7 >= kModeRatio * maj7) {
         hasEvidence = true;
         return LM_MIXO;
     }
@@ -386,15 +397,25 @@ ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
     out.modal = (mode == LM_DOR || mode == LM_MIXO);
 
     // Tonic tiebreak: "X major with a strong b7" shares its pitch set with
-    // Dorian at X+7 (D mixo == A dorian == G major's notes). If the profile
-    // score of that Dorian twin runs neck and neck with the winner, the vamp's
-    // true home is the twin — re-seat the tonic there.
+    // BOTH Dorian at X+7 and plain Ionian at X+5 (D mixo == A dorian == G
+    // major's notes). If either reading's profile score runs neck and neck
+    // with the winner, the song's true home is there — re-seat the tonic on
+    // the better-scoring rival (the Am7-D9 vamp goes Dorian; a G-major song
+    // heard D-first goes home to G).
     if (mode == LM_MIXO) {
         const float win = keyScore(g.chroma, kProfMajor, g.rootPc);
-        const float twin = keyScore(g.chroma, kProfMinor, (g.rootPc + 7) % 12);
-        if (twin >= win - kTiebreakEps) {
-            out.tonicPc = (g.rootPc + 7) % 12;
-            out.mode = LM_DOR;
+        const float dorTwin = keyScore(g.chroma, kProfMinor, (g.rootPc + 7) % 12);
+        const float ionParent = keyScore(g.chroma, kProfMajor, (g.rootPc + 5) % 12);
+        const float rival = dorTwin > ionParent ? dorTwin : ionParent;
+        if (rival >= win - kTiebreakEps) {
+            if (dorTwin > ionParent) {
+                out.tonicPc = (g.rootPc + 7) % 12;
+                out.mode = LM_DOR;
+            } else {
+                out.tonicPc = (g.rootPc + 5) % 12;
+                out.mode = LM_ION;
+                out.modal = false;  // the song was plain major all along
+            }
             out.tiebreak = true;
         }
     }
