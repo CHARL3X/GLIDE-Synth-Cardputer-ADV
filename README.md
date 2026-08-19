@@ -105,17 +105,17 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
 </details>
 
 <p align="center">
-  <img src="assets/glide-slide.svg" alt="The slide: hold one key, tap another on the same row and the voice glides up to it; release and it glides back. The bottom row latches a chord progression under you." width="100%">
+  <img src="assets/glide-roll.svg" alt="Rolling a sound: one tap of Randomize commits to a character, paints every parameter inside that character's bounds, and lands a named, playable sound" width="100%">
 </p>
 
 - **Press keys.** It sounds good immediately. Scale lock means every key is a scale tone, no dead notes, and the rows are strings tuned a fourth apart, like a guitar.
 - **Slide a chord.** Hold a shape across rows, then re-finger it a few columns over while the old notes still ring. Every voice glides to its new target. This is the thing.
 - **Hammer-on / pull-off.** Press a new key on the same row while holding one and the voice glides there; release and it glides back.
+
+  <img src="assets/glide-slide.svg" alt="The slide: hold one key, tap another on the same row and the voice glides up to it; release and it glides back. The bottom row latches a chord progression under you." width="100%">
 - **Hold `shift`** to break out of the scale into pure chromatic semitones, only while held. That's the skill gate.
 - **Tap the bottom row** to latch drones and chord progressions under your solo; **alt** is a one-button loop pedal. A backing band in your left thumb.
 - **Roll your own sounds.** `tab` opens settings on two big **Randomize** and **Mutate** buttons. Every roll commits to a character (pluck, bell, pad, acid, organ, wobble bass) and auditions instantly. Undo/redo means you never lose a keeper. `fn`+`shift`+letter saves to a slot, or save it to SD with a name.
-
-  <img src="assets/glide-roll.svg" alt="Rolling a sound: one tap of Randomize commits to a character, paints every parameter inside that character's bounds, and lands a named, playable sound" width="100%">
 - **Tilt the device.** `enter` toggles the gyro: lean forward and back and the sound morphs into the one you were just on; left and right adds vibrato. Rewire either axis in settings.
 - **Match whatever's playing.** Hold `fn`+`k` and the mic listens to the room and retunes the instrument to the song's key (ADV). A single tap of `fn`+`k` changes the key by hand.
 
