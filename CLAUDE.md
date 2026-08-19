@@ -47,7 +47,17 @@ wrapped and would have inverted a highlight to black. See its README.
    `espressif32@6.12.0`) to match the verified Speaker_Class source. Don't
    bump without re-running the phase0 probe on hardware.
 
-7. **The mic is config-only at boot.** `internal_mic = true` in main.cpp sets
+7. **RAM is at the ceiling — no new statics, no resident heap.** The 65 KB
+   frame-buffer sprite boots within ~1 KB of the RAM limit: +1.2 KB of .bss
+   is a MEASURED boot failure ("UI ALLOC FAILED"), and a 4 KB static broke
+   first hardware contact of the LISTEN tempo feature. Resident heap is just
+   as banned: LISTEN sizes its record rounds from the largest free block, so
+   a lingering allocation silently shrinks fn+k forever (a 19.5 KB field did,
+   measured). New frame-to-frame UI state goes INSIDE the perform screen's
+   VizState union; anything bigger is malloc'd for a modal's lifetime and
+   freed on every exit path. Check `pio run`'s RAM line against the previous
+   build before calling any change done.
+8. **The mic is config-only at boot.** `internal_mic = true` in main.cpp sets
    pins + the ES8311 record callback but starts nothing (verified in the
    vendored M5Unified source). The codec is half-duplex; the entire
    `Speaker.end() → Mic.begin() → Mic.end() → Speaker.begin()` handoff lives
