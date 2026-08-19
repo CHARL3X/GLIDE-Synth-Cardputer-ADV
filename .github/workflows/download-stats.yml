@@ -27,6 +27,8 @@ jobs:
           mkdir -p stats
           [ -f "$f" ] || echo "date,tag,asset,downloads" > "$f"
           today=$(date -u +%F)
+          # one snapshot per day — a rerun on the same date is a no-op
+          grep -q "^$today," "$f" && exit 0
           # one row per asset per day; new releases show up automatically
           gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
             --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"' \
