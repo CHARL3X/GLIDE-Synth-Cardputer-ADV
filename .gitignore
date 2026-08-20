@@ -6,3 +6,5 @@
 viz_*.bmp
 viz_*.png
 viz_render.exe
+dist/GLIDE-nvsfill.bin
+dist/GLIDE-probe.bin
