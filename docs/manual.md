@@ -216,7 +216,7 @@ Settings → SYSTEM also keeps the **odometer**: a quiet lifetime count of the n
 
 - settings → *Sound reset*: current slot back to factory
 - settings → *Reset defaults*: all settings back to factory (saved sounds kept)
-- **press and hold backspace during the boot splash:** full factory reset, settings and saved sounds, even if stored state ever wedges the UI. Hold it through the red confirm bar (~1.5 s); release at any point cancels. Deliberate on purpose, since a stray tap used to wipe people's sessions. It has to be a press made *during* the splash and then sustained; the ADV's keyboard chip is event-driven and can't see a key held from power-on. This reset is also the cure for a **STORAGE FULL** boot warning: when the shared flash partition is full, the reset erases and rebuilds the whole partition (save your sounds to SD first — your two generative slots keep their identity).
+- **press and hold backspace during the boot splash:** full factory reset, settings and saved sounds, even if stored state ever wedges the UI. Hold it through the red confirm bar (~1.5 s); release at any point cancels. Deliberate on purpose, since a stray tap used to wipe people's sessions. It has to be a press made *during* the splash and then sustained; the ADV's keyboard chip is event-driven and can't see a key held from power-on. This reset is also the cure for a **STORAGE FULL** boot warning: when the shared flash partition is full, the reset erases and rebuilds the whole partition (save your sounds to SD first — your two generative slots keep their identity). Because that partition is shared, other apps' settings and the Launcher's saved Wi-Fi networks are cleared with it; they rebuild their defaults on next use.
 
 ---
 
