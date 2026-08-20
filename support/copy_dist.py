@@ -6,6 +6,7 @@ import os, shutil
 DIST_NAMES = {
     "cardputer-adv": "GLIDE.bin",
     "phase0-probe": "GLIDE-probe.bin",
+    "nvsfill": "GLIDE-nvsfill.bin",
 }
 
 
