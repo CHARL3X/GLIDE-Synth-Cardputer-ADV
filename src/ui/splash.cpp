@@ -108,6 +108,10 @@ bool run() {
         const int bw = 168, bx = (cfg::kScreenW - bw) / 2, by = 86;
         d.drawRect(bx, by, bw, 6, theme::kDim);
         d.fillRect(bx + 1, by + 1, (bw - 2) * step / 36, 4, theme::kRed);
+        // The cost, named before the point of no return — not after (the
+        // FACTORY RESET card in main.cpp only reports what already happened).
+        d.setTextColor(theme::kIdle, theme::kBg);
+        d.drawString("sounds not saved to SD will be lost", cfg::kScreenW / 2, 104);
         d.setTextDatum(top_left);
         delay(40);
     }

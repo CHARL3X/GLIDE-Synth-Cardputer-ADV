@@ -99,7 +99,8 @@ void setup() {
             // escalates to a full partition erase when this probe has failed.
             // Font0 is 6 px/char from x=12: keep each line <= 37 chars.
             d.drawString("Fix: hold BKSP during the boot logo", 12, 76);
-            d.drawString("(factory reset; save to SD first)", 12, 88);
+            d.drawString("= factory reset. Sounds not saved", 12, 88);
+            d.drawString("to the SD card will be lost.", 12, 100);
         } else {
             d.drawString("NVS would not open. (Check NVS partition.)", 12, 76);
         }
