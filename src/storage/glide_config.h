@@ -159,8 +159,9 @@ void markDirty();             // schedule a debounced persist
 // Lifetime play counters, shown as one quiet read-only row in SYSTEM. Notes =
 // player-struck note starts only (lead presses, drone latches, chord-step
 // taps); never looper playback, jam re-strikes, or octave sweeps. Seconds =
-// hands-on time (accumulates while a struck note is <30 s old). Survives
-// settings resets; only a full factory wipe (boot-BKSP) clears it.
+// hands-on time (accumulates while a struck note is <30 s old). It is a
+// record of the instrument's life, not a setting: it survives every reset,
+// including the boot-BKSP factory wipe (eraseAllStorage carries it across).
 void odoNote();               // count one player-struck note (press sites only)
 uint32_t odoNotes();
 uint32_t odoSeconds();

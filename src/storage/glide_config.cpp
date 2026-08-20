@@ -1131,23 +1131,26 @@ void tick(uint32_t nowMs, bool allowFlush) {
 // with GLIDE alone). Erase the WHOLE partition — the same cure the Launcher
 // hides behind its dev-mode "Format NVS Partition" — re-init, re-open, then
 // rewrite this unit's identity (seed + genver) so the generative o/p slots
-// come back as the sounds the player knows. Everything else restarts from
-// factory: GLIDE settings/slots (the reset the player just confirmed), the
-// odometer (documented boot-reset behaviour), and every other namespace
-// (the Launcher rebuilds its own defaults, same as after its format).
+// come back as the sounds the player knows — and the odometer rides across
+// too (it is a record of the instrument's life, not a setting; it survives
+// every reset). Everything else restarts from factory: GLIDE settings/slots
+// (the reset the player just confirmed) and every other namespace (the
+// Launcher rebuilds its own defaults, same as after its format).
 void eraseAllStorage() {
     gPrefs.end();
     nvs_flash_erase();
     nvs_flash_init();
     gNvsOk = gPrefs.begin(cfg::kNvsNamespace, false);
-    gOdoNotes = gOdoWrittenNotes = gOdoSecs = gOdoWrittenSecs = 0;
-    gOdoMsAcc = 0;
     if (!gNvsOk) {  // still dead: boot's STORAGE UNAVAILABLE warning applies
         Serial.println("[glide] NVS erase: namespace would not reopen");
         return;
     }
     gPrefs.putUInt("seed", gSeed);
     gPrefs.putUChar("genver", gGenVer);
+    gPrefs.putUInt("odonotes", gOdoNotes);
+    gPrefs.putUInt("odosecs", gOdoSecs);
+    gOdoWrittenNotes = gOdoNotes;
+    gOdoWrittenSecs = gOdoSecs;
     const size_t wrote = gPrefs.putUInt("bootn", gBootCount);
     gWriteProbeOk = (wrote == sizeof(uint32_t)) && (gPrefs.getUInt("bootn", 0) == gBootCount);
     Serial.printf("[glide] NVS erased + rebuilt: probe=%s\n", gWriteProbeOk ? "ok" : "FAIL");

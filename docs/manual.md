@@ -212,11 +212,11 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 
 Everything you touch (sounds, tweaks, octave, scale, tilt setup, jam rows) saves to flash moments after you change it and survives reboots *and* firmware updates, since NVS lives outside the app partition.
 
-Settings → SYSTEM also keeps the **odometer**: a quiet lifetime count of the notes you have struck and your hands-on hours. No goals, no streaks; just the instrument's life with you. It survives *Reset defaults* (it is a record, not a setting); only the boot-splash factory reset clears it. Three ways back:
+Settings → SYSTEM also keeps the **odometer**: a quiet lifetime count of the notes you have struck and your hands-on hours. No goals, no streaks; just the instrument's life with you. It is a record, not a setting: it survives every reset below, the factory one included. Three ways back:
 
 - settings → *Sound reset*: current slot back to factory
 - settings → *Reset defaults*: all settings back to factory (saved sounds kept)
-- **press and hold backspace during the boot splash:** full factory reset, settings and saved sounds, even if stored state ever wedges the UI. Hold it through the red confirm bar (~1.5 s); release at any point cancels. Deliberate on purpose, since a stray tap used to wipe people's sessions. It has to be a press made *during* the splash and then sustained; the ADV's keyboard chip is event-driven and can't see a key held from power-on. This reset is also the cure for a **STORAGE FULL** boot warning: when the shared flash partition is full, the reset erases and rebuilds the whole partition (save your sounds to SD first — your two generative slots keep their identity). Because that partition is shared, other apps' settings and the Launcher's saved Wi-Fi networks are cleared with it; they rebuild their defaults on next use.
+- **press and hold backspace during the boot splash:** full factory reset, settings and saved sounds, even if stored state ever wedges the UI. Hold it through the red confirm bar (~1.5 s); release at any point cancels. Deliberate on purpose, since a stray tap used to wipe people's sessions. It has to be a press made *during* the splash and then sustained; the ADV's keyboard chip is event-driven and can't see a key held from power-on. This reset is also the cure for a **STORAGE FULL** boot warning: when the shared flash partition is full, the reset erases and rebuilds the whole partition (save your sounds to SD first — your two generative slots keep their identity, and the odometer rides across). Because that partition is shared, other apps' settings and the Launcher's saved Wi-Fi networks are cleared with it; they rebuild their defaults on next use.
 
 ---
 
