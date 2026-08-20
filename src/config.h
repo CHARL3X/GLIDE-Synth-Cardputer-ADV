@@ -5,6 +5,12 @@
 
 namespace cfg {
 
+// ---- identity ---------------------------------------------------------
+// Shown top-right on the boot splash so a player can answer "which build am
+// I on?" without a computer (a real support question, twice). Bump this with
+// every release tag — it is the only place the version lives.
+constexpr const char* kVersion = "v2.4";
+
 // ---- audio path -------------------------------------------------------
 // 32 kHz / 128-sample blocks = 4 ms per block. With dma_buf_count=3 the
 // output chain is ~12 ms; keyboard adds ~5-10 ms -> under the 25 ms target.

@@ -22,6 +22,13 @@ bool run() {
     d.setFont(&fonts::Font0);
     d.setTextColor(theme::kDim, theme::kBg);
     d.drawString("by CHARL3X  -  github.com/CHARL3X", cfg::kScreenW / 2, cfg::kScreenH - 1);
+
+    // Version stamp, top-right, same dim ink as the credit. The logo blit
+    // rect starts at y=(135-115)/2=10, so the top band (y<10) is never
+    // repainted and this — drawn once, like the credit — survives every
+    // frame. Font0 is 8 px tall: y=1 keeps it fully inside the band.
+    d.setTextDatum(top_right);
+    d.drawString(cfg::kVersion, cfg::kScreenW - 2, 1);
     d.setTextDatum(top_left);
 
     // The synthwave wordmark, centered, animated. Each frame is decoded into a

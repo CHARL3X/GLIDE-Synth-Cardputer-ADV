@@ -92,9 +92,17 @@ void setup() {
         d.drawString("Settings and saved sounds will NOT", 12, 44);
         d.drawString("persist across reboots.", 12, 56);
         d.setTextColor(theme::kDim, theme::kBg);
-        d.drawString(full ? "NVS partition is full — clear device storage."
-                          : "NVS would not open. (Check NVS partition.)",
-                     12, 76);
+        if (full) {
+            // Name the way out ON the screen — "clear device storage" left
+            // people stranded (the Launcher has no user-visible NVS tool).
+            // The gesture it points at is the boot factory reset below, which
+            // escalates to a full partition erase when this probe has failed.
+            // Font0 is 6 px/char from x=12: keep each line <= 37 chars.
+            d.drawString("Fix: hold BKSP during the boot logo", 12, 76);
+            d.drawString("(factory reset; save to SD first)", 12, 88);
+        } else {
+            d.drawString("NVS would not open. (Check NVS partition.)", 12, 76);
+        }
         delay(2500);
     }
 
@@ -105,6 +113,12 @@ void setup() {
     // never produces an event (audited; a held-key gesture is dead on this
     // hardware).
     if (splash::run()) {
+        // When this boot's write probe failed, the shared partition is full
+        // and clearing GLIDE's own keys may not be enough (other apps and the
+        // Launcher share it) — escalate to a full partition erase. The player
+        // just confirmed a factory reset, so nothing consented-to is lost,
+        // and the unit's seed identity is rewritten inside.
+        if (!store::writeProbeOk()) store::eraseAllStorage();
         store::resetDefaults();
         for (int i = 0; i < dsp::kPatchCount; ++i) store::clearOverride(i);
         audio::setParams(store::get().synth);

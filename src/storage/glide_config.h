@@ -159,8 +159,9 @@ void markDirty();             // schedule a debounced persist
 // Lifetime play counters, shown as one quiet read-only row in SYSTEM. Notes =
 // player-struck note starts only (lead presses, drone latches, chord-step
 // taps); never looper playback, jam re-strikes, or octave sweeps. Seconds =
-// hands-on time (accumulates while a struck note is <30 s old). Survives
-// settings resets; only a full factory wipe (boot-BKSP) clears it.
+// hands-on time (accumulates while a struck note is <30 s old). It is a
+// record of the instrument's life, not a setting: it survives every reset,
+// including the boot-BKSP factory wipe (eraseAllStorage carries it across).
 void odoNote();               // count one player-struck note (press sites only)
 uint32_t odoNotes();
 uint32_t odoSeconds();
@@ -178,6 +179,13 @@ void flushMorphPartner();     // write the morph-partner blob if stale. NOT part
                               // idle hands, settings close, app exit — never in
                               // the debounced flush 500 ms after a sound switch
 void resetDefaults();         // restore + persist
+void eraseAllStorage();       // LAST RESORT, boot factory-reset only: erase the
+                              // whole shared NVS partition (every app's data),
+                              // re-init, and rewrite this unit's identity
+                              // (seed + genver) so the generative o/p slots
+                              // stay the sounds the player knows. This is the
+                              // cure for STORAGE FULL when GLIDE's own keys
+                              // weren't the (only) hog.
 void setTiltLock(bool on);    // flip the global/per-sound tilt map AND rebase the
                               // unsaved-* reference, so toggling the mode can't
                               // leave a stale dirty marker
