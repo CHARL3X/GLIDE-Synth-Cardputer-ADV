@@ -178,6 +178,13 @@ void flushMorphPartner();     // write the morph-partner blob if stale. NOT part
                               // idle hands, settings close, app exit — never in
                               // the debounced flush 500 ms after a sound switch
 void resetDefaults();         // restore + persist
+void eraseAllStorage();       // LAST RESORT, boot factory-reset only: erase the
+                              // whole shared NVS partition (every app's data),
+                              // re-init, and rewrite this unit's identity
+                              // (seed + genver) so the generative o/p slots
+                              // stay the sounds the player knows. This is the
+                              // cure for STORAGE FULL when GLIDE's own keys
+                              // weren't the (only) hog.
 void setTiltLock(bool on);    // flip the global/per-sound tilt map AND rebase the
                               // unsaved-* reference, so toggling the mode can't
                               // leave a stale dirty marker
