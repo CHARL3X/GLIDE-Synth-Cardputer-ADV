@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Master send-effects block: the "space" the dry voices were missing. Sits
 // after the filter + soft clip, processes the mono mix in place once per
 // block. Three sends, each bypassed when its mix is 0 (so a pure tone stays

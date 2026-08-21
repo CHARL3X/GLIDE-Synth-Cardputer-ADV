@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Demo mode: the instrument plays itself. Spells a chord progression on the
 // REAL backing engine, improvises over it with the seeded dsp phrase
 // generator (slides on display), and wanders the curated bank — identity card

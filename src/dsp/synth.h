@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The synth: voice pool + allocation + global chain. Owns the chord-slide
 // behavior: legato lane hand-offs (string mode), nearest-pitch stealing at
 // the voice cap (free mode), retargets for octave sweeps. Pure C++ —

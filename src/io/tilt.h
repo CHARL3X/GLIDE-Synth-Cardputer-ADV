@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Optional motion modulation from the BMI270. Deliberately humble: tilt is
 // an assignable effects modulator (cutoff / vibrato / volume) that defaults
 // to OFF and can be ignored entirely. It is NEVER pitch bend — that was

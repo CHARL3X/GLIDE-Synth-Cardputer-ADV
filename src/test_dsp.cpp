@@ -1,4 +1,6 @@
-﻿// Host-side sanity tests for the pure DSP core (pio run -e native).
+﻿// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
+// Host-side sanity tests for the pure DSP core (pio run -e native).
 // This compiling and passing on a PC is the proof that dsp/ has no hardware
 // dependencies -- the porting boundary the whole architecture promises.
 #ifdef GLIDE_HOST_BUILD

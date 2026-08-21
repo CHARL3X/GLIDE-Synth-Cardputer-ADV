@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Charles Tobin (CHARL3X)
 # PIO post-action: copy app firmware.bin to dist/ with a stable name,
 # ready to drop onto the Cardputer SD card for bmorcelli Launcher.
 Import("env")

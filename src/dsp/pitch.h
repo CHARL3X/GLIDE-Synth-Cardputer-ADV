@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Grid -> pitch mapping: the isomorphic layout, degree mapping, key/octave
 // math, and note-name helpers. Pure C++.
 #pragma once

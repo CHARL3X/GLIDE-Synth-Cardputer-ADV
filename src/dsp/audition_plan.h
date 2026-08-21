@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The audition clock: how long this PARTICULAR sound needs to show itself.
 //
 // The preview phrase's notes are fixed (same lick every roll — that's what

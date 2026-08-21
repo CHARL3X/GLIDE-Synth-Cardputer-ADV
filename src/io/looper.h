@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The loop pedal. Records the live NoteEvent stream (a performance, not
 // audio) and replays it as a protected backing layer: playback notes carry
 // id+128 / lane+4 / backing=true, so they can never collide with the live

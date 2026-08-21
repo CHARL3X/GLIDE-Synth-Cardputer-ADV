@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The hardware boundary for sound: owns the render task and the M5Unified
 // playRaw streaming loop. Everything above this is portable dsp/; everything
 // below is M5Stack-specific. If audio cannot start, begin() returns false

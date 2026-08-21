@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // LISTEN: the hold-fn+k modal. Suspends the synth, records the room,
 // detects the song's key, shows the chroma, and retunes the root so the
 // player's current scale lands on the song's notes. Blocking, like the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The onboard RGB LED as a second readout. Hue follows the lead voice's pitch
 // (a chromatic color wheel), brightness follows note activity, and a sparkle
 // fires on fresh attacks and bends. Driven once per UI frame from the perform

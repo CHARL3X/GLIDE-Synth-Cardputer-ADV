@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE NVS fill tool (pio run -e nvsfill -> dist/GLIDE-nvsfill.bin).
 //
 // Test harness for the STORAGE FULL recovery path, never shipped to players:

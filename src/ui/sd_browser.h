@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The SD patch-library browser — recall the sounds you saved to the card.
 // A modal screen (owns the canvas while open, like the Help screen). Lists the
 // .gpat files in the library, loads one into the live sound on select, and can

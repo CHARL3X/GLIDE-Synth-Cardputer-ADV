@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE — a continuous-pitch polyphonic slide instrument for the
 // M5Stack Cardputer ADV.
 //

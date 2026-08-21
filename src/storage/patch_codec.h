@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE patch serialization — a forward/backward-compatible TAGGED format.
 //
 // The whole point: adding new sound parameters must NEVER again invalidate a

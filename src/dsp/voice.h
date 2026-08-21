@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // One voice: wavetable oscillator (x3 phases for fat-saw), ADSR, and the
 // exponential pitch slew that makes the whole instrument — every glide,
 // chord slide, hammer-on and octave sweep is this one slew. Pure C++.

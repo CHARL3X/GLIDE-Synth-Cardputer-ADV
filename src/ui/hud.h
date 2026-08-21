@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Transient parameter HUD: an amber card over the scope for ~1s after any
 // change. Rejected changes flash red — a failure you can see, never silence.
 #pragma once

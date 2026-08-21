@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE visual identity: dark machined panel, amber annunciators, phosphor
 // green for anything alive (the trace, held keys). Cassette futurism —
 // it should read as test equipment that learned to sing.

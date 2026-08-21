@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // TPT state-variable lowpass (Zavalishin). Stable up to Nyquist — matters
 // because cutoff is user-rangeable to 12 kHz at a 32 kHz rate, where a
 // Chamberlin SVF would blow up. Pure C++.

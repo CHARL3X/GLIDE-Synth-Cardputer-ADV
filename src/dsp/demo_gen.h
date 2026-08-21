@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Demo-mode melody generator: seeded, deterministic PHRASES built around ONE
 // rhythmic hook per run — real music repeats itself. Each 4-bar phrase (locked
 // to the chord loop) is: the hook, the hook answered a step away, a resolution

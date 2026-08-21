@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Host render harness: see what a screen actually LOOKS like without flashing.
 //
 // It textually #includes the REAL ui/screensaver.cpp over a stub M5Canvas and

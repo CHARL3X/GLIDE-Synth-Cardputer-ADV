@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Master output stage: a ~120 Hz highpass (the Cardputer speaker can't move
 // air below that — don't waste its excursion) followed by a polynomial soft
 // clip so full polyphony saturates instead of crackling. Pure C++.

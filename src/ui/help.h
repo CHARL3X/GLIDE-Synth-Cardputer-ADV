@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // On-device cheat sheet — the manual, in your pocket. A scrollable read-only
 // reference for the keymap and gestures, so the instrument explains itself with
 // no internet and no printed manual. Blocking; returns to the caller.
