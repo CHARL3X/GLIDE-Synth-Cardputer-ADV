@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // A tiny on-device text-entry modal — for naming things (today: renaming an
 // SD-library patch). Owns the canvas while open, like help/sd_browser. Reads
 // typed characters POSITIONALLY via M5Cardputer.Keyboard.getKeyValue() so it

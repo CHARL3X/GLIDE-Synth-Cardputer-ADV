@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE dsp core — parameter and event types shared between the UI thread
 // and the audio render thread. PURE C++: no Arduino/M5/IDF includes anywhere
 // under dsp/. This is the porting boundary for future dedicated hardware.

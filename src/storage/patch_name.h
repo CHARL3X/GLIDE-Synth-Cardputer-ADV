@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Patch-name rules for the SD library — what a human name may contain and what
 // it becomes on the card.
 //

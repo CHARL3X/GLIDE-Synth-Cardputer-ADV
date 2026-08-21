@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The factory sound bank: ten instruments, not ten waveforms. Each patch is
 // a complete personality — oscillator recipe, envelope shape, filter
 // behavior, glide feel, AND its tilt response. Selected live with fn+q..p;

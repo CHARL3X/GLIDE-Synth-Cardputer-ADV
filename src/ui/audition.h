@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // A short canned phrase that auditions the LIVE lead sound — the "hit Randomize
 // and keep listening" loop, and the SD-library preview. Plays a low note that
 // glides up and back, a couple of re-attacks across the range, then a sustained

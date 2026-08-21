@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The personal patch library on microSD — the SD half of "everyone has their
 // own sounds." The ten NVS slots (fn+q..p) are fast favourites; this is the
 // unlimited collection behind them: roll or tweak a sound, save it to the card

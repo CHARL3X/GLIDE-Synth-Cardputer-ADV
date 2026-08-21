@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Host render harness for the HOW TO PLAY page — same idea as render.cpp
 // (see its header comment): textually #include the REAL ui/help.cpp over the
 // stub M5Canvas, render every scroll position that shows a fresh page, and

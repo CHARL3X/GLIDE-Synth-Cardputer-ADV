@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Lock-free single-producer/single-consumer ring. UI thread pushes,
 // audio render thread pops. Pure C++.
 #pragma once

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Synth-morph runtime: one blend position (0 = the current sound, 1 = fully
 // the previous sound) ramped at the Morph time rate. Two drivers, one state:
 // a sound switch kicks the position to 1 and lets it glide home (the smooth

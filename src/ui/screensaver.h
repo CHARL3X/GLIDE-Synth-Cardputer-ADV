@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The idle screensaver: the string at rest. After a long hands-off spell the
 // perform screen hands the frame to this — a mostly-black field with a full-
 // width standing wave holding still, a soft window of light sliding along it,

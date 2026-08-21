@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE Phase 0 hardware risk probe (pio run -e phase0-probe -t upload).
 //
 // Validates the two make-or-break assumptions on the real Cardputer ADV

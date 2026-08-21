@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // GLIDE generative sound engine — the heart of "your instrument is yours."
 //
 // Rolls a complete, musically-bounded patch from a seed, or mutates an existing

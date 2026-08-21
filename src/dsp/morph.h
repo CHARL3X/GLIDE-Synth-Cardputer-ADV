@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Synth morph: interpolate between two complete sounds. The instrument glides
 // between notes; this is the same idea for timbre — a G0 hold leans the live
 // sound toward the previous one, and a sound switch is just a morph that

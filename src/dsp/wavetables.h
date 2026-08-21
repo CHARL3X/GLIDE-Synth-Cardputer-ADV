@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Shared wavetables: 1024-sample single-cycle tables with a +1 guard sample
 // for branch-free linear interpolation. Saw/square get a 2-mip band-limit:
 // a full-harmonic table for low fundamentals and a reduced-harmonic table

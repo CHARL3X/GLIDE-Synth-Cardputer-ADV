@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // LISTEN: musical key detection from a mono capture. Pure C++.
 //
 // A constant-Q Goertzel chromagram (12 pitch classes x 4 octaves, 16 cycles

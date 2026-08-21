@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Charles Tobin (CHARL3X)
 // All user-adjustable state, with NVS persistence. "Nothing hardcoded":
 // every parameter the synth or layout consumes lives here, is editable
 // on-device, and survives reboot. Writes are debounced so a knob sweep
