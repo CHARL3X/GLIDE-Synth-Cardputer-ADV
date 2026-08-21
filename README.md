@@ -154,6 +154,16 @@ And **[design.md](docs/design.md)** carries the story: where the instrument came
 
 The musical core (`src/dsp/`) is pure C++ (no Arduino, no ESP-IDF), so it compiles and tests on a PC and moves unchanged to future hardware. Everything technical lives in **[design.md](docs/design.md)**: [build commands](docs/design.md#building), [architecture](docs/design.md#architecture-why-its-split-this-way), verified audio-path facts, and the [Phase 0 hardware probe](docs/design.md#before-you-trust-it-the-phase-0-probe). The generative engine's design is in [random-sound-generation.md](docs/random-sound-generation.md).
 
+Patches welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the house rules (the host tests, the RAM ceiling, and which code is frozen because players' devices re-derive their sounds through it).
+
+## License
+
+GLIDE is free software under the **[GNU GPL v3](LICENSE)**. Play it anywhere, including for money. Read it, fork it, port it, sell it if you want to — the one condition is that anything you *distribute* built on this code ships with its source, under the same licence, with the credits intact. Nobody gets to take GLIDE closed.
+
+The name, the logo, and the artwork in `assets/` are not part of that grant — give your fork its own name so players can tell the builds apart.
+
+Shipping GLIDE inside a product where copyleft won't work? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ---
 
 <p align="center">
