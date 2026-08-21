@@ -128,6 +128,24 @@ int applyScaleForKeyChroma(int scaleIdx, bool detectedMinor,
 // Scale/tonic corrections sit behind stricter gates than the key retune
 // itself: presence + ratio for the mode, kTiebreakEps for the tonic. chroma
 // is KeyGuess::chroma (peak-normalized; correlation is scale-invariant).
+//
+// Two safety layers guard the plain-canvas landing (and ONLY it — pents are
+// already the safe subset, flavor scales are chosen spice):
+//   - CONFLICTED DEGREE: when a song audibly plays BOTH versions of the
+//     deciding degree (borrowed chords, melodic-minor lines — the case the
+//     ratio gate can only shrug at), any seven-note landing has a coin-flip
+//     sour note baked in. The landing demotes to the side's pentatonic at
+//     the tonic, which omits the clash degree entirely.
+//   - SOURNESS: the chosen canvas is scored by the energy heard at the
+//     out-of-set semitone neighbours of the degrees it ASSERTS (a scale tone
+//     the song contradicts is what actually plays sour; a degree the song
+//     merely omits is silent, not sour). If the canvas is clearly sourer
+//     than the side's pentatonic, it demotes — this is what catches the
+//     modes the four-mode vocabulary can't name (a Lydian song's #4 against
+//     the canvas P4, a Phrygian song's b2 against the canvas 2; the pent
+//     omits both). Canvas-to-canvas moves stay behind the measured degree
+//     gates — sourness only ever retreats to fewer notes, never re-picks
+//     among sevens (the phantom-b7 trap stays fenced).
 enum ListenMode : uint8_t { LM_ION = 0, LM_DOR = 1, LM_MIXO = 2, LM_AEO = 3 };
 
 const char* listenModeName(uint8_t mode);  // "MAJ" "DOR" "MIX" "MIN"
@@ -139,8 +157,18 @@ struct ListenApply {
     int tonicPc;    // the song's tonic under that mode (HUD/card truth)
     bool modal;     // degree evidence upgraded the plain verdict
     bool tiebreak;  // the tonic moved off the raw K-S winner
+    bool safe;      // a canvas landing retreated to the pentatonic (the
+                    // conflicted-degree or sourness guard fired)
 };
 
 ListenApply applyListen(int scaleIdx, const KeyGuess& g);
+
+// The plausible landings for a verdict, primary first (== applyListen), each
+// a distinct (scaleIdx, rootPc): the side's other canvases and pentatonic at
+// the tonic for canvas/pent players, then the relative twin. Flavor scales
+// keep their scale and offer root alternates only (their scale is chosen).
+// Returns the count (<= cap). Feeds the result card's one-tap second guess —
+// a near-miss verdict is fixed in a keypress instead of a full re-listen.
+int listenAlternates(int scaleIdx, const KeyGuess& g, ListenApply* out, int cap);
 
 }  // namespace dsp

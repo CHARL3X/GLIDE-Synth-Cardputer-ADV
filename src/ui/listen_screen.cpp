@@ -24,8 +24,13 @@ struct Ctx {
     int rounds;         // segments analyzed so far
     int audibleRounds;  // rounds that actually carried music
     int heardSamples;   // audible samples accumulated (silent rounds don't count)
-    int prevApplied;    // applied root the PREVIOUS audible round would have
-                        // locked (-1 = none yet) — the stability check
+    int prevApplied;    // packed (root, scale) the PREVIOUS audible round
+                        // would have locked (-1 = none yet) — the stability
+                        // check tracks the FULL verdict, not just the root:
+                        // a lock while the scale is still flip-flopping
+                        // (Aeolian<->Dorian) takes whichever the last round
+                        // happened to say
+    uint32_t pulseUntil;  // live-view pulse: an audible round just landed
     bool heard;         // any segment rose above the silence floor
     bool btPrev;  // backtick held on the previous progress tick (edge detect)
 };
@@ -59,31 +64,85 @@ bool backtickHeld() {
     return false;
 }
 
-void drawListening(M5Canvas& c, float frac, int rounds) {
+// The verdict card's keys, same direct positional read: bit 0 = dismiss
+// (` or enter), bit 1 = space (cycle the second guesses — the sd_browser
+// convention: space is the "try it" key).
+uint32_t cardKeysHeld() {
+    M5Cardputer.update();
+    for (int i = 0; i < 4; ++i) M5Cardputer.Keyboard.updateKeyList();
+    uint32_t m = 0;
+    for (const auto& p : M5Cardputer.Keyboard.keyList()) {
+        const int code = p.y * 14 + p.x;
+        if (code == 0 || code == 41) m |= 1u;
+        if (code == 55) m |= 2u;
+    }
+    return m;
+}
+
+// The live view: the twelve chroma bins fill in real time as rounds land —
+// the instrument visibly hearing — with a short pulse on each audible round
+// and, once a verdict starts forming, what it currently thinks. Redrawn
+// every ~100 ms progress tick; everything it shows lives in Ctx (stack of
+// this modal — the RAM ceiling forbids anything resident).
+void drawListening(M5Canvas& c, float frac, const Ctx& ctx) {
     c.fillScreen(theme::kBg);
-    c.setTextDatum(middle_center);
-    c.setFont(&fonts::Font4);
-    c.setTextColor(theme::kAmber, theme::kBg);
-    c.drawString("LISTENING", cfg::kScreenW / 2, 40);
+    const bool pulse = (int32_t)(ctx.pulseUntil - millis()) > 0;
+
+    c.setTextDatum(top_right);
     c.setFont(&fonts::Font0);
     c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString(rounds == 0 ? "play the song at me" : "locking in...",
-                 cfg::kScreenW / 2, 62);
+    c.drawString("` cancel", cfg::kScreenW - 8, 6);
 
-    const int bw = 168, bx = (cfg::kScreenW - bw) / 2, by = 78;
-    c.drawRect(bx, by, bw, 8, theme::kLine);
+    c.setTextDatum(middle_center);
+    c.setFont(&fonts::Font4);
+    c.setTextColor(pulse ? theme::kGreen : theme::kAmber, theme::kBg);
+    c.drawString("LISTENING", cfg::kScreenW / 2, 30);
+
+    c.setFont(&fonts::Font0);
+    char sub[28];
+    if (ctx.rounds == 0) {
+        snprintf(sub, sizeof sub, "play the song at me");
+        c.setTextColor(theme::kDim, theme::kBg);
+    } else if (ctx.guess.valid) {
+        snprintf(sub, sizeof sub, "hearing %s %s...",
+                 dsp::kNoteNames[ctx.guess.rootPc],
+                 ctx.guess.minor ? "min" : "maj");
+        c.setTextColor(theme::kIdle, theme::kBg);
+    } else {
+        snprintf(sub, sizeof sub, "locking in...");
+        c.setTextColor(theme::kDim, theme::kBg);
+    }
+    c.drawString(sub, cfg::kScreenW / 2, 50);
+
+    const int bw = 168, bx = (cfg::kScreenW - bw) / 2, by = 62;
+    c.drawRect(bx, by, bw, 6, theme::kLine);
     const int fw = (int)((bw - 2) * (frac > 1.f ? 1.f : frac));
-    if (fw > 0) c.fillRect(bx + 1, by + 1, fw, 6, theme::kAmber);
+    if (fw > 0) c.fillRect(bx + 1, by + 1, fw, 4, theme::kAmber);
 
-    c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString("` cancel", cfg::kScreenW / 2, 100);
+    // The chroma bins so far, peak-normalized. Green = the forming tonic;
+    // the pulse brightens the rest for the beat of a landed round.
+    float peak = 0.f;
+    for (int pc = 0; pc < 12; ++pc)
+        if (ctx.chroma[pc] > peak) peak = ctx.chroma[pc];
+    const int cbx = 12, cbw = 15, cmax = 44, cy0 = 126;
+    for (int pc = 0; pc < 12; ++pc) {
+        const int x = cbx + pc * (cbw + 4);
+        int h = 2;
+        if (peak > 1e-9f)
+            h = 2 + (int)(ctx.chroma[pc] / peak * (float)(cmax - 2));
+        const bool tonic = ctx.guess.valid && pc == ctx.guess.rootPc;
+        const uint16_t col = tonic   ? theme::kGreen
+                             : pulse ? theme::kIdle
+                                     : theme::kDim;
+        c.fillRect(x, cy0 - h, cbw, h, col);
+    }
     c.setTextDatum(top_left);
     c.pushSprite(0, 0);
 }
 
 bool onProgress(void* user, float frac) {
     Ctx& ctx = *(Ctx*)user;
-    drawListening(*ctx.c, frac, ctx.rounds);
+    drawListening(*ctx.c, frac, ctx);
     const bool bt = backtickHeld();
     const bool cancel = bt && !ctx.btPrev;  // newly pressed only
     ctx.btPrev = bt;
@@ -102,84 +161,130 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.heard = true;
     ctx.heardSamples += n;
     ++ctx.audibleRounds;
+    ctx.pulseUntil = millis() + 400;  // the live view flashes: round landed
     if (ctx.beat) dsp::accumulateOnsets(*ctx.beat, mono, n, (float)listen::kRateHz);
     dsp::accumulateChromaNormalized(mono, n, (float)listen::kRateHz, ctx.chroma);
     const int scaleIdx = store::get().layout.scaleIdx;
     ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
     if (!ctx.guess.valid) return true;
 
-    // Stability tracks the FULL verdict's root — the one applyListen will
-    // actually set — so a tonic re-seat arriving with round two's fresh b7
-    // evidence breaks the stop and earns the song more listening, instead of
-    // locking a verdict that was still moving.
-    const int applied = dsp::applyListen(scaleIdx, ctx.guess).rootPc;
+    // Stability tracks the FULL verdict — root AND scale, packed — so both a
+    // tonic re-seat arriving with round two's fresh b7 evidence and a scale
+    // verdict still flip-flopping (Aeolian<->Dorian on borderline 6ths)
+    // break the stop and earn the song more listening, instead of locking
+    // whichever reading the last round happened to say.
+    const dsp::ListenApply lap = dsp::applyListen(scaleIdx, ctx.guess);
+    const int applied = lap.rootPc * 64 + lap.scaleIdx;
     const bool stable = applied == ctx.prevApplied && ctx.audibleRounds >= 2;
     ctx.prevApplied = applied;
     if (ctx.heardSamples < kMinHeardForStop) return true;
     return !(stable && ctx.guess.confidence >= kEnoughConfidence);
 }
 
+// The verdict card. ap is the SONG's refined truth (tonic + mode — "A DOR",
+// not the raw profile winner a modal vamp can mislabel); sel is the landing
+// currently applied to the instrument (== ap until the player nudges to an
+// alternate with space). The chroma bars show what was actually heard, and
+// the amber strip under them shows the applied scale's footprint against it
+// — the fit is visible, not asserted.
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
-                int applied, int prevRoot, int scaleIdx, bool scaleChanged,
-                int bpm) {
+                const dsp::ListenApply& sel, int prevRoot, int prevScale,
+                int altIdx, int altCount, int bpm) {
     c.fillScreen(theme::kBg);
+    const bool scaleChanged = sel.scaleIdx != prevScale;
 
-    // Headline: the REFINED verdict (tonic + mode) — "A DOR", not the raw
-    // profile winner a modal vamp can mislabel ("D MAJ" for an A Dorian jam).
     char head[24];
     snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[ap.tonicPc],
              dsp::listenModeName(ap.mode));
     c.setTextDatum(top_left);
     c.setFont(&fonts::Font4);
     c.setTextColor(theme::kGreen, theme::kBg);
-    c.drawString(head, 12, 8);
+    c.drawString(head, 12, 6);
 
-    char sub[28];
-    if (scaleChanged)
-        snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[applied],
-                 dsp::kScales[scaleIdx].shortName);
-    else if (applied != ap.tonicPc)
-        snprintf(sub, sizeof sub, "-> root %s (your scale)", dsp::kNoteNames[applied]);
-    else
-        snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[applied],
-                 dsp::kScales[scaleIdx].shortName);
-    c.setFont(&fonts::Font2);
-    c.setTextColor(theme::kIdle, theme::kBg);
-    c.drawString(sub, 12, 34);
+    // How sure it is, shown honestly: a thin meter, green once the lock
+    // threshold was truly cleared, amber below it.
+    const int mx = 12, my = 33, mw = 96;
+    c.drawRect(mx, my, mw, 4, theme::kLine);
+    float conf = g.confidence;
+    if (conf > 1.f) conf = 1.f;
+    const int mf = (int)((mw - 2) * conf);
+    if (mf > 0)
+        c.fillRect(mx + 1, my + 1, mf, 2,
+                   conf >= 0.5f ? theme::kGreen : theme::kAmber);
+
+    if (sel.rootPc != prevRoot || scaleChanged) {
+        c.setFont(&fonts::Font0);
+        c.setTextColor(theme::kAmber, theme::kBg);
+        c.setTextDatum(top_right);
+        c.drawString("RETUNED", cfg::kScreenW - 12, 8);
+        c.setTextDatum(top_left);
+    }
     if (bpm > 0) {  // the jam tempo it locked (only shown when applied)
         char tb[12];
         snprintf(tb, sizeof tb, "%d BPM", bpm);
         c.setTextDatum(top_right);
         c.setTextColor(theme::kGreen, theme::kBg);
-        c.drawString(tb, cfg::kScreenW - 12, 34);
+        c.drawString(tb, cfg::kScreenW - 12, 20);
         c.setTextDatum(top_left);
     }
-    if (g.confidence < 0.3f) {
-        c.setFont(&fonts::Font0);
-        c.setTextColor(theme::kDim, theme::kBg);
-        c.drawString("weak signal - fn+k to nudge", 12, 52);
-    }
-    if (applied != prevRoot || scaleChanged) {
-        c.setFont(&fonts::Font0);
+
+    // The applied landing.
+    char sub[28];
+    if (scaleChanged)
+        snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[sel.rootPc],
+                 dsp::kScales[sel.scaleIdx].shortName);
+    else if (sel.rootPc != ap.tonicPc)
+        snprintf(sub, sizeof sub, "-> root %s (your scale)",
+                 dsp::kNoteNames[sel.rootPc]);
+    else
+        snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[sel.rootPc],
+                 dsp::kScales[sel.scaleIdx].shortName);
+    c.setFont(&fonts::Font2);
+    c.setTextColor(theme::kIdle, theme::kBg);
+    c.drawString(sub, 12, 42);
+
+    // Status left / nudge hint right, one Font0 line.
+    c.setFont(&fonts::Font0);
+    if (altIdx > 0) {
+        char at[20];
+        snprintf(at, sizeof at, "2nd guess %d/%d", altIdx + 1, altCount);
         c.setTextColor(theme::kAmber, theme::kBg);
+        c.drawString(at, 12, 62);
+    } else if (sel.safe) {
+        c.setTextColor(theme::kAmber, theme::kBg);
+        c.drawString("clash heard - safe pent", 12, 62);
+    } else if (g.confidence < 0.3f) {
+        c.setTextColor(theme::kDim, theme::kBg);
+        c.drawString("weak signal", 12, 62);
+    }
+    if (altCount > 1) {
         c.setTextDatum(top_right);
-        c.drawString("RETUNED", cfg::kScreenW - 12, 12);
+        c.setTextColor(theme::kDim, theme::kBg);
+        c.drawString("space: alt", cfg::kScreenW - 12, 62);
         c.setTextDatum(top_left);
     }
 
     // The twelve chroma bars: what the instrument actually heard. Green =
-    // the refined tonic, amber = the applied root.
-    const int bx = 12, bw = 15, bmax = 46, by0 = 118;
+    // the refined tonic, amber = the applied root; the amber strip under a
+    // bar marks a note the applied scale contains.
+    bool inScale[12] = {false};
+    if (sel.scaleIdx >= 0 && sel.scaleIdx < dsp::kScaleCount) {
+        const dsp::Scale& sc = dsp::kScales[sel.scaleIdx];
+        for (int i = 0; i < sc.len; ++i)
+            inScale[(sel.rootPc + sc.steps[i]) % 12] = true;
+    }
+    const int bx = 12, bw = 15, bmax = 42, by0 = 116;
     for (int pc = 0; pc < 12; ++pc) {
         const int x = bx + pc * (bw + 4);
         const int h = 2 + (int)(g.chroma[pc] * (bmax - 2));
-        const uint16_t col = pc == ap.tonicPc   ? theme::kGreen
-                             : pc == applied    ? theme::kAmber
-                                                : theme::kDim;
+        const uint16_t col = pc == ap.tonicPc    ? theme::kGreen
+                             : pc == sel.rootPc  ? theme::kAmber
+                                                 : theme::kDim;
         c.fillRect(x, by0 - h, bw, h, col);
+        if (inScale[pc]) c.fillRect(x, by0 + 2, bw, 2, theme::kAmber);
         c.setFont(&fonts::Font0);
         c.setTextColor(pc == ap.tonicPc ? theme::kGreen : theme::kDim, theme::kBg);
-        c.drawString(dsp::kNoteNames[pc], x + 2, by0 + 4);
+        c.drawString(dsp::kNoteNames[pc], x + 2, by0 + 6);
     }
     c.pushSprite(0, 0);
 }
@@ -236,10 +341,11 @@ void run(M5Canvas& canvas) {
     ctx.audibleRounds = 0;
     ctx.heardSamples = 0;
     ctx.prevApplied = -1;
+    ctx.pulseUntil = 0;
     ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 
-    drawListening(canvas, 0.f, 0);
+    drawListening(canvas, 0.f, ctx);
     const listen::Result r = listen::capture(onProgress, &ctx, onSegment);
 
     // Take the tempo verdict and free the envelope HERE, before the result
@@ -282,12 +388,13 @@ void run(M5Canvas& canvas) {
     // the A Dorian vamp it is), and a landing mapped to the player's scale
     // FAMILY — plain canvases play the mode, pentatonics swap tonic-home,
     // Blues stays Blues and re-centres. Weak evidence = frozen behavior.
-    const dsp::ListenApply ap = dsp::applyListen(prevScale, ctx.guess);
-    const int newScale = ap.scaleIdx;
-    const int applied = ap.rootPc;
-    const bool scaleChanged = newScale != prevScale;
-    g.layout.scaleIdx = (uint8_t)newScale;
-    g.layout.rootSemis = (uint8_t)applied;
+    dsp::ListenApply alts[4];
+    const int nAlts = dsp::listenAlternates(prevScale, ctx.guess, alts, 4);
+    const dsp::ListenApply ap = alts[0];  // primary == applyListen
+    int altIdx = 0;
+    dsp::ListenApply sel = ap;
+    g.layout.scaleIdx = (uint8_t)sel.scaleIdx;
+    g.layout.rootSemis = (uint8_t)sel.rootPc;
     // Tempo, from the same capture (verdict taken above, before the result
     // switch): the jam clock (and with it the synced delay and LFOs) locks
     // to the song's groove — but only on a confident beat. An invalid or
@@ -308,33 +415,50 @@ void run(M5Canvas& canvas) {
         Serial.printf("%s=%.2f ", dsp::kNoteNames[pc], ctx.guess.chroma[pc]);
     Serial.println();
     Serial.printf(
-        "[listen] raw %s %s conf %.2f (%d rounds) -> %s %s%s%s | root %s (%s) | "
+        "[listen] raw %s %s conf %.2f (%d rounds) -> %s %s%s%s%s | root %s (%s) | "
         "tempo %s %.1f conf %.2f%s\n",
         dsp::kNoteNames[ctx.guess.rootPc], ctx.guess.minor ? "min" : "maj",
         ctx.guess.confidence, ctx.rounds, dsp::kNoteNames[ap.tonicPc],
         dsp::listenModeName(ap.mode), ap.modal ? " (modal)" : "",
-        ap.tiebreak ? " (tiebreak)" : "", dsp::kNoteNames[applied],
-        dsp::kScales[newScale].shortName, tempo.valid ? "ok" : "none", tempo.bpm,
-        tempo.confidence, appliedBpm ? " (applied)" : "");
+        ap.tiebreak ? " (tiebreak)" : "", ap.safe ? " (safe)" : "",
+        dsp::kNoteNames[sel.rootPc], dsp::kScales[sel.scaleIdx].shortName,
+        tempo.valid ? "ok" : "none", tempo.bpm, tempo.confidence,
+        appliedBpm ? " (applied)" : "");
 
-    // Result card: ~1.6 s, backtick skips.
-    drawResult(canvas, ctx.guess, ap, applied, prevRoot, newScale, scaleChanged,
+    // Result card: ~2 s, backtick/enter dismisses, space cycles the second
+    // guesses (each press applies that landing live and re-arms the timer,
+    // so a near-miss verdict is fixed in one tap instead of a re-listen).
+    drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx, nAlts,
                appliedBpm);
-    const uint32_t until = millis() + 1600;
-    bool btPrev = backtickHeld();
+    uint32_t until = millis() + 2000;
+    uint32_t keysPrev = cardKeysHeld();
     while ((int32_t)(until - millis()) > 0) {
-        const bool bt = backtickHeld();
-        if (bt && !btPrev) break;
-        btPrev = bt;
+        const uint32_t held = cardKeysHeld();
+        const uint32_t pressed = held & ~keysPrev;
+        keysPrev = held;
+        if (pressed & 1u) break;  // ` / enter: keep what's applied
+        if ((pressed & 2u) && nAlts > 1) {
+            altIdx = (altIdx + 1) % nAlts;
+            sel = alts[altIdx];
+            g.layout.scaleIdx = (uint8_t)sel.scaleIdx;
+            g.layout.rootSemis = (uint8_t)sel.rootPc;
+            store::markDirty();
+            Serial.printf("[listen] nudge %d/%d -> %s (%s)\n", altIdx + 1,
+                          nAlts, dsp::kNoteNames[sel.rootPc],
+                          dsp::kScales[sel.scaleIdx].shortName);
+            drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx,
+                       nAlts, appliedBpm);
+            until = millis() + 2600;
+        }
         delay(16);
     }
-    if (scaleChanged) {
+    if (sel.scaleIdx != prevScale) {
         char v[16];
-        snprintf(v, sizeof v, "%s %s", dsp::kNoteNames[applied],
-                 dsp::kScales[newScale].shortName);
+        snprintf(v, sizeof v, "%s %s", dsp::kNoteNames[sel.rootPc],
+                 dsp::kScales[sel.scaleIdx].shortName);
         hud::show("KEY", v, -1.f);
     } else {
-        hud::show("KEY", dsp::kNoteNames[applied], -1.f);
+        hud::show("KEY", dsp::kNoteNames[sel.rootPc], -1.f);
     }
 }
 

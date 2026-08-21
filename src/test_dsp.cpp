@@ -1831,6 +1831,101 @@ int main() {
             ap = applyListen(SC_BLUES, gWy);
             CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 4,
                   "Blues lands on E, where the record's own solos live");
+
+            // Clean verdicts never trip the safety layers.
+            CHECK(!applyListen(SC_MINOR, gAm).safe &&
+                      !applyListen(SC_MAJOR, gG).safe &&
+                      !applyListen(SC_MAJOR, gWy).safe,
+                  "clean landings are never flagged safe");
+
+            // CONFLICTED DEGREE: a song that audibly plays BOTH 6ths
+            // (borrowed chords, melodic-minor lines) makes any seven-note
+            // landing a coin flip — canvas players retreat to the side's
+            // pentatonic at the tonic, which omits the clash degree.
+            float con6[12] = {0.f};
+            con6[9] = 1.f; con6[0] = .6f; con6[2] = .5f; con6[4] = .7f;
+            con6[7] = .5f; con6[6] = .5f; con6[5] = .45f; con6[11] = .3f;
+            const KeyGuess gCon6 = makeGuess(9, true, con6);
+            ap = applyListen(SC_MINOR, gCon6);
+            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9 && ap.safe,
+                  "both 6ths audible: Natural minor retreats to min pent");
+            ap = applyListen(SC_DORIAN, gCon6);
+            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9 && ap.safe,
+                  "both 6ths audible: Dorian retreats to min pent");
+            ap = applyListen(SC_BLUES, gCon6);
+            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9 && !ap.safe,
+                  "flavor scales are never demoted by a conflict");
+            ap = applyListen(SC_MIN_PENT, gCon6);
+            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9,
+                  "pent players are already on the safe landing");
+
+            // Both 7ths audible on the major side: same retreat. The b7 arm
+            // of the conflict answers to the phantom-aware 0.30 floor.
+            float con7[12] = {0.f};
+            con7[7] = 1.f; con7[11] = .55f; con7[2] = .6f; con7[0] = .4f;
+            con7[4] = .35f; con7[9] = .3f; con7[6] = .45f; con7[5] = .4f;
+            const KeyGuess gCon7 = makeGuess(7, false, con7);
+            ap = applyListen(SC_MAJOR, gCon7);
+            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 7 && ap.safe,
+                  "both 7ths audible: Major retreats to maj pent");
+
+            // SOURNESS: the clash can live on a degree the 6th/7th evidence
+            // never looks at. A Lydian song's #4 indicts the canvas P4 —
+            // maj pent omits the 4 entirely, so the landing retreats.
+            float lyd[12] = {0.f};
+            lyd[0] = 1.f; lyd[2] = .5f; lyd[4] = .7f; lyd[6] = .5f;
+            lyd[7] = .6f; lyd[9] = .35f; lyd[11] = .4f; lyd[5] = .03f;
+            const KeyGuess gLyd = makeGuess(0, false, lyd);
+            ap = applyListen(SC_MAJOR, gLyd);
+            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 0 && ap.safe,
+                  "Lydian song: Major's sour P4 retreats to maj pent");
+
+            // A Phrygian song's b2 indicts the canvas natural 2 — min pent
+            // omits the 2, so a Natural-minor landing retreats.
+            float phr[12] = {0.f};
+            phr[4] = 1.f; phr[5] = .5f; phr[7] = .6f; phr[9] = .55f;
+            phr[11] = .5f; phr[0] = .45f; phr[2] = .4f; phr[6] = .03f;
+            phr[1] = .02f;
+            const KeyGuess gPhr = makeGuess(4, true, phr);
+            ap = applyListen(SC_MINOR, gPhr);
+            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 4 && ap.safe,
+                  "Phrygian song: minor's sour 2 retreats to min pent");
+
+            // ALTERNATES: primary first (== applyListen), then the side's
+            // sibling readings at the tonic and the relative twin — all
+            // distinct (scale, root) pairs. Feeds the card's one-tap nudge.
+            {
+                ListenApply alts[4];
+                const int na = listenAlternates(SC_MINOR, gAm, alts, 4);
+                const ListenApply prim = applyListen(SC_MINOR, gAm);
+                CHECK(na == 4 && alts[0].scaleIdx == prim.scaleIdx &&
+                          alts[0].rootPc == prim.rootPc,
+                      "alternates lead with the primary verdict");
+                bool distinct = true;
+                for (int i = 0; i < na; ++i)
+                    for (int j = i + 1; j < na; ++j)
+                        if (alts[i].scaleIdx == alts[j].scaleIdx &&
+                            alts[i].rootPc == alts[j].rootPc)
+                            distinct = false;
+                CHECK(distinct, "alternates never repeat a (scale, root)");
+                bool hasPent = false, hasTwin = false;
+                for (int i = 0; i < na; ++i) {
+                    if (alts[i].scaleIdx == SC_MIN_PENT && alts[i].rootPc == 9)
+                        hasPent = true;
+                    if (alts[i].scaleIdx == SC_MAJOR && alts[i].rootPc == 0)
+                        hasTwin = true;
+                }
+                CHECK(hasPent && hasTwin,
+                      "alternates offer the safe pent and the relative twin");
+                // Flavor players keep their scale: only the root can move.
+                ListenApply balts[4];
+                const int nb = listenAlternates(SC_BLUES, gC, balts, 4);
+                bool bluesOnly = nb >= 2;
+                for (int i = 0; i < nb; ++i)
+                    if (balts[i].scaleIdx != SC_BLUES) bluesOnly = false;
+                CHECK(bluesOnly && balts[0].rootPc == 9 && balts[1].rootPc == 0,
+                      "Blues alternates move the root, never the scale");
+            }
         }
 
         // The 7th-harmonic trap: a bright tonic paints its own b7 two

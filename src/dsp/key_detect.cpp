@@ -346,13 +346,18 @@ constexpr float kTiebreakEps = 0.12f;
 
 // Degree evidence at a tonic: LM_DOR/LM_MIXO when the deciding degree clears
 // the gates, else the plain side (LM_AEO/LM_ION); hasEvidence says whether
-// the gates were cleared at all (in EITHER direction).
+// the gates were cleared at all (in EITHER direction). conflict fires when
+// BOTH versions of the deciding degree are audibly present and neither wins
+// the ratio — the song plays both (borrowed chords, melodic-minor lines), so
+// any seven-note landing has a coin-flip sour note baked in. The b7 side of
+// a conflict answers to the same phantom-aware floor as the Mixolydian gate.
 uint8_t modeFromChroma(bool minor, const float chroma[12], int tonicPc,
-                       bool& hasEvidence) {
+                       bool& hasEvidence, bool& conflict) {
     float peak = 0.f;
     for (int i = 0; i < 12; ++i)
         if (chroma[i] > peak) peak = chroma[i];
     hasEvidence = false;
+    conflict = false;
     if (peak <= 1e-9f) return minor ? LM_AEO : LM_ION;
     const float presence = kModePresence * peak;
     if (minor) {
@@ -362,7 +367,11 @@ uint8_t modeFromChroma(bool minor, const float chroma[12], int tonicPc,
             hasEvidence = true;
             return LM_DOR;
         }
-        if (fl6 >= presence && fl6 >= kModeRatio * nat6) hasEvidence = true;
+        if (fl6 >= presence && fl6 >= kModeRatio * nat6) {
+            hasEvidence = true;
+            return LM_AEO;
+        }
+        conflict = nat6 >= presence && fl6 >= presence;
         return LM_AEO;
     }
     const float maj7 = chroma[(tonicPc + 11) % 12];
@@ -371,11 +380,69 @@ uint8_t modeFromChroma(bool minor, const float chroma[12], int tonicPc,
         hasEvidence = true;
         return LM_MIXO;
     }
-    if (maj7 >= presence && maj7 >= kModeRatio * fl7) hasEvidence = true;
+    if (maj7 >= presence && maj7 >= kModeRatio * fl7) {
+        hasEvidence = true;
+        return LM_ION;
+    }
+    conflict = maj7 >= presence && fl7 >= kModePresenceB7 * peak;
     return LM_ION;
 }
 
 inline bool modeMinorish(uint8_t mode) { return mode == LM_AEO || mode == LM_DOR; }
+
+inline bool isCanvas(int scaleIdx) {
+    return scaleIdx == SC_MAJOR || scaleIdx == SC_MINOR ||
+           scaleIdx == SC_DORIAN || scaleIdx == SC_MIXO;
+}
+
+// Sourness of a landing: energy heard at the out-of-set semitone neighbours
+// of the degrees the scale ASSERTS — chroma[n] beyond chroma[s] for each
+// in-set pc s and out-of-set neighbour n. A scale tone the song contradicts
+// is what actually plays sour; a degree the song merely omits is silent.
+// chroma is peak-normalized, so the gates below are absolute.
+float scaleSourness(int scaleIdx, int rootPc, const float chroma[12]) {
+    if (scaleIdx < 0 || scaleIdx >= kScaleCount) return 0.f;
+    bool inSet[12] = {false};
+    const Scale& sc = kScales[scaleIdx];
+    for (int i = 0; i < sc.len; ++i) inSet[(rootPc + sc.steps[i]) % 12] = true;
+    float sour = 0.f;
+    for (int pc = 0; pc < 12; ++pc) {
+        if (!inSet[pc]) continue;
+        for (int d = -1; d <= 1; d += 2) {
+            const int n = (pc + d + 12) % 12;
+            if (inSet[n]) continue;
+            const float excess = chroma[n] - chroma[pc];
+            if (excess > 0.f) sour += excess;
+        }
+    }
+    return sour;
+}
+
+// The sourness guard's gates: a canvas landing must be audibly sour at all
+// (floor) AND clearly sourer than the side's pentatonic (margin) before it
+// retreats — a demote on a coin flip would trade the player's seven-note
+// canvas for nothing. This is what catches the modes the four-mode
+// vocabulary can't name: a Lydian song's #4 indicts the canvas P4, a
+// Phrygian song's b2 the canvas 2, and the pentatonic omits both.
+constexpr float kSourFloor = 0.15f;
+constexpr float kSourMargin = 0.10f;
+
+// Retreat a canvas landing to the side's pentatonic (same root) when it is
+// clearly sourer. Canvas-to-canvas moves stay behind the measured degree
+// gates — this guard only ever plays FEWER notes, never re-picks among
+// sevens, so the phantom-b7 trap stays fenced.
+void guardCanvasSourness(ListenApply& out, const float chroma[12]) {
+    if (!isCanvas(out.scaleIdx)) return;
+    const int pent = (out.scaleIdx == SC_MAJOR || out.scaleIdx == SC_MIXO)
+                         ? SC_MAJ_PENT
+                         : SC_MIN_PENT;
+    const float sc = scaleSourness(out.scaleIdx, out.rootPc, chroma);
+    if (sc < kSourFloor) return;
+    const float sp = scaleSourness(pent, out.rootPc, chroma);
+    if (sp + kSourMargin > sc) return;
+    out.scaleIdx = pent;
+    out.safe = true;
+}
 
 }  // namespace
 
@@ -385,14 +452,32 @@ ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
     out.tonicPc = g.rootPc;
     out.modal = false;
     out.tiebreak = false;
+    out.safe = false;
 
-    bool hasEvidence = false;
-    const uint8_t mode = modeFromChroma(g.minor, g.chroma, g.rootPc, hasEvidence);
+    bool hasEvidence = false, conflict = false;
+    const uint8_t mode =
+        modeFromChroma(g.minor, g.chroma, g.rootPc, hasEvidence, conflict);
 
-    // No readable evidence: EXACTLY the frozen behavior, whatever the scale.
+    // Conflicted deciding degree: the song audibly plays BOTH 6ths (or both
+    // 7ths), so either seven-note canvas would assert a note the song
+    // contradicts half the time. Canvas players retreat to the side's
+    // pentatonic at the tonic — it omits the clash degree entirely. Pents
+    // are already there via the frozen path below; flavor scales are chosen
+    // spice and never demoted.
+    if (conflict && isCanvas(scaleIdx)) {
+        out.scaleIdx = g.minor ? SC_MIN_PENT : SC_MAJ_PENT;
+        out.rootPc = g.rootPc;
+        out.safe = true;
+        return out;
+    }
+
+    // No readable evidence: EXACTLY the frozen behavior, whatever the scale
+    // — except that a canvas landing still answers to the sourness guard
+    // (a clash can live on a degree the 6th/7th evidence never looks at).
     if (!hasEvidence) {
         out.scaleIdx = applyScaleForKey(scaleIdx, g.minor);
         out.rootPc = applyRootForScale(g.rootPc, g.minor, out.scaleIdx);
+        guardCanvasSourness(out, g.chroma);
         return out;
     }
     out.mode = mode;
@@ -425,7 +510,9 @@ ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
     const uint8_t m = out.mode;
     const int tonic = out.tonicPc;
     switch (scaleIdx) {
-        // Plain canvases play the mode itself, tonic-home.
+        // Plain canvases play the mode itself, tonic-home — then answer to
+        // the sourness guard (a clash can live on a degree the 6th/7th
+        // evidence never looks at: a Lydian #4, a Phrygian b2).
         case SC_MAJOR:
         case SC_MINOR:
         case SC_DORIAN:
@@ -435,6 +522,7 @@ ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
                            : (m == LM_AEO)  ? SC_MINOR
                                             : SC_MAJOR;
             out.rootPc = tonic;
+            guardCanvasSourness(out, g.chroma);
             return out;
         // Pentatonics keep the documented flavor swap, tonic-home: all four
         // (maj pent under Ionian/Mixolydian, min pent under Aeolian/Dorian)
@@ -459,6 +547,62 @@ ListenApply applyListen(int scaleIdx, const KeyGuess& g) {
             out.rootPc = applyRootForScale(tonic, modeMinorish(m), out.scaleIdx);
             return out;
     }
+}
+
+int listenAlternates(int scaleIdx, const KeyGuess& g, ListenApply* out, int cap) {
+    if (!out || cap <= 0) return 0;
+    int n = 0;
+    const ListenApply primary = applyListen(scaleIdx, g);
+    out[n++] = primary;
+
+    // Candidate (scale, root) pairs beyond the primary, most-plausible first:
+    // the detector's near-misses are its sibling readings on the same side
+    // (mode neighbours at the tonic, the safe pentatonic), then the relative
+    // twin. Flavor players keep their chosen scale — only the root can move.
+    struct Cand {
+        int scale;
+        int root;
+        uint8_t mode;
+    };
+    Cand cands[4];
+    int nc = 0;
+    const int tonic = primary.tonicPc;
+    const bool minorSide = modeMinorish(primary.mode);
+    const bool canvasish = isCanvas(scaleIdx) || scaleIdx == SC_MAJ_PENT ||
+                           scaleIdx == SC_MIN_PENT;
+    if (canvasish) {
+        if (minorSide) {
+            cands[nc++] = {SC_MINOR, tonic, (uint8_t)LM_AEO};
+            cands[nc++] = {SC_DORIAN, tonic, (uint8_t)LM_DOR};
+            cands[nc++] = {SC_MIN_PENT, tonic, (uint8_t)LM_AEO};
+            cands[nc++] = {SC_MAJOR, (tonic + 3) % 12, (uint8_t)LM_ION};
+        } else {
+            cands[nc++] = {SC_MAJOR, tonic, (uint8_t)LM_ION};
+            cands[nc++] = {SC_MIXO, tonic, (uint8_t)LM_MIXO};
+            cands[nc++] = {SC_MAJ_PENT, tonic, (uint8_t)LM_ION};
+            cands[nc++] = {SC_MINOR, (tonic + 9) % 12, (uint8_t)LM_AEO};
+        }
+    } else {
+        cands[nc++] = {scaleIdx, tonic, primary.mode};
+        cands[nc++] = {scaleIdx, (tonic + (minorSide ? 3 : 9)) % 12,
+                       primary.mode};
+    }
+    for (int i = 0; i < nc && n < cap; ++i) {
+        bool dup = false;
+        for (int j = 0; j < n; ++j)
+            if (out[j].scaleIdx == cands[i].scale &&
+                out[j].rootPc == cands[i].root)
+                dup = true;
+        if (dup) continue;
+        ListenApply a = primary;  // tonic/tiebreak stay the card's truth
+        a.scaleIdx = cands[i].scale;
+        a.rootPc = cands[i].root;
+        a.mode = cands[i].mode;
+        a.modal = false;
+        a.safe = false;
+        out[n++] = a;
+    }
+    return n;
 }
 
 }  // namespace dsp
