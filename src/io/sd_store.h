@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The personal patch library on microSD — the SD half of "everyone has their
 // own sounds." The ten NVS slots (fn+q..p) are fast favourites; this is the

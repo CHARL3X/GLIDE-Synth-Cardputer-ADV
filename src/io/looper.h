@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The loop pedal. Records the live NoteEvent stream (a performance, not
 // audio) and replays it as a protected backing layer: playback notes carry

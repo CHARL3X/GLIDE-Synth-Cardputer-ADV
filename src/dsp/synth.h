@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The synth: voice pool + allocation + global chain. Owns the chord-slide
 // behavior: legato lane hand-offs (string mode), nearest-pitch stealing at

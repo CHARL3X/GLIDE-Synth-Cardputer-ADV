@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Host stand-in for M5GFX's M5Canvas — just enough of the drawing surface to
 // compile a UI source file on a PC and render what it draws.

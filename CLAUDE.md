@@ -71,11 +71,12 @@ wrapped and would have inverted a highlight to black. See its README.
   keys ≤15 chars, Preferences namespace "glide", dist binary via
   support/copy_dist.py.
 - Every file under `src/` and `support/` opens with the two-line SPDX +
-  copyright header (`GPL-3.0-only`, Charles Tobin / CHARL3X) — new files
-  included, and `support/gen_logo.py` emits it into the header it generates.
-  The one exception is `support/viz_render/shim/glcdfont.h`, which keeps its
-  Adafruit BSD notice. GLIDE is dual-licensed (GPL v3 + a commercial licence),
-  so contributed code needs the relicensing grant in CONTRIBUTING.md; see
+  copyright header (`PolyForm-Noncommercial-1.0.0`, Charles Tobin / CHARL3X) —
+  new files included, and `support/gen_logo.py` emits it into the header it
+  generates. The one exception is `support/viz_render/shim/glcdfont.h`, which
+  keeps its Adafruit BSD notice. GLIDE is dual-licensed (PolyForm NC + a
+  commercial licence; releases ≤ v2.5 shipped GPL-3.0 irrevocably), so
+  contributed code needs the relicensing grant in CONTRIBUTING.md; see
   LICENSING.md before changing anything about licensing or branding.
 
 ## The generative sound system (the "your instrument is yours" core)

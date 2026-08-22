@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Master send-effects block: the "space" the dry voices were missing. Sits
 // after the filter + soft clip, processes the mono mix in place once per

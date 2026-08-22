@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 # Copyright (C) 2026 Charles Tobin (CHARL3X)
 # PIO post-action: copy app firmware.bin to dist/ with a stable name,
 # ready to drop onto the Cardputer SD card for bmorcelli Launcher.

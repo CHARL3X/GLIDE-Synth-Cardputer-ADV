@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The sound identity card: a transient panel giving the live sound a face —
 // name, waveform, envelope, filter and sends, drawn with the shared viz

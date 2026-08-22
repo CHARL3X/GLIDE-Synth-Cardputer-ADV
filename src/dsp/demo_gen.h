@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Demo-mode melody generator: seeded, deterministic PHRASES built around ONE
 // rhythmic hook per run — real music repeats itself. Each 4-bar phrase (locked

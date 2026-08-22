@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The factory sound bank: ten instruments, not ten waveforms. Each patch is
 // a complete personality — oscillator recipe, envelope shape, filter

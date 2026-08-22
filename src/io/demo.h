@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Demo mode: the instrument plays itself. Spells a chord progression on the
 // REAL backing engine, improvises over it with the seeded dsp phrase

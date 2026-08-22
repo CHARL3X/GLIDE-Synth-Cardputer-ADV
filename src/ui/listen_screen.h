@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // LISTEN: the hold-fn+k modal. Suspends the synth, records the room,
 // detects the song's key, shows the chroma, and retunes the root so the

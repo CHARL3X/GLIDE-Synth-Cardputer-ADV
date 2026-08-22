@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The shared sound-visualization language: small drawn primitives (waveform,
 // ADSR curve, filter response, gauges, LFO shapes) used by the identity card,

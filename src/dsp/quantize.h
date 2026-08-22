@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // dsp/quantize.h — pure C++. Snap a raw loop length to the jam clock.
 // mode: 0 = off, 1 = beat, 2 = bar (4 beats flat — the progression's *Chord

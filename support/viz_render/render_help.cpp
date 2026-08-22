@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Host render harness for the HOW TO PLAY page — same idea as render.cpp
 // (see its header comment): textually #include the REAL ui/help.cpp over the

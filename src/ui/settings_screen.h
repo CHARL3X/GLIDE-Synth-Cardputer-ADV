@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The "stop and configure" screen (tab). Everything not worth a knob in the
 // quick-edit layer lives here. Blocking; returns to the perform screen.

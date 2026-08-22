@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // LISTEN capture: the half-duplex handoff between the synth's speaker and
 // the mic, in one place. Suspends the audio engine, records a few seconds

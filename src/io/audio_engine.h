@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // The hardware boundary for sound: owns the render task and the M5Unified
 // playRaw streaming loop. Everything above this is portable dsp/; everything

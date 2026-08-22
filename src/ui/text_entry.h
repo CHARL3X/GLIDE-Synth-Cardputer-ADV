@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // A tiny on-device text-entry modal — for naming things (today: renaming an
 // SD-library patch). Owns the canvas while open, like help/sd_browser. Reads

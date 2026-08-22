@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Shared wavetables: 1024-sample single-cycle tables with a +1 guard sample
 // for branch-free linear interpolation. Saw/square get a 2-mip band-limit:

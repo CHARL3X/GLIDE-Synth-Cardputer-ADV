@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 // Host-side sanity tests for the pure DSP core (pio run -e native).
 // This compiling and passing on a PC is the proof that dsp/ has no hardware
