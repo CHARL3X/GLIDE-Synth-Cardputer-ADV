@@ -26,18 +26,18 @@ the hard rules about audio, RAM, and the pure-C++ DSP boundary.
 
 ## Licensing of contributions
 
-GLIDE is dual-licensed: GPL v3 for everyone, plus a commercial licence sold
-separately by the author (see [`LICENSING.md`](LICENSING.md)). That second half
-only works if one party can license the whole codebase, so contributions need
-an explicit grant.
+GLIDE is dual-licensed: PolyForm Noncommercial 1.0.0 for everyone, plus a
+commercial licence sold separately by the author (see
+[`LICENSING.md`](LICENSING.md)). That second half only works if one party can
+license the whole codebase, so contributions need an explicit grant.
 
 **By submitting a pull request or patch, you confirm that:**
 
 1. You wrote the contribution yourself, or you have the right to submit it, and
    you are not knowingly including anyone else's copyrighted or patented work
    without saying so and identifying its licence.
-2. You license your contribution under the **GPL v3**, the same terms as the
-   rest of the project.
+2. You license your contribution under the **PolyForm Noncommercial License
+   1.0.0**, the same terms as the rest of the project.
 3. You additionally grant Charles Tobin (CHARL3X) a perpetual, worldwide,
    irrevocable, royalty-free right to **relicense your contribution under other
    terms**, including proprietary commercial licences, as part of GLIDE.
@@ -46,7 +46,7 @@ an explicit grant.
 
 Point 3 is what lets the commercial-licensing option exist at all. Without it,
 a single contributed function would make the whole project unlicensable to a
-commercial customer, and the copyleft protection would be all that is left. If
+commercial customer, and the noncommercial terms would be all that is left. If
 you are not comfortable granting it, say so in the pull request rather than
 staying quiet — a description of the bug and how to fix it is genuinely useful
 on its own, and there is no hard feeling in it.
@@ -64,7 +64,7 @@ Signed-off-by: Your Name <your.email@example.com>
 Every new source file in `src/` or `support/` starts with:
 
 ```c
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 ```
 

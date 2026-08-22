@@ -158,11 +158,11 @@ Patches welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the house rules (t
 
 ## License
 
-GLIDE is free software under the **[GNU GPL v3](LICENSE)**. Play it anywhere, including for money. Read it, fork it, port it, sell it if you want to — the one condition is that anything you *distribute* built on this code ships with its source, under the same licence, with the credits intact. Nobody gets to take GLIDE closed.
+GLIDE is source-available under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. Play it anywhere, including at paid gigs. Read it, learn from it, fork it, port it, share your builds — freely, for any noncommercial purpose, with the credits intact. The one line it draws: **selling GLIDE, or anything built from it, is the author's alone.**
 
 The name, the logo, and the artwork in `assets/` are not part of that grant — give your fork its own name so players can tell the builds apart.
 
-Shipping GLIDE inside a product where copyleft won't work? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. (Releases v2.5 and earlier remain under the GPL v3 they shipped with.) Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
 
