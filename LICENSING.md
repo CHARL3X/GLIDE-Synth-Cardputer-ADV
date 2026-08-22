@@ -116,6 +116,12 @@ particular, nothing here restricts the rights the LGPL grants you in the
 Arduino-ESP32 core the firmware links against, including modifying that
 component and relinking it.
 
+Those licences ask one concrete thing of whoever passes the compiled firmware
+on: reproduce them. [`dist/NOTICES.txt`](dist/NOTICES.txt) is that reproduction
+— every licence in full, plus the LGPL relink offer — and it ships beside
+`GLIDE.bin` in every release. **If you redistribute the binary, in a download or
+loaded on a device, include it.**
+
 ---
 
 ## 5. No warranty
@@ -123,3 +129,26 @@ component and relinking it.
 GLIDE is provided **as-is, without warranty of any kind**, as set out in the
 "No Liability" section of `LICENSE`. It is firmware for hardware you own and
 you run it at your own risk.
+
+---
+
+## 6. If you bought a device with GLIDE on it
+
+Someone selling you a Cardputer with GLIDE already loaded is doing something
+Section 1 does not allow them to do, unless they are the author or hold a
+licence from the author under Section 2. That is a matter between the two of
+them, not something that follows the device to you.
+
+**A unit sold by CHARL3X carries a licence to you**, for that unit: play it,
+modify it, reflash it, take it apart, sell it on. What no purchase conveys is
+the right to manufacture more of them for sale, or to sell the firmware itself
+— that is Section 2 territory, and it stays with the author.
+
+You also get, with the device, the third-party notices in
+[`dist/NOTICES.txt`](dist/NOTICES.txt), including a standing offer of the
+linkable object files for the LGPL component. Ask and you will get them.
+
+There is no warranty in the software licence (Section 5). That is a statement
+about the software, and it does not reach a consumer's statutory rights against
+the seller of a physical product — those come with the sale, wherever the sale
+happens, and are unaffected by anything in this file.

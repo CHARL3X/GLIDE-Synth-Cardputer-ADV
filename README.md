@@ -162,7 +162,7 @@ GLIDE is source-available under the **[PolyForm Noncommercial License 1.0.0](LIC
 
 The name, the logo, and the artwork in `assets/` are not part of that grant — give your fork its own name so players can tell the builds apart.
 
-Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. (Releases v2.5 and earlier remain under the GPL v3 they shipped with.) Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. (Releases v2.5 and earlier remain under the GPL v3 they shipped with.) Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and their licences travel with the firmware in [`dist/NOTICES.txt`](dist/NOTICES.txt) — pass that along with any copy of the binary you share.
 
 ---
 

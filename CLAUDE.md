@@ -69,7 +69,14 @@ wrapped and would have inverted a highlight to black. See its README.
 
 - `` ` `` = exit, full-frame M5Canvas pushed once per frame (~30 fps), NVS
   keys ≤15 chars, Preferences namespace "glide", dist binary via
-  support/copy_dist.py.
+  support/copy_dist.py, which also regenerates `dist/NOTICES.txt`
+  (support/gen_notices.py). That file is the MIT/BSD/Apache/LGPL attribution
+  that must ship with any copy of the binary — a download, an SD card, or a
+  device sold with GLIDE on it. Adding a `lib_deps` entry means adding its
+  licence to support/licenses/ and a section to gen_notices.py; the generator
+  warns about anything in `.pio/libdeps/` it has no section for. `cfg::kVersion`
+  is the only version string and gen_notices.py reads it, so the notices can't
+  drift from the build.
 - Every file under `src/` and `support/` opens with the two-line SPDX +
   copyright header (`PolyForm-Noncommercial-1.0.0`, Charles Tobin / CHARL3X) —
   new files included, and `support/gen_logo.py` emits it into the header it
