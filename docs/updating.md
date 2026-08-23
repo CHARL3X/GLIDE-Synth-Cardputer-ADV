@@ -3,6 +3,12 @@
 A new build is a file. Ten minutes, a computer, and a card reader — or two
 minutes over WiFi if you set that up. Everything you've made survives it.
 
+There's a printable version of this page — Owner's Guide No. 01, the one that
+ships in the box with a device — at
+[`docs/guides/GLIDE-Updating.pdf`](guides/GLIDE-Updating.pdf). It's rendered
+from `support/guides/updating.html`; edit that and re-render rather than
+editing the PDF.
+
 ## First, the thing worth knowing
 
 GLIDE runs from the Cardputer's **own flash**, not from the card. You install it
