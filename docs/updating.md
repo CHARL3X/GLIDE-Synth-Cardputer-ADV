@@ -47,7 +47,9 @@ There is nothing to back up, and nothing to restore afterwards.
    about a second to exit back, or power-cycle and be quicker.
 7. **Delete the installed GLIDE.** It's the tile on its own row at the bottom of
    Launcher's menu, drawn in red. Select it and choose *Delete*. This removes the
-   program, not your sounds.
+   program, not your sounds. **Don't skip it:** Launcher doesn't replace an
+   installed app, it adds another one — install without deleting first and you
+   end up with two GLIDE tiles and nothing to tell them apart.
 8. **Return to that menu** — press any key at the start screen again.
 9. **Install the new one:** select **SD** (its hint line reads *Launch from or
    mng SDCard*), open `apps`, select `GLIDE`, and choose *Install*. Let it
@@ -72,6 +74,7 @@ the only one that works with no network.
 | The version on the splash didn't change | Either the file never finished copying (eject properly), or part two didn't take. Repeating part two is safe. |
 | Deleted GLIDE, nothing to play | Nothing is lost — the program is on the card, your sounds are in the device. Go to step 9. |
 | The computer can't see the card | Try another adapter, reader, or port. If it offers to "repair" or "format" the card, decline — that erases your patch library. |
+| Two GLIDE tiles in the menu | You installed without deleting first — Launcher duplicates rather than replaces. Delete both, then install once from `SD` → `apps`. Your sounds don't care. |
 | The menus don't match the pictures | Launcher moves its labels between versions. The job is the same: remove the installed GLIDE, then install from `SD` → `apps`. |
 
 Screens in the printable guide are drawn from **Launcher 2.7.2**.

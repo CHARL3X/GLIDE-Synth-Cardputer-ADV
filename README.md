@@ -67,7 +67,7 @@ No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single not
 
 Two ways. Either way, saved sounds, tweaks, and settings all survive — they live in flash outside the app, and nothing needs backing up.
 
-- **From the card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin) and overwrite the old one in `/apps/` on the card — then, on the device, **delete the installed GLIDE and install the new one**: press a key at boot to stay in Launcher, select the GLIDE tile and delete it, then go `SD` → `apps` → `GLIDE` → Install. The copy you play runs from the device's flash, so a newer file on the card alone changes nothing until you reinstall it. The full walkthrough, with pictures, is in **[docs/updating.md](docs/updating.md)**.
+- **From the card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin) and overwrite the old one in `/apps/` on the card — then, on the device, **delete the installed GLIDE and install the new one** (Launcher adds a second copy rather than replacing one, so the delete isn't optional): press a key at boot to stay in Launcher, select the GLIDE tile and delete it, then go `SD` → `apps` → `GLIDE` → Install. The copy you play runs from the device's flash, so a newer file on the card alone changes nothing until you reinstall it. The full walkthrough, with pictures, is in **[docs/updating.md](docs/updating.md)**.
 - **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list. Launcher downloads and installs the same latest build, no card shuffling.
 
 <details>
