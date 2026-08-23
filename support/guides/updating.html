@@ -1,0 +1,442 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 -->
+<!-- Copyright (C) 2026 Charles Tobin (CHARL3X) -->
+<!-- Owner's Guide No. 01 - Updating GLIDE. Source for docs/guides/GLIDE-Updating.pdf;
+     render it with support/guides/build.py (see that file). LOGO_B64 and the
+     fonts/ paths are placeholders the build script fills in. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Updating GLIDE</title>
+<style>
+@font-face { font-family:'Inter'; src:url('fonts/Inter-400.ttf'); font-weight:400; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-600.ttf'); font-weight:600; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-700.ttf'); font-weight:700; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-400.ttf'); font-weight:400; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-700.ttf'); font-weight:700; }
+
+:root{
+  --paper:#F6F2EA;      /* warm ground, a lighter drafting bg */
+  --panelfill:#E7E0D5;  /* drafting panel */
+  --rule:#C3BAAC;       /* drafting line */
+  --ink:#181818;        /* drafting primary */
+  --ink-soft:#5C584E;
+  --ink-faint:#8B897B;  /* drafting dim */
+  --amber:#C67A00;      /* the annunciator, darkened for paper */
+  --amber-bright:#FFAE00;
+  --phosphor:#00FF00;
+  --phosphor-dim:#007D00;
+  --steel:#4A6D8B;
+  --red:#B42010;
+  --black:#000000;
+  --screen:#0A0C0A;
+}
+
+@page { size: letter; margin: 0; }
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:var(--paper); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:10.4pt; line-height:1.5;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+.page{ width:8.5in; height:11in; padding:0.62in 0.72in 0.5in;
+  position:relative; page-break-after:always; overflow:hidden;
+  display:flex; flex-direction:column; }
+.page:last-child{ page-break-after:auto; }
+
+/* ---------- running furniture ---------- */
+.runhead{ display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'JBMono',monospace; font-size:7pt; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-faint);
+  border-bottom:1px solid var(--rule); padding-bottom:6px; margin-bottom:22px; }
+.runhead .lit{ color:var(--amber); }
+.foot{ margin-top:auto; padding-top:9px; border-top:1px solid var(--rule);
+  display:flex; justify-content:space-between;
+  font-family:'JBMono',monospace; font-size:7.3pt; letter-spacing:.1em;
+  color:#6E695D; text-transform:uppercase; }
+
+/* ---------- cover ---------- */
+.masthead{ background:var(--black); margin:-0.62in -0.72in 0 -0.72in;
+  padding:0.48in 0.72in 0.42in; position:relative; }
+.masthead::after{ content:''; position:absolute; left:0; right:0; bottom:0;
+  height:3px; background:linear-gradient(90deg,var(--amber-bright) 0%,var(--amber-bright) 22%,var(--phosphor-dim) 22%,var(--phosphor-dim) 30%,#000 30%); }
+.masthead img{ width:2.15in; display:block; }
+.masthead .kicker{ font-family:'JBMono',monospace; font-size:7.5pt;
+  letter-spacing:.34em; text-transform:uppercase; color:var(--phosphor);
+  margin-top:16px; }
+h1{ font-size:29pt; line-height:1.04; font-weight:700; letter-spacing:-.022em;
+  color:#FFFFFF; margin-top:8px; }
+.masthead .sub{ color:#B9B4A8; font-size:11pt; margin-top:12px; max-width:5.1in;
+  line-height:1.45; }
+
+.leadgrid{ display:flex; gap:0.34in; margin-top:20px; }
+.leadgrid > div{ flex:1; }
+.sechead{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:9px;
+  padding-bottom:5px; border-bottom:1px solid var(--rule); }
+ul.tick{ list-style:none; }
+ul.tick li{ position:relative; padding-left:15px; margin-bottom:5px; font-size:9.6pt;
+  color:var(--ink-soft); }
+ul.tick li::before{ content:''; position:absolute; left:0; top:.52em;
+  width:5px; height:5px; background:var(--amber); }
+ul.tick li b{ color:var(--ink); font-weight:600; }
+
+.assure{ margin-top:18px; background:var(--panelfill); border-left:3px solid var(--phosphor-dim);
+  padding:13px 16px; }
+.assure h3{ font-size:10.5pt; font-weight:700; margin-bottom:5px; }
+.assure p{ font-size:9.6pt; color:var(--ink-soft); }
+
+/* ---------- the map ---------- */
+.maphead{ margin-top:18px; }
+.map{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px; }
+.mapcell{ border:1px solid var(--rule); background:#FFFFFF88; padding:8px 10px; }
+.mapcell .n{ font-family:'JBMono',monospace; font-size:7.5pt; color:var(--amber);
+  font-weight:700; letter-spacing:.1em; }
+.mapcell .t{ font-size:9pt; line-height:1.32; margin-top:3px; }
+.mapcell.part2{ border-color:var(--steel); }
+.mapcell.part2 .n{ color:var(--steel); }
+
+/* ---------- steps ---------- */
+.partbar{ display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+.partbar .tag{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:#fff; background:var(--ink); padding:4px 9px; }
+.partbar h2{ font-size:16.5pt; font-weight:700; letter-spacing:-.015em; }
+.partbar .note{ margin-left:auto; font-family:'JBMono',monospace; font-size:7.5pt;
+  color:var(--ink-faint); letter-spacing:.08em; }
+
+.step{ display:flex; gap:16px; margin-bottom:17px; page-break-inside:avoid; }
+.step .num{ flex:0 0 30px; height:30px; border:1.6px solid var(--ink);
+  font-family:'JBMono',monospace; font-weight:700; font-size:12pt;
+  display:flex; align-items:center; justify-content:center; }
+.step .body{ flex:1; }
+.step h3{ font-size:11.4pt; font-weight:600; line-height:1.3; margin-bottom:3px; }
+.step p{ font-size:9.7pt; color:var(--ink-soft); }
+.step p + p{ margin-top:5px; }
+.step .why{ font-size:9pt; color:var(--ink-faint); font-style:italic; margin-top:4px; }
+kbd{ font-family:'JBMono',monospace; font-size:9.4pt; font-weight:700; background:var(--ink);
+  color:#fff; padding:1px 7px; border-radius:2px; }
+code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill);
+  padding:1px 5px; color:var(--ink); }
+.url{ font-family:'JBMono',monospace; font-size:8.5pt; color:var(--ink);
+  background:var(--panelfill); border-left:2px solid var(--amber);
+  padding:7px 10px; margin-top:7px; word-break:break-all; line-height:1.4; }
+
+/* ---------- device screen mockups ---------- */
+.screen{ background:var(--screen); border:1px solid #000; padding:9px 11px;
+  font-family:'JBMono',monospace; font-size:8pt; line-height:1.55; color:#EEE;
+  margin-top:9px; position:relative; }
+.screen .bar{ color:var(--amber-bright); border-bottom:1px solid #2A2A2A;
+  padding-bottom:4px; margin-bottom:5px; display:flex; justify-content:space-between;
+  font-size:7.4pt; letter-spacing:.08em; }
+.screen .row{ color:#8A8A8A; }
+.screen .row.sel{ color:var(--screen); background:var(--phosphor); font-weight:700;
+  padding:0 4px; margin:0 -4px; }
+.screen .row.act{ color:var(--phosphor); }
+.screen .cap{ color:#6A696A; font-size:7pt; margin-top:6px; letter-spacing:.06em; }
+.caption{ font-family:'JBMono',monospace; font-size:7pt; color:var(--ink-faint);
+  letter-spacing:.1em; text-transform:uppercase; margin-top:5px; }
+
+/* the real Launcher UI (drawn from Launcher 2.7.2) */
+.lsc{ background:#000000; border:1px solid #2A2A2A; padding:7px 9px 6px; max-width:4.15in;
+  font-family:'JBMono',monospace; color:#DDE4F2; margin-top:9px; }
+.lsc .lbar{ display:flex; justify-content:space-between; align-items:center;
+  font-size:6.6pt; color:#9AA3B8; letter-spacing:.02em; }
+.lsc .batt{ display:inline-block; width:13px; height:7px; border:1px solid #9AA3B8;
+  margin-left:4px; position:relative; vertical-align:-1px; }
+.lsc .batt i{ position:absolute; left:1px; top:1px; bottom:1px; width:32%;
+  background:#DDE4F2; }
+.lsc .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin:7px 0 6px; }
+.lsc .tile{ border:1.3px solid #DDE4F2; border-radius:5px; text-align:center;
+  padding:3.5px 0 4px; font-size:8.4pt; letter-spacing:.02em; }
+.lsc .tile.sel{ background:#EDF2FB; color:#000000; border-color:#FFFFFF; font-weight:700; }
+.lsc .tile.app{ border-color:#FF6A45; color:#FF6A45; grid-column:2; }
+.lsc .tile.app.sel{ background:#FF6A45; color:#000000; border-color:#FFD2C4; }
+.lsc .hint{ text-align:center; font-size:6.6pt; color:#9AA3B8; }
+
+/* GLIDE's own splash: white line-art on black, dim stamps */
+.gsplash{ background:#000; padding:6px 9px 4px; margin-top:9px; position:relative;
+  font-family:'JBMono',monospace; }
+.gsplash .ver{ position:absolute; top:5px; right:9px; font-size:6.6pt; color:#6A696A; }
+.gsplash img{ display:block; width:50%; margin:3px auto 3px; }
+.gsplash .credit{ text-align:center; font-size:6.2pt; color:#6A696A; }
+
+.twocol{ display:flex; gap:0.3in; }
+.twocol > *{ flex:1; }
+
+/* ---------- callouts ---------- */
+.call{ border:1px solid var(--rule); border-left:3px solid var(--amber);
+  background:#FFFFFF88; padding:10px 14px; margin:13px 0; }
+.call.warn{ border-left-color:var(--red); }
+.call.info{ border-left-color:var(--steel); }
+.call h4{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:5px; }
+.call.warn h4{ color:var(--red); }
+.call.info h4{ color:var(--steel); }
+.call p{ font-size:9.4pt; color:var(--ink-soft); }
+
+/* ---------- troubleshooting ---------- */
+.tr{ border-top:1px solid var(--rule); padding:2.8px 0; page-break-inside:avoid; }
+.tr h4{ font-size:9.8pt; font-weight:600; margin-bottom:2px; }
+.tr h4::before{ content:'▸ '; color:var(--amber); }
+.tr p{ font-size:9.1pt; line-height:1.42; color:var(--ink-soft); }
+
+.closing{ margin-top:11px; background:var(--black); color:#CFCABF;
+  padding:12px 16px; }
+.closing h3{ color:#fff; font-size:11.8pt; font-weight:700; margin-bottom:6px; }
+.closing p{ font-size:9.3pt; line-height:1.45; }
+.closing .lit{ color:var(--phosphor); font-family:'JBMono',monospace; font-size:9pt; }
+.closing a{ color:var(--amber-bright); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE 1 ============================ -->
+<section class="page">
+  <div class="masthead">
+    <img src="data:image/png;base64,LOGO_B64" alt="GLIDE">
+    <div class="kicker">Owner's guide · No. 01</div>
+    <h1>Updating GLIDE</h1>
+    <p class="sub">A new build is a file you copy to the card and install once. Ten minutes, start to finish — and everything you've made stays exactly where it is.</p>
+  </div>
+
+  <div class="leadgrid">
+    <div>
+      <div class="sechead">What you need</div>
+      <ul class="tick">
+        <li>Your <b>Cardputer</b></li>
+        <li>Its <b>microSD card</b> — the one already in it</li>
+        <li>Any <b>computer</b>, Mac or Windows</li>
+        <li>A way to plug the card in — an <b>SD adapter</b> or a card reader</li>
+      </ul>
+    </div>
+    <div>
+      <div class="sechead">What it takes</div>
+      <ul class="tick">
+        <li>About <b>ten minutes</b></li>
+        <li>No WiFi, no account, no software to install</li>
+        <li>Nothing to back up first</li>
+        <li>You can stop halfway and pick it up later</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="assure">
+    <h3>Your sounds are not in the app.</h3>
+    <p>The ten slots, your saved tweaks, every setting, the two generative sounds unique to your device, and the odometer all live in the Cardputer's own memory — outside the program you're about to replace. Updating cannot touch them. The patch library on your card isn't touched either. There is nothing to back up, and nothing to restore afterwards.</p>
+  </div>
+
+  <div class="maphead">
+    <div class="sechead">The whole update, at a glance</div>
+    <div class="map">
+      <div class="mapcell"><div class="n">01</div><div class="t">Power off, pop the card out</div></div>
+      <div class="mapcell"><div class="n">02</div><div class="t">Put the card in your computer</div></div>
+      <div class="mapcell"><div class="n">03</div><div class="t">Download the newest GLIDE.bin</div></div>
+      <div class="mapcell"><div class="n">04</div><div class="t">Drop it in the card's <code>apps</code> folder</div></div>
+      <div class="mapcell"><div class="n">05</div><div class="t">Eject, and put the card back in</div></div>
+      <div class="mapcell part2"><div class="n">06</div><div class="t">Power on, press a key to stay in Launcher</div></div>
+      <div class="mapcell part2"><div class="n">07</div><div class="t">Delete the installed GLIDE</div></div>
+      <div class="mapcell part2"><div class="n">08</div><div class="t">Return to the Launcher menu</div></div>
+      <div class="mapcell part2"><div class="n">09</div><div class="t">SD → apps → GLIDE → Install</div></div>
+    </div>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 1 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 2 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Updating GLIDE</span><span class="lit">Part one · the card</span></div>
+
+  <div class="partbar">
+    <span class="tag">Part one</span>
+    <h2>Put the new file on the card</h2>
+    <span class="note">Steps 01–05</span>
+  </div>
+
+  <div class="step">
+    <div class="num">01</div>
+    <div class="body">
+      <h3>Power the Cardputer off, then pop the card out.</h3>
+      <p>The microSD slot is spring-loaded: press the card <em>in</em> until it clicks, and it springs back out far enough to pull free. Don't try to pull it out without pressing first.</p>
+      <p class="why">Power off first. Pulling a card out of a running device is how cards get corrupted.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">02</div>
+    <div class="body">
+      <h3>Put the card in your computer.</h3>
+      <p>If your computer has a full-size SD slot, seat the microSD card in an SD adapter and use that. Otherwise any USB card reader works. The card should appear like a USB stick.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">03</div>
+    <div class="body">
+      <h3>Download the newest <code>GLIDE.bin</code>.</h3>
+      <p>Open this link in your browser. It always points at the latest build, so it never goes stale — bookmark it.</p>
+      <div class="url">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin</div>
+      <p style="margin-top:7px">Some browsers are suspicious of <code>.bin</code> files and ask whether to keep the download. Keep it. Note where it landed — usually your Downloads folder.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">04</div>
+    <div class="body">
+      <h3>Drag it into the <code>apps</code> folder on the card.</h3>
+      <p>Open the card, open the folder named <code>apps</code>, and drag the file you just downloaded into it. Your computer will ask whether to replace the file that's already there. Replace it.</p>
+      <div class="call warn" style="margin:10px 0 0">
+        <h4>Keep the name exactly GLIDE.bin</h4>
+        <p>If your browser saved it as <code>GLIDE(1).bin</code> or <code>GLIDE-1.bin</code>, rename it to <code>GLIDE.bin</code> before or after you move it. A file with any other name will still show up on the device, but you'll be staring at two entries wondering which is which.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">05</div>
+    <div class="body">
+      <h3>Eject the card properly, and put it back in the Cardputer.</h3>
+      <p>Eject it from your computer first — on a Mac, drag it to the Trash or press eject; on Windows, use <em>Safely Remove Hardware</em>. Then slide the card back into the Cardputer the same way it came out, and press until it clicks and stays put.</p>
+      <p class="why">Ejecting properly is what makes sure the file is actually finished writing. Skipping it is the most common cause of "the new version isn't there."</p>
+    </div>
+  </div>
+
+  <div class="call">
+    <h4>Halfway point — and why part two exists</h4>
+    <p>The new build is on the card now, but the Cardputer is still running the old one. GLIDE is <em>installed</em> onto the device — that's why it starts the moment you power on, instead of making you go and find it every time. A newer file on the card doesn't replace a copy that's already installed, so part two clears the old one out and installs the new one. And the clearing out matters: Launcher <em>adds</em> an app rather than replacing it, so installing without deleting first leaves you with two GLIDE tiles. Two minutes, all on the device.</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 2 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 3 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Updating GLIDE</span><span class="lit">Part two · the device</span></div>
+
+  <div class="partbar">
+    <span class="tag">Part two</span>
+    <h2>Swap the copy on the device</h2>
+    <span class="note">Steps 06–09</span>
+  </div>
+
+  <p style="font-size:8.8pt;color:var(--ink-faint);margin:-9px 0 15px">Screens drawn from Launcher 2.7.2. Later versions shuffle things around — the job stays the same.</p>
+
+  <div class="step">
+    <div class="num">06</div>
+    <div class="body">
+      <h3>Power on — and press any key immediately.</h3>
+      <p>You have a couple of seconds. Press a key <em>before</em> the GLIDE splash appears and you'll stay in Launcher, which is the menu you need. If the synth starts up instead, you were too slow: hold the <kbd>`</kbd> backtick key for about a second to exit back, or power off and try again, tapping a key as it comes up.</p>
+      <div class="lsc">
+        <div class="lbar"><span>Launcher 2.7.2</span><span>32%<span class="batt"><i></i></span></span></div>
+        <div class="grid"><div class="tile sel">SD</div><div class="tile">OTA</div><div class="tile">WUI</div><div class="tile">USB</div><div class="tile">PMan</div><div class="tile">CFG</div><div class="tile app">GLIDE</div></div>
+        <div class="hint">Launch from or mng SDCard</div>
+      </div>
+      <div class="caption">you're in — six built-in tiles, and GLIDE below them</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">07</div>
+    <div class="body">
+      <h3>Move down to the GLIDE tile, and delete it.</h3>
+      <p>GLIDE is the red tile on its own row at the bottom — it's in the picture above. Move down to it and select it, then choose <strong>Delete</strong> from the options that come up. Confirm if you're asked.</p>
+      <p style="margin-top:5px"><strong>Don't skip this step.</strong> Launcher doesn't replace an installed app, it adds another one — install without deleting and you'll have two GLIDE tiles with nothing to tell them apart.</p>
+      <div class="call warn" style="margin-top:11px">
+        <h4>This does not delete your sounds</h4>
+        <p>You're removing the <em>program</em>, not your work. Slots, settings, your two generative sounds and the odometer are stored separately and are untouched by this. They'll be exactly as you left them when the new version starts.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">08</div>
+    <div class="body">
+      <h3>Get back to that same menu.</h3>
+      <p>After the delete, return to the Launcher menu — press any key at the start screen again, the same way you did in step 06.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">09</div>
+    <div class="body">
+      <h3>Select <strong>SD</strong>, then <strong>apps</strong> → <strong>GLIDE</strong> → install.</h3>
+      <p>The <strong>SD</strong> tile is the card browser — its line at the bottom of the screen reads <em>Launch from or mng SDCard</em>. Open it, go into the <code>apps</code> folder, and select the <code>GLIDE</code> file you copied over in part one. Choose <strong>Install</strong> and let it finish. A few seconds; don't power it off while it works.</p>
+      <div class="lsc">
+        <div class="lbar"><span>Launcher 2.7.2</span><span>32%<span class="batt"><i></i></span></span></div>
+        <div class="grid"><div class="tile sel">SD</div><div class="tile">OTA</div><div class="tile">WUI</div><div class="tile">USB</div><div class="tile">PMan</div><div class="tile">CFG</div></div>
+        <div class="hint">Launch from or mng SDCard</div>
+      </div>
+      <div class="caption">GLIDE's tile is gone now — that's expected. select SD.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 3 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 4 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Updating GLIDE</span><span class="lit">Finishing · and if it goes sideways</span></div>
+
+  <div class="partbar">
+    <span class="tag">Done</span>
+    <h2>Check it took</h2>
+  </div>
+
+  <div style="display:flex;gap:0.32in;align-items:flex-start">
+    <p style="flex:1;font-size:10pt;color:var(--ink-soft)">Power the Cardputer off and on. GLIDE starts, and the splash shows the version top-right. If that's the number you just downloaded, you're done — go and play it.</p>
+    <div style="flex:0 0 2.75in">
+      <div class="gsplash" style="margin-top:0">
+        <div class="ver">v2.6</div>
+        <img src="data:image/png;base64,LOGO_B64" alt="">
+        <div class="credit">by CHARL3X - github.com/CHARL3X</div>
+      </div>
+      <div class="caption">version, top-right on the splash</div>
+    </div>
+  </div>
+
+  <div class="call info" style="margin-top:20px">
+    <h4>The shortcut, for next time</h4>
+    <p>Launcher can also fetch and install a new build over WiFi — no computer, no card shuffling. Press a key at the start screen, open <strong>OTA</strong>, join your network, pick GLIDE. Same result; the card stays as the fallback.</p>
+  </div>
+
+  <div class="sechead" style="margin-top:12px">If something goes sideways</div>
+
+  <div class="tr">
+    <h4>GLIDE starts before I can press a key.</h4>
+    <p>Power off, then tap a key repeatedly as it comes up. Or let GLIDE start and hold <kbd>`</kbd> for a second.</p>
+  </div>
+  <div class="tr">
+    <h4>I don't see GLIDE in the card's apps folder on the device.</h4>
+    <p>It's in the wrong folder or under a different name. Back in your computer: it must sit inside <code>apps</code>, named <code>GLIDE.bin</code>.</p>
+  </div>
+  <div class="tr">
+    <h4>The version on the splash didn't change.</h4>
+    <p>Either the file never finished copying (eject properly next time), or part two didn't take. Run part two again — repeating it is safe.</p>
+  </div>
+  <div class="tr">
+    <h4>I deleted GLIDE and now there's nothing to play.</h4>
+    <p>Nothing is lost — the program is on your card, your sounds are in the device. Go to step 09. If the card is the problem, re-download from page 2.</p>
+  </div>
+  <div class="tr">
+    <h4>The computer doesn't see the card at all.</h4>
+    <p>Try another adapter, reader, or port — nearly always the reader. Decline any offer to "repair" or "format" it: that erases your patch library.</p>
+  </div>
+  <div class="tr">
+    <h4>I've got two GLIDE tiles now.</h4>
+    <p>You installed without deleting first. Delete both, then install once from <code>SD</code> → <code>apps</code>. Your sounds don't care.</p>
+  </div>
+  <div class="tr">
+    <h4>The menus don't look quite like the pictures.</h4>
+    <p>Launcher moves its labels around between versions. The job is the same: remove the installed GLIDE, then browse the card to <code>apps</code> and install from there.</p>
+  </div>
+
+  <div class="closing">
+    <h3>Updates are free, and they always will be.</h3>
+    <p>Every build is free, and your sounds carry across all of them. The manual, the release notes and the source all live here — and if you're stuck, message me. I wrote it.</p>
+    <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 4 of 4</span></div>
+</section>
+
+</body>
+</html>

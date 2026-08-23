@@ -16,6 +16,17 @@ The full BSD licence text is reproduced at the top of that file and must stay
 there. This file is part of the host-side render harness only; it is not
 compiled into the device firmware.
 
+### Inter and JetBrains Mono — SIL Open Font License 1.1
+
+`docs/guides/*.pdf`
+
+The owner's guides are typeset in **Inter** (Copyright (c) 2016 The Inter
+Project Authors) and **JetBrains Mono** (Copyright (c) 2020 The JetBrains Mono
+Project Authors), both under the SIL Open Font License 1.1, which permits
+embedding in a document. No `.ttf` is committed here: `support/guides/build.py`
+fetches them at render time and caches them in a gitignored folder. The font
+data is embedded in the committed PDFs, so the OFL applies to those files.
+
 ## Fetched at build time (not vendored here)
 
 PlatformIO resolves these from `platformio.ini` when you build. They are not
