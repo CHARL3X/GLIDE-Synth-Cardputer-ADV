@@ -3,9 +3,6 @@
 A new build is a file. Ten minutes, a computer, and a card reader — or two
 minutes over WiFi if you set that up. Everything you've made survives it.
 
-There is a printable version of this page (Owner's Guide No. 01) attached to
-[the latest release](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest).
-
 ## First, the thing worth knowing
 
 GLIDE runs from the Cardputer's **own flash**, not from the card. You install it
