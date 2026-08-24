@@ -9,6 +9,33 @@ ships in the box with a device — at
 from `support/guides/updating.html`; edit that and re-render rather than
 editing the PDF.
 
+## Before anything else: it only charges switched ON
+
+**A switched-off Cardputer does not charge.** The switch on the side has to be
+in the **ON** position before you plug the USB-C cable in — otherwise the
+battery sits there all night exactly as empty as it started. That's how the
+hardware is built; it isn't a fault, and nothing is wrong with your device.
+
+You can leave GLIDE running the whole time it charges. It dims itself after a
+while and then drifts into a screensaver, so nothing burns into the panel, and
+any key wakes it *and* plays the note. If you'd rather have the screen off,
+restart into Launcher, open **CFG**, and choose **charge mode** — a dim battery
+percentage and nothing else.
+
+### The two triggers, on the top edge
+
+They look identical and do completely different things.
+
+- **Left, marked `BTN RST`** — restarts the whole device. Nothing is lost; your
+  sounds live in the Cardputer's memory, not in the program. This is the
+  reliable way back to Launcher, and you'll use it every time you update.
+- **Right** — GLIDE's trigger macro while you play (muffle by default;
+  settings swaps it for brighten, a pitch dive, or drive grit, momentary or
+  latched). It never restarts anything.
+
+Below 20% the perform screen warns you, and at 10% it blinks red; settings
+always shows the exact percentage.
+
 ## First, the thing worth knowing
 
 GLIDE runs from the Cardputer's **own flash**, not from the card. You install it
@@ -49,8 +76,10 @@ There is nothing to back up, and nothing to restore afterwards.
 ## Part two — swap the copy on the device
 
 6. **Power on and press any key immediately**, before the GLIDE splash appears.
-   That keeps you in Launcher. If the synth starts instead, hold `` ` `` for
-   about a second to exit back, or power-cycle and be quicker.
+   That keeps you in Launcher. If the synth starts instead, press the left
+   trigger on the top edge (marked `BTN RST`) to restart the device and tap a
+   key as it comes back up. Holding `` ` `` inside GLIDE will *not* get you
+   here — it restarts GLIDE, and you land back at its splash.
 7. **Delete the installed GLIDE.** It's the tile on its own row at the bottom of
    Launcher's menu, drawn in red. Select it and choose *Delete*. This removes the
    program, not your sounds. **Don't skip it:** Launcher doesn't replace an
@@ -75,10 +104,11 @@ the only one that works with no network.
 
 | What you see | What it is |
 | --- | --- |
-| GLIDE starts before you can press a key | Power off fully, then tap a key repeatedly as it comes up. Or let it start and hold `` ` `` for a second. |
+| GLIDE starts before you can press a key | Press the left trigger (`BTN RST`) to restart the device, then tap a key as it comes up. Don't reach for `` ` `` inside GLIDE — that restarts GLIDE, not Launcher. |
 | No GLIDE in the card's `apps` folder on the device | Wrong folder or a renamed file. It must sit inside `apps`, named `GLIDE.bin`. |
 | The version on the splash didn't change | Either the file never finished copying (eject properly), or part two didn't take. Repeating part two is safe. |
 | Deleted GLIDE, nothing to play | Nothing is lost — the program is on the card, your sounds are in the device. Go to step 9. |
+| Plugged it in and nothing happened | The side switch was off. Slide it to **ON** and plug in again. |
 | The computer can't see the card | Try another adapter, reader, or port. If it offers to "repair" or "format" the card, decline — that erases your patch library. |
 | Two GLIDE tiles in the menu | You installed without deleting first — Launcher duplicates rather than replaces. Delete both, then install once from `SD` → `apps`. Your sounds don't care. |
 | The menus don't match the pictures | Launcher moves its labels between versions. The job is the same: remove the installed GLIDE, then install from `SD` → `apps`. |

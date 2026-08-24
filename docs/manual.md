@@ -10,10 +10,10 @@ Everything the instrument does and how to play it. For install and the five-minu
  string 1      |  a  s  d  f  g  h  j  k  l  ;  |  ' scale lock      enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
- `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer
+ `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer   [see note below]
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
- - / =    octave -/+          G0 (top button) = trigger macro (muffle by default)
+ - / =    octave -/+          G0 (RIGHT trigger, top edge) = trigger macro (muffle)
                                          (tap rec/play/dub, hold clear, fn+alt undo)
 
  fn + q..p         : switch between the ten sounds, live
@@ -22,6 +22,12 @@ Everything the instrument does and how to play it. For install and the five-minu
  fn + k            : cycle the key (root) up a semitone, live
  fn + k  (HOLD)    : LISTEN - the mic hears the song and retunes for you
 ```
+
+**A note on the two ways out.** Holding `` ` `` saves your work and reboots —
+but the Cardputer boots straight back into GLIDE, so what you actually get is
+the splash again, not Launcher. To reach Launcher, press the **left trigger on
+the top edge, marked `BTN RST`**, and tap any key as the device comes up. (The
+*right* trigger is G0, GLIDE's own trigger macro, and never restarts anything.)
 
 ## How you play it
 
@@ -191,7 +197,7 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0-100% / momentary, latch | muffle / 70% / momentary | settings (G0 button) |
+| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |
@@ -220,4 +226,4 @@ Settings → SYSTEM also keeps the **odometer**: a quiet lifetime count of the n
 
 ---
 
-Stuck, or want to share what you've made? **[Join the Discord](https://discord.gg/TEr9jCPyNn)**: patches travel as plain `.gpat` files, so trading sounds is just dragging an attachment onto your SD card.
+Stuck, or want to share what you've made? **[Join the Discord](https://discord.gg/uRcuJGCeHG)**: patches travel as plain `.gpat` files, so trading sounds is just dragging an attachment onto your SD card.
