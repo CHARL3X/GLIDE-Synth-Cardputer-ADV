@@ -92,7 +92,7 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
 ```
  string 3 (hi) |  1  2  3  4  5  6  7  8  9  0  |  - oct-   = oct+   bksp PANIC
  string 2      |  q  w  e  r  t  y  u  i  o  p  |  [ bend-  ] bend+  \  tap tempo
- string 1      |  a  s  d  f  g  h  j  k  l  ;  |  ' scale lock      enter tilt
+ string 1      |  a  s  d  f  g  h  j  k  l  ;  |                   enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
  `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer

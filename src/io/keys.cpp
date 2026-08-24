@@ -37,7 +37,6 @@ constexpr int kKeyFn = 28;         // fn
 constexpr int kKeyShift = 29;      // shift
 constexpr int kKeyKeyCycle = 37;   // k — fn+K cycles the root key (live retune)
 constexpr int kKeyScaleCycle = 31; // s — fn+S cycles the scale (live)
-constexpr int kKeyScaleLock = 40;  // '
 constexpr int kKeyTilt = 41;       // enter
 constexpr int kKeyCtrl = 42;       // ctrl  (octave down, left thumb)
 constexpr int kKeyOpt = 43;        // opt   (octave up, left thumb)
@@ -1028,12 +1027,6 @@ Actions poll(uint32_t nowMs) {
                 hud::show("TEMPO", v, -1.f);
                 break;
             }
-            case kKeyScaleLock:
-                cfgr.layout.scaleLock = !cfgr.layout.scaleLock;
-                hud::show("SCALE LOCK", cfgr.layout.scaleLock ? "on (degrees)" : "off (chromatic)",
-                          -1.f);
-                store::markDirty();
-                break;
             case kKeyTilt:
                 // decide short-tap (cycle) vs long-press (latch) on release /
                 // hold-threshold, not here — just stamp the press

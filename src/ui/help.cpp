@@ -57,7 +57,6 @@ const Line kLines[] = {
     {kGap, nullptr, nullptr},
     {kHd, nullptr, "PLAY KEYS"},
     {kKey, "shift", "hold: off-scale notes"},
-    {kKey, "'", "scale lock on/off"},
     {kKey, "- / =", "octave down / up"},
     {kKey, "[ / ]", "pitch bend down / up"},
     {kKey, "\\", "tap tempo (tap 4x)"},
