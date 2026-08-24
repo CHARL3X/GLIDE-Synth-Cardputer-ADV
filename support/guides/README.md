@@ -8,6 +8,11 @@ a plain-text twin in `docs/` — the PDF is a rendering, never the only copy.
 | --- | --- | --- | --- |
 | No. 01 — Updating GLIDE | `updating.html` | `docs/guides/GLIDE-Updating.pdf` | [`docs/updating.md`](../../docs/updating.md) |
 
+No. 01 opens with the power/charging page (the switch must be ON to charge —
+the single most common "it's broken" report) before the update walkthrough, and
+closes with QR codes to the repo and the Discord. It is the sheet that goes in
+the box, so it has to answer day one as well as the update.
+
 ## Rendering
 
 ```

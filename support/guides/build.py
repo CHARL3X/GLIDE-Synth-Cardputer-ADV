@@ -17,6 +17,14 @@
 # Needs: a Chromium/Chrome binary. Set CHROME=/path/to/chrome if the guesses
 # below miss. Network is needed only the first time (fonts are cached in
 # support/guides/.fonts/, which is gitignored).
+#
+# Reproducible in APPEARANCE, not byte-for-byte. Chrome decides per run whether
+# to subset the embedded faces or carry them whole, so the same .html yields a
+# ~575 KB or a ~1015 KB PDF at random, and the internal ids differ every time.
+# Measured: both variants rasterise pixel-identical at 150 dpi across every
+# page, so either is safe to print — prefer committing the smaller one. Don't
+# chase a stable hash here; compare rendered pages instead (pdftoppm + magick
+# compare -metric AE) when you need to know whether a change is visual.
 import base64
 import os
 import re

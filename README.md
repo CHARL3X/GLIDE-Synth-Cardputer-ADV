@@ -8,7 +8,7 @@
 Firmware for the M5Stack Cardputer, original (v1.1) and ADV. By **[CHARL3X](https://github.com/CHARL3X)**.
 
 <p align="center">
-  <a href="https://discord.gg/TEr9jCPyNn">
+  <a href="https://discord.gg/uRcuJGCeHG">
     <img src="https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Join the GLIDE Discord">
   </a>
 </p>
@@ -55,20 +55,22 @@ Two more headline features:
 
 ## Install
 
-GLIDE runs from the microSD card through **[bmorcelli's Launcher](https://github.com/bmorcelli/Launcher)**. Launcher is flashed once; after that, GLIDE and every update is a file you copy to the card.
+GLIDE is installed onto the Cardputer's own flash through **[bmorcelli's Launcher](https://github.com/bmorcelli/Launcher)**. Launcher is flashed once; after that, the card is how a build *arrives*, and Launcher is what installs it.
 
 1. **Flash Launcher first** (one time only). Follow the [Launcher instructions](https://github.com/bmorcelli/Launcher); its web flasher is the easy way. If your Cardputer already runs Launcher, skip this step.
 2. **[Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin)** and copy it to the `/apps/` folder on the microSD card. That link always points at the newest build; the [Releases page](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases) has the version notes.
-3. **Boot → SD → GLIDE.**
+3. **Boot, press a key for the Launcher menu, then `SD` → `apps` → `GLIDE` → *Install*.** After that GLIDE starts on its own every time you power on.
 
 No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single note gliding up an octave, played through the synth itself), play.
 
+> **It only charges switched ON.** Plug in a Cardputer with the side switch off and the battery stays exactly as empty as it started — no light, no charge. Switch it on first, then plug in. Charging with GLIDE running is fine; for a dim screen instead, restart into Launcher → **CFG** → **charge mode**. And of the two triggers on the top edge, the left one (`BTN RST`) restarts the device — that's the way back to Launcher, not `` ` ``.
+
 ### Updating
 
-Two ways; copying the file is easier.
+A newer `GLIDE.bin` sitting on the card **does nothing on its own** — the copy that runs lives in the device's flash, so updating means replacing that copy. Saved sounds, tweaks and settings survive either way; they live outside the app.
 
-- **Copy the new bin.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin) and overwrite the old one in `/apps/` on the card. That's the whole update. Saved sounds, tweaks, and settings all survive, since they live in flash outside the app.
-- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list. Launcher downloads and installs the same latest build.
+- **Card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin), put it in `/apps/`, then **delete the installed GLIDE in Launcher first** and install the new one from `SD` → `apps`. Launcher *adds* an app rather than replacing it, so skipping the delete leaves you with two GLIDE tiles and only the splash version number to tell them apart. The illustrated walkthrough is in **[docs/updating.md](docs/updating.md)** ([printable PDF](docs/guides/GLIDE-Updating.pdf)).
+- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list — Launcher fetches and installs it with no computer and no card shuffling.
 
 <details>
 <summary><strong>Alternative: direct USB flash</strong> (overwrites Launcher)</summary>

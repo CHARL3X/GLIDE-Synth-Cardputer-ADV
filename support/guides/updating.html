@@ -56,19 +56,19 @@ html,body{ background:var(--paper); color:var(--ink);
 
 /* ---------- cover ---------- */
 .masthead{ background:var(--black); margin:-0.62in -0.72in 0 -0.72in;
-  padding:0.48in 0.72in 0.42in; position:relative; }
+  padding:0.40in 0.72in 0.34in; position:relative; }
 .masthead::after{ content:''; position:absolute; left:0; right:0; bottom:0;
   height:3px; background:linear-gradient(90deg,var(--amber-bright) 0%,var(--amber-bright) 22%,var(--phosphor-dim) 22%,var(--phosphor-dim) 30%,#000 30%); }
 .masthead img{ width:2.15in; display:block; }
 .masthead .kicker{ font-family:'JBMono',monospace; font-size:7.5pt;
   letter-spacing:.34em; text-transform:uppercase; color:var(--phosphor);
-  margin-top:16px; }
-h1{ font-size:29pt; line-height:1.04; font-weight:700; letter-spacing:-.022em;
+  margin-top:12px; }
+h1{ font-size:27pt; line-height:1.04; font-weight:700; letter-spacing:-.022em;
   color:#FFFFFF; margin-top:8px; }
-.masthead .sub{ color:#B9B4A8; font-size:11pt; margin-top:12px; max-width:5.1in;
+.masthead .sub{ color:#B9B4A8; font-size:10.6pt; margin-top:9px; max-width:5.1in;
   line-height:1.45; }
 
-.leadgrid{ display:flex; gap:0.34in; margin-top:20px; }
+.leadgrid{ display:flex; gap:0.34in; margin-top:15px; }
 .leadgrid > div{ flex:1; }
 .sechead{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
   text-transform:uppercase; color:var(--amber); margin-bottom:9px;
@@ -80,15 +80,44 @@ ul.tick li::before{ content:''; position:absolute; left:0; top:.52em;
   width:5px; height:5px; background:var(--amber); }
 ul.tick li b{ color:var(--ink); font-weight:600; }
 
-.assure{ margin-top:18px; background:var(--panelfill); border-left:3px solid var(--phosphor-dim);
-  padding:13px 16px; }
+.assure{ margin-top:13px; background:var(--panelfill); border-left:3px solid var(--phosphor-dim);
+  padding:11px 15px; }
 .assure h3{ font-size:10.5pt; font-weight:700; margin-bottom:5px; }
 .assure p{ font-size:9.6pt; color:var(--ink-soft); }
 
+/* ---------- the power band (cover) ---------- */
+.powerband{ margin-top:13px; background:var(--black); color:#E9E4D8;
+  padding:11px 16px 12px; border-left:5px solid var(--red);
+  display:flex; gap:17px; align-items:flex-start; }
+.powerband .pbtag{ flex:0 0 0.9in; font-family:'JBMono',monospace; font-size:7pt;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--red);
+  padding-top:4px; line-height:1.35; }
+.powerband .pbbig{ font-size:13.4pt; font-weight:700; color:#FFFFFF; line-height:1.18; }
+.powerband .pbbig em{ font-style:normal; color:var(--amber-bright); }
+.powerband .pbsub{ font-size:9.2pt; color:#B4AFA3; margin-top:6px; line-height:1.45; }
+
+/* ---------- a menu path, when a real screenshot isn't at hand ---------- */
+.path{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:11px;
+  font-family:'JBMono',monospace; font-size:8.1pt; }
+.path span{ background:var(--panelfill); border:1px solid var(--rule);
+  padding:4px 8px; color:var(--ink-soft); }
+.path span + span::before{ content:'\2192'; color:var(--amber);
+  margin-right:8px; margin-left:-2px; }
+.path .end{ background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700; }
+
+/* ---------- the two triggers, side by side ---------- */
+.edgekey{ display:flex; gap:0.3in; margin-top:11px; }
+.edgekey > div{ flex:1; }
+.edgekey .lbl{ font-family:'JBMono',monospace; font-size:7.4pt; letter-spacing:.14em;
+  text-transform:uppercase; margin-bottom:4px; }
+.edgekey .lbl.l{ color:var(--red); }
+.edgekey .lbl.r{ color:var(--steel); }
+.edgekey p{ font-size:9.4pt; color:var(--ink-soft); line-height:1.44; }
+
 /* ---------- the map ---------- */
-.maphead{ margin-top:18px; }
-.map{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px; }
-.mapcell{ border:1px solid var(--rule); background:#FFFFFF88; padding:8px 10px; }
+.maphead{ margin-top:13px; }
+.map{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:10px; }
+.mapcell{ border:1px solid var(--rule); background:#FFFFFF88; padding:6px 9px; }
 .mapcell .n{ font-family:'JBMono',monospace; font-size:7.5pt; color:var(--amber);
   font-weight:700; letter-spacing:.1em; }
 .mapcell .t{ font-size:9pt; line-height:1.32; margin-top:3px; }
@@ -189,7 +218,8 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
 /* the QR is the repo URL below it, as a picture — white tile so scanners get
    their dark-on-light modules and quiet zone even on this black band */
 .closing .qrtile{ flex:0 0 auto; background:#fff; padding:7px; }
-.closing .qrtile svg{ display:block; width:0.88in; height:0.88in; }
+.closing .qrtile svg{ display:block; width:0.76in; height:0.76in; }
+.closing .qrpair{ flex:0 0 auto; display:flex; gap:11px; }
 .closing .qrcap{ font-family:'JBMono',monospace; font-size:6.4pt; color:#6A696A;
   letter-spacing:.14em; text-transform:uppercase; text-align:center; margin-top:5px; }
 </style>
@@ -203,6 +233,14 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
     <div class="kicker">Owner's guide · No. 01</div>
     <h1>Updating GLIDE</h1>
     <p class="sub">A new build is a file you copy to the card and install once. Ten minutes, start to finish — and everything you've made stays exactly where it is.</p>
+  </div>
+
+  <div class="powerband">
+    <div class="pbtag">Read this<br>first</div>
+    <div>
+      <p class="pbbig">To charge it, the side switch must be <em>ON</em>.</p>
+      <p class="pbsub">Plug in a switched-off Cardputer and nothing happens — no light, no charge, and it looks broken. It isn't. Switch it on first, then plug in. Full details overleaf.</p>
+    </div>
   </div>
 
   <div class="leadgrid">
@@ -246,10 +284,79 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
     </div>
   </div>
 
-  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 1 of 4</span></div>
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 1 of 5</span></div>
 </section>
 
 <!-- ============================ PAGE 2 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Your GLIDE</span><span class="lit">Power · charging · the two triggers</span></div>
+
+  <div class="partbar">
+    <span class="tag">Before</span>
+    <h2>Power, charging, and the two triggers</h2>
+    <span class="note">day one</span>
+  </div>
+
+  <div class="call warn" style="margin-top:0">
+    <h4>The one that catches everybody</h4>
+    <p><strong>A switched-off Cardputer does not charge.</strong> The switch on the side has to be in the <strong>ON</strong> position before you plug the USB-C cable in — otherwise the battery sits there all night exactly as empty as it started. This is how the hardware is built; it is not a fault, and nothing is wrong with your device.</p>
+  </div>
+
+  <div class="twocol" style="margin-top:16px">
+    <div>
+      <div class="sechead">Charging it</div>
+      <p style="font-size:9.6pt;color:var(--ink-soft)">Switch <strong>ON</strong>, then plug USB-C into the port on the side. Any phone charger or computer port will do.</p>
+      <p style="font-size:9.6pt;color:var(--ink-soft);margin-top:6px">You can leave GLIDE running the whole time. It dims itself after a while and then drifts into a screensaver, so nothing is burning into the panel — and any key wakes it and plays the note, so the first touch back is never wasted.</p>
+    </div>
+    <div>
+      <div class="sechead">If you want the screen off</div>
+      <p style="font-size:9.6pt;color:var(--ink-soft)">Restart into Launcher, open <strong>CFG</strong>, and choose <strong>charge mode</strong>. The screen drops to a dim battery percentage and stays there — the tidiest way to leave it charging overnight on a desk.</p>
+      <div class="path">
+        <span>press a key at the start screen</span>
+        <span>CFG</span>
+        <span class="end">charge mode</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sechead" style="margin-top:19px">The two triggers, on the top edge</div>
+  <p style="font-size:9.7pt;color:var(--ink-soft);margin-top:2px">They look identical and they do completely different things. Worth learning once.</p>
+
+  <div class="edgekey">
+    <div>
+      <div class="lbl l">Left · marked BTN RST</div>
+      <p><strong>Restarts the whole device.</strong> Nothing is lost — your sounds live in the Cardputer's memory, not in the program. This is the reliable way back to Launcher: press it, then tap any key as the device comes up. You will use it every time you update.</p>
+    </div>
+    <div>
+      <div class="lbl r">Right · GLIDE's trigger</div>
+      <p><strong>Yours to assign.</strong> While you play it fires the trigger macro — muffle by default, and settings will swap it for brighten, a pitch dive, or drive grit, as a momentary press or a latch. It never restarts anything.</p>
+    </div>
+  </div>
+
+  <div class="sechead" style="margin-top:19px">If the power looks wrong</div>
+
+  <div class="tr">
+    <h4>I plugged it in and nothing happened.</h4>
+    <p>The side switch was off. Slide it to <strong>ON</strong> and plug in again — that's nearly always all it is.</p>
+  </div>
+  <div class="tr">
+    <h4>I want to get out of GLIDE and back to Launcher.</h4>
+    <p>Press the left trigger, <strong>BTN RST</strong>, then tap any key as the device comes back up. Holding <kbd>`</kbd> inside GLIDE only restarts GLIDE — you'll land back at its splash.</p>
+  </div>
+  <div class="tr">
+    <h4>The screen went dark on its own.</h4>
+    <p>That's the idle dimming, and then the screensaver. Any key wakes it <em>and</em> plays the note, so the first touch back is never wasted. Settings → <em>Screen idle</em> turns it off if you'd rather.</p>
+  </div>
+
+  <div class="call info" style="margin-top:14px">
+    <h4>Watching the battery</h4>
+    <p>Below 20% the perform screen says so, and at 10% it blinks red — a pocket instrument should never die mid-jam without warning. Settings always shows the exact percentage if you want to check before heading out.</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 2 of 5</span></div>
+</section>
+
+<!-- ============================ PAGE 3 ============================ -->
 <section class="page">
   <div class="runhead"><span>Updating GLIDE</span><span class="lit">Part one · the card</span></div>
 
@@ -312,10 +419,10 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
     <p>The new build is on the card now, but the Cardputer is still running the old one. GLIDE is <em>installed</em> onto the device — that's why it starts the moment you power on, instead of making you go and find it every time. A newer file on the card doesn't replace a copy that's already installed, so part two clears the old one out and installs the new one. And the clearing out matters: Launcher <em>adds</em> an app rather than replacing it, so installing without deleting first leaves you with two GLIDE tiles. Two minutes, all on the device.</p>
   </div>
 
-  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 2 of 4</span></div>
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 3 of 5</span></div>
 </section>
 
-<!-- ============================ PAGE 3 ============================ -->
+<!-- ============================ PAGE 4 ============================ -->
 <section class="page">
   <div class="runhead"><span>Updating GLIDE</span><span class="lit">Part two · the device</span></div>
 
@@ -331,7 +438,7 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
     <div class="num">06</div>
     <div class="body">
       <h3>Power on — and press any key immediately.</h3>
-      <p>You have a couple of seconds. Press a key <em>before</em> the GLIDE splash appears and you'll stay in Launcher, which is the menu you need. If the synth starts up instead, you were too slow: hold the <kbd>`</kbd> backtick key for about a second to exit back, or power off and try again, tapping a key as it comes up.</p>
+      <p>You have a couple of seconds. Press a key <em>before</em> the GLIDE splash appears and you'll stay in Launcher, which is the menu you need. If the synth starts up instead, you were too slow — press the <strong>left trigger on the top edge, marked BTN RST</strong>, which restarts the device, and tap a key as it comes back up. (Holding <kbd>`</kbd> inside GLIDE will not get you here: it restarts GLIDE, and you land right back at the splash.)</p>
       <div class="lsc">
         <div class="lbar"><span>Launcher 2.7.2</span><span>32%<span class="batt"><i></i></span></span></div>
         <div class="grid"><div class="tile sel">SD</div><div class="tile">OTA</div><div class="tile">WUI</div><div class="tile">USB</div><div class="tile">PMan</div><div class="tile">CFG</div><div class="tile app">GLIDE</div></div>
@@ -376,10 +483,10 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
     </div>
   </div>
 
-  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 3 of 4</span></div>
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 4 of 5</span></div>
 </section>
 
-<!-- ============================ PAGE 4 ============================ -->
+<!-- ============================ PAGE 5 ============================ -->
 <section class="page">
   <div class="runhead"><span>Updating GLIDE</span><span class="lit">Finishing · and if it goes sideways</span></div>
 
@@ -409,7 +516,7 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
 
   <div class="tr">
     <h4>GLIDE starts before I can press a key.</h4>
-    <p>Power off, then tap a key repeatedly as it comes up. Or let GLIDE start and hold <kbd>`</kbd> for a second.</p>
+    <p>Press the left trigger on the top edge, marked <strong>BTN RST</strong> — it restarts the device — then tap a key as it comes up. Don't reach for <kbd>`</kbd> inside GLIDE: that restarts GLIDE and drops you back at its splash, not in Launcher.</p>
   </div>
   <div class="tr">
     <h4>I don't see GLIDE in the card's apps folder on the device.</h4>
@@ -421,7 +528,7 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
   </div>
   <div class="tr">
     <h4>I deleted GLIDE and now there's nothing to play.</h4>
-    <p>Nothing is lost — the program is on your card, your sounds are in the device. Go to step 09. If the card is the problem, re-download from page 2.</p>
+    <p>Nothing is lost — the program is on your card, your sounds are in the device. Go to step 09. If the card is the problem, re-download from page 3.</p>
   </div>
   <div class="tr">
     <h4>The computer doesn't see the card at all.</h4>
@@ -439,9 +546,10 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
   <div class="closing">
     <div class="words">
       <h3>Updates are free, and they always will be.</h3>
-      <p>Every build is free, and your sounds carry across all of them. The manual, the release notes and the source all live here — and if you're stuck, message me. I wrote it.</p>
-      <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV</p>
+      <p>Every build is free, and your sounds carry across all of them. The manual, the release notes and the source live in the repo. The Discord is where people post the sounds their device rolled — and where to find me if you're stuck. I wrote this; I'll answer.</p>
+      <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV<br>discord.gg/uRcuJGCeHG</p>
     </div>
+    <div class="qrpair">
     <div>
       <!-- QR = https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
            (segno, error level M, version 4; regenerate the same way if the
@@ -449,9 +557,17 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
       <div class="qrtile"><svg viewBox="0 0 33 33" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m3 0h1m1 0h1m1 0h1m3 0h1m3 0h2m2 0h7m-33 1h1m5 0h1m2 0h1m1 0h1m3 0h3m3 0h1m1 0h2m1 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m3 0h1m1 0h1m1 0h1m2 0h2m4 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m2 0h2m2 0h1m3 0h1m4 0h3m1 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m5 0h1m3 0h1m1 0h3m1 0h2m2 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m1 0h7m4 0h2m5 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h1m1 0h1m2 0h7m-24 1h1m2 0h1m1 0h2m1 0h5m1 0h4m3 0h3m1 0h1m1 0h1m-28 1h1m1 0h4m1 0h4m1 0h1m2 0h2m1 0h4m2 0h4m-26 1h1m3 0h2m2 0h3m3 0h2m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m1 0h1m-31 1h1m6 0h1m2 0h1m1 0h1m1 0h2m2 0h2m4 0h1m1 0h2m2 0h1m-33 1h2m3 0h3m13 0h1m1 0h1m1 0h2m2 0h1m1 0h1m-28 1h2m2 0h3m1 0h1m2 0h3m2 0h1m1 0h1m1 0h1m2 0h3m1 0h2m-32 1h1m2 0h3m1 0h1m4 0h1m4 0h1m2 0h1m1 0h4m1 0h1m2 0h1m-27 1h1m1 0h2m2 0h1m3 0h1m1 0h1m1 0h3m1 0h2m1 0h3m2 0h1m-32 1h1m1 0h6m1 0h2m1 0h3m4 0h4m1 0h1m1 0h1m1 0h2m1 0h1m-30 1h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h1m-30 1h1m1 0h1m1 0h5m1 0h1m5 0h1m5 0h1m1 0h1m3 0h1m1 0h1m-30 1h1m1 0h1m2 0h1m3 0h3m2 0h5m1 0h5m3 0h1m-30 1h3m1 0h1m1 0h1m6 0h5m1 0h1m1 0h3m5 0h1m-31 1h2m2 0h1m1 0h3m4 0h3m1 0h5m1 0h3m2 0h4m-33 1h2m1 0h2m1 0h1m2 0h2m2 0h3m3 0h1m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m-32 1h1m1 0h3m2 0h1m1 0h3m1 0h1m1 0h1m2 0h5m5 0h1m1 0h2m-33 1h1m2 0h1m2 0h1m4 0h1m3 0h4m1 0h2m2 0h5m2 0h2m-25 1h3m3 0h1m1 0h1m1 0h2m1 0h2m1 0h1m3 0h2m-30 1h7m5 0h3m1 0h1m3 0h3m1 0h1m1 0h1m1 0h4m-32 1h1m5 0h1m1 0h2m4 0h2m3 0h3m2 0h1m3 0h1m2 0h1m-32 1h1m1 0h3m1 0h1m6 0h4m3 0h2m2 0h6m2 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m5 0h2m3 0h1m3 0h1m2 0h1m1 0h3m-31 1h1m1 0h3m1 0h1m2 0h3m2 0h1m2 0h2m2 0h1m6 0h1m3 0h1m-33 1h1m5 0h1m3 0h1m3 0h5m1 0h2m2 0h1m-25 1h7m1 0h1m1 0h3m1 0h1m2 0h1m1 0h1m1 0h1m2 0h2m2 0h1m2 0h1"/></svg></div>
       <div class="qrcap">scan · the repo</div>
     </div>
+    <div>
+      <!-- QR = https://discord.gg/uRcuJGCeHG (permanent invite)
+           (segno, error level M, version 3; regenerate the same way if the
+           URL ever changes) -->
+      <div class="qrtile"><svg viewBox="0 0 29 29" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m1 0h1m1 0h7m-29 1h1m5 0h1m2 0h1m1 0h4m2 0h2m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h1m1 0h2m3 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m3 0h1m1 0h2m3 0h1m2 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h4m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m1 0h2m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-13 1h1m1 0h1m-18 1h7m2 0h3m1 0h3m2 0h1m3 0h2m3 0h1m-28 1h1m1 0h1m1 0h1m2 0h3m2 0h1m1 0h1m2 0h3m1 0h4m2 0h1m-27 1h1m3 0h1m1 0h1m2 0h1m2 0h1m1 0h3m1 0h4m1 0h2m-24 1h1m1 0h1m4 0h1m2 0h2m1 0h1m2 0h1m1 0h2m1 0h1m2 0h1m-27 1h3m1 0h2m2 0h1m1 0h1m2 0h2m1 0h1m3 0h1m1 0h1m2 0h3m-29 1h2m2 0h1m2 0h2m1 0h2m1 0h1m2 0h1m1 0h5m1 0h2m1 0h2m-29 1h4m1 0h4m5 0h2m1 0h1m5 0h1m-24 1h2m3 0h1m2 0h4m2 0h1m5 0h1m3 0h2m2 0h1m-24 1h3m1 0h1m3 0h4m1 0h1m6 0h2m-27 1h2m1 0h3m3 0h3m1 0h1m1 0h1m1 0h2m1 0h2m1 0h6m-29 1h1m2 0h5m3 0h1m2 0h4m2 0h1m1 0h1m2 0h2m-27 1h1m3 0h2m2 0h3m2 0h3m3 0h2m1 0h1m1 0h2m-26 1h1m1 0h2m1 0h2m1 0h1m2 0h2m2 0h1m1 0h1m2 0h7m1 0h1m-21 1h2m3 0h1m6 0h1m3 0h2m1 0h2m-29 1h7m1 0h3m2 0h1m1 0h1m2 0h3m1 0h1m1 0h1m-25 1h1m5 0h1m1 0h1m1 0h4m1 0h2m1 0h3m3 0h2m1 0h2m-29 1h1m1 0h3m1 0h1m1 0h1m1 0h4m1 0h1m2 0h1m1 0h7m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h3m1 0h4m1 0h1m1 0h1m-26 1h1m1 0h3m1 0h1m1 0h1m2 0h1m5 0h9m1 0h1m-28 1h1m5 0h1m1 0h3m2 0h1m2 0h1m1 0h1m2 0h2m1 0h2m1 0h1m-28 1h7m3 0h1m2 0h1m3 0h1m1 0h1m1 0h2m1 0h2"/></svg></div>
+      <div class="qrcap">scan · the discord</div>
+    </div>
+    </div>
   </div>
 
-  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 4 of 4</span></div>
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 5 of 5</span></div>
 </section>
 
 </body>
