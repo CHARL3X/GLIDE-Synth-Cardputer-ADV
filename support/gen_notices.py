@@ -256,7 +256,10 @@ def unlisted_libraries():
         for name in entries:
             if not os.path.isdir(os.path.join(d, name)):
                 continue
-            if name in known or name in NOT_LINKED or name.startswith("."):
+            # PlatformIO can duplicate a library as "Name@x.y.z" while
+            # resolving version pins — same library, same attribution.
+            base = name.split("@", 1)[0]
+            if base in known or base in NOT_LINKED or name.startswith("."):
                 continue
             found.add(name)
     return sorted(found)
