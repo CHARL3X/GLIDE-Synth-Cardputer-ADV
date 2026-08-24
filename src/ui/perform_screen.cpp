@@ -220,8 +220,8 @@ void drawStatus(M5Canvas& c) {
     c.drawString(buf, 5, 2);  // faux bold
 
     c.setTextColor(theme::kIdle, theme::kPanel);
-    snprintf(buf, sizeof buf, "%s %s%s", dsp::kNoteNames[cf.layout.rootSemis],
-             dsp::kScales[cf.layout.scaleIdx].shortName, cf.layout.scaleLock ? "" : "*");
+    snprintf(buf, sizeof buf, "%s %s", dsp::kNoteNames[cf.layout.rootSemis],
+             dsp::kScales[cf.layout.scaleIdx].shortName);
     c.drawString(buf, 56, 2);
 
     snprintf(buf, sizeof buf, "OCT%d", cf.layout.octave);

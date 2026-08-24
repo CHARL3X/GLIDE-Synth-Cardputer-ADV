@@ -85,8 +85,7 @@
   <rect class="n" x="850" y="144" width="64" height="52" rx="8"/><text class="nc" x="882" y="177">l</text>
   <rect class="n" x="920" y="144" width="64" height="52" rx="8"/><text class="nc" x="952" y="177">;</text>
   <rect class="k" x="990" y="144" width="64" height="52" rx="8"/>
-  <text class="cc" x="1022" y="168">'</text>
-  <text class="rl" x="1022" y="185" style="font-size:9.5px">scale lock</text>
+  <text class="cc" x="1022" y="176">'</text>
   <rect class="k" x="1060" y="144" width="64" height="52" rx="8"/>
   <text class="cc" x="1092" y="168">enter</text>
   <text class="rl" x="1092" y="185">tilt</text>
