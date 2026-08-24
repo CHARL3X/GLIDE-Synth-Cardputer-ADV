@@ -1752,7 +1752,10 @@ void run() {
             briSet = cfg::kBrightNormal;
             demo::stop();  // same yield as settings
             listen_screen::run(canvas);
-            keys::resync();
+            // No keys::resync() here: LISTEN owns that now. Its result card
+            // is played over, so it resyncs BEFORE the card starts polling —
+            // a second one on the way back would clearLeadNotes() and cut a
+            // note still held as the card closed.
             gPrevValid = false;
             gTrailInit = false;
             gTapeInit = false;

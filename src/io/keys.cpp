@@ -827,6 +827,16 @@ void resync() {
     gLastActivityMs = millis();  // interacting with a modal is activity — return awake
 }
 
+void consumeDismissHold() {
+    // The same two flags resync() sets, and only those: the ` hold (exit) and
+    // the enter hold (tilt latch), whose cleared state also suppresses the
+    // route-cycle enter fires on release. Notes, edge mask and the backing
+    // clocks are deliberately left ALONE — that is the whole point of having
+    // this instead of resync().
+    gExitFired = true;
+    gTiltLatchFired = true;
+}
+
 void tickBacking(uint32_t nowMs) {
     jamTick(nowMs);  // keep the living backing advancing while settings owns the loop
 }

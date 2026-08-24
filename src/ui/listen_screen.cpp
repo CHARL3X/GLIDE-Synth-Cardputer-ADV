@@ -6,9 +6,12 @@
 #include "../dsp/beat_detect.h"
 #include "../dsp/key_detect.h"
 #include "../dsp/scales.h"
+#include "../io/keys.h"
 #include "../io/listen.h"
+#include "../io/looper.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
+#include "morph.h"
 #include "theme.h"
 
 namespace listen_screen {
@@ -54,6 +57,17 @@ constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
 // but an unasked-for wrong tempo is a betrayal; an unchanged one is honest).
 constexpr float kTempoApplyConfidence = 0.35f;
 
+// How long the verdict card holds. It used to be 2 s and the keyboard was
+// dead behind it, which made the card a wall: too short to read the landing
+// or notice the "space: alt" hint, yet long enough to block the one thing a
+// player wants the instant a key is named — to play in it. The card is now
+// played over (keys::poll runs inside its loop), so length costs nothing:
+// ` / enter still dismisses instantly, and the notes keep sounding either
+// way. Every space press re-arms the FULL window, not a shorter one — each
+// alternate is a fresh thing to judge, and a partial re-arm would SHORTEN
+// the card when pressed early.
+constexpr uint32_t kCardMs = 6000;
+
 // Direct positional read, splash-style: the modal owns the loop, so
 // keys::poll isn't draining the FIFO for us.
 bool backtickHeld() {
@@ -64,12 +78,14 @@ bool backtickHeld() {
     return false;
 }
 
-// The verdict card's keys, same direct positional read: bit 0 = dismiss
-// (` or enter), bit 1 = space (cycle the second guesses — the sd_browser
-// convention: space is the "try it" key).
-uint32_t cardKeysHeld() {
-    M5Cardputer.update();
-    for (int i = 0; i < 4; ++i) M5Cardputer.Keyboard.updateKeyList();
+// The verdict card's own keys: bit 0 = dismiss (` or enter), bit 1 = space
+// (cycle the second guesses — the sd_browser convention: space is the "try
+// it" key). Unlike backtickHeld() this deliberately does NOT call update() /
+// updateKeyList(): the card is played over, so keys::poll() owns the loop
+// there and must be the ONLY thing draining the TCA8418 FIFO. A second
+// drain here would swallow the very press events that make the notes. The
+// list poll() just refreshed is read as-is.
+uint32_t cardKeysDown() {
     uint32_t m = 0;
     for (const auto& p : M5Cardputer.Keyboard.keyList()) {
         const int code = p.y * 14 + p.x;
@@ -314,9 +330,11 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
     }
 }
 
-}  // namespace
-
-void run(M5Canvas& canvas) {
+// The modal proper. Returns true if it has ALREADY rebuilt the keyboard's
+// edge state — only the result-card path has, because that path hands the
+// keyboard to keys::poll() and must resync BEFORE doing so. Every other path
+// returns false and lets run() resync on the way out.
+bool runModal(M5Canvas& canvas) {
     // The onset envelope (~4 KB) is heap-allocated for the modal's life ONLY.
     // The frame-buffer sprite sits within ~1 KB of the RAM ceiling, so a
     // static here breaks boot ("UI ALLOC FAILED" — measured the hard way on
@@ -364,20 +382,20 @@ void run(M5Canvas& canvas) {
             fatalResume();
         case listen::Result::AllocFailed:
             hud::showError("LISTEN", "no memory");
-            return;
+            return false;
         case listen::Result::NoMic:
             hud::showError("LISTEN", "mic unavailable");
-            return;
+            return false;
         case listen::Result::Cancelled:
             hud::show("LISTEN", "cancelled", -1.f);
-            return;
+            return false;
         case listen::Result::Ok:
             break;
     }
 
     if (!ctx.guess.valid) {
         hud::showError("LISTEN", "no signal");
-        return;
+        return false;
     }
 
     auto& g = store::get();
@@ -425,18 +443,56 @@ void run(M5Canvas& canvas) {
         tempo.valid ? "ok" : "none", tempo.bpm, tempo.confidence,
         appliedBpm ? " (applied)" : "");
 
-    // Result card: ~2 s, backtick/enter dismisses, space cycles the second
+    // The keyboard belongs to keys::poll() from here on, so the modal's stale
+    // edge state is rebuilt NOW rather than on the way out (perform_screen no
+    // longer resyncs after this screen — see run()). Order is load-bearing
+    // twice over: poll() needs a truthful gPrevMask or the keys still held
+    // from the fn+k gesture read as fresh presses, and a resync AFTER the
+    // card would clearLeadNotes() and chop a note still under the player's
+    // fingers as the card times out.
+    keys::resync();
+
+    // Result card: kCardMs, backtick/enter dismisses, space cycles the second
     // guesses (each press applies that landing live and re-arms the timer,
-    // so a near-miss verdict is fixed in one tap instead of a re-listen).
+    // so a near-miss verdict is fixed in one tap instead of a re-listen) —
+    // and the instrument PLAYS underneath it, which is the whole point of the
+    // card: hearing the key it just named is how you know it got it right.
     drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx, nAlts,
                appliedBpm);
-    uint32_t until = millis() + 2000;
-    uint32_t keysPrev = cardKeysHeld();
+    uint32_t until = millis() + kCardMs;
+    uint32_t keysPrev = cardKeysDown();
     while ((int32_t)(until - millis()) > 0) {
-        const uint32_t held = cardKeysHeld();
+        const uint32_t now = millis();
+        // poll() plays the grid, advances the living backing, and drains the
+        // keyboard FIFO; looper::tick keeps a recorded take playing, the same
+        // courtesy settings / sd_browser / help extend to a running loop.
+        // Notes deliberately neither dismiss the card nor extend it: it is a
+        // fixed window you play straight through.
+        const keys::Actions act = keys::poll(now);
+        looper::tick(now);
+        // The card is a surface for NOTES, not a whole perform frame — tilt,
+        // the G0 trigger macro and the param push stay perform's business.
+        // morph is the exception, because it is STATE that goes stale: a
+        // sound grabbed under the card kicks the blend to 1 (fully the old
+        // sound) and only tick() walks it home. Left unticked for kCardMs,
+        // the card would close and audibly jump back to the previous sound
+        // before gliding in. Ticking it costs one line and no glitch.
+        morph::tick(now);
+        // Tab can't reach settings from here (poll consumed the flag and the
+        // perform loop will never see it), so rather than eat the key, let it
+        // close the card — a second tab then opens settings as it always has.
+        if (act.openSettings) break;
+        const uint32_t held = cardKeysDown();
         const uint32_t pressed = held & ~keysPrev;
         keysPrev = held;
-        if (pressed & 1u) break;  // ` / enter: keep what's applied
+        if (pressed & 1u) {  // ` / enter: keep what's applied
+            // This press was spent on the card. Neuter its hold gesture so
+            // the same finger can't also exit the app (`) or cycle the tilt
+            // route (enter) the instant the perform screen is back — resync()
+            // used to cover that, and can't here (it would cut a held note).
+            keys::consumeDismissHold();
+            break;
+        }
         if ((pressed & 2u) && nAlts > 1) {
             altIdx = (altIdx + 1) % nAlts;
             sel = alts[altIdx];
@@ -448,7 +504,7 @@ void run(M5Canvas& canvas) {
                           dsp::kScales[sel.scaleIdx].shortName);
             drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx,
                        nAlts, appliedBpm);
-            until = millis() + 2600;
+            until = millis() + kCardMs;  // a full window to judge this one
         }
         delay(16);
     }
@@ -460,6 +516,19 @@ void run(M5Canvas& canvas) {
     } else {
         hud::show("KEY", dsp::kNoteNames[sel.rootPc], -1.f);
     }
+    return true;  // the card path already resynced, before it started polling
+}
+
+}  // namespace
+
+void run(M5Canvas& canvas) {
+    // Every path out of this modal needs the keyboard's edge state rebuilt,
+    // but WHERE differs: the result card plays notes, so it resyncs before it
+    // starts polling and says so. Resyncing again here would clearLeadNotes()
+    // and cut a note the player is still holding as the card closes. Paths
+    // that never reached the card (cancelled, no mic, no signal) report false
+    // and are resynced on the way out, exactly as before.
+    if (!runModal(canvas)) keys::resync();
 }
 
 }  // namespace listen_screen
