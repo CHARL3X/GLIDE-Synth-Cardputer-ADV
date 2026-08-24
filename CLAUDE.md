@@ -172,8 +172,8 @@ reboot. Widening those keys needs a unit migration; it is sub-audible.)
 SD library (`io/sd_store.{h,cpp}` + `ui/sd_browser.{h,cpp}`): one `.gpat` file
 per patch, **the same tagged codec as NVS slots**, so cards and slots are
 byte-compatible. Optional + failure-visible: the instrument is fully playable
-with no card. **The SD/SPI pins in `config.h` are HARDWARE-UNVERIFIED** — confirm
-on a real ADV before trusting SD (Phase 0 spirit); nothing about playing the
+with no card. The SD/SPI pins in `config.h` are verified on real ADV hardware
+(the library saves and loads in regular use); nothing about playing the
 instrument depends on the card.
 
 `env:native` compiles `dsp/` only, so `sound_gen` IS host-tested but

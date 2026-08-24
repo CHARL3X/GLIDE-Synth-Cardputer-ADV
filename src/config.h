@@ -82,18 +82,17 @@ constexpr float kTiltSmooth = 0.15f; // per-frame smoothing toward raw reading
 // The SD card is where a player's generative collection grows past the ten
 // fast NVS slots: roll a sound you love, save it here, browse them all back.
 //
-// HARDWARE-UNVERIFIED (Phase 0 spirit): these are the standard M5Cardputer
-// SD/SPI pins. The Cardputer ADV's pinout may differ — CONFIRM against your
-// unit before trusting SD. If SD.begin() fails the instrument runs fully on
-// its built-in NVS slots and the library simply reports "no SD"; nothing about
-// playing the instrument depends on the card. Set kSdEnabled=false to compile
-// the SD path out entirely. If saves don't appear, the CS/clock pins are the
-// first suspects — fix them here.
+// VERIFIED on Cardputer ADV hardware (2026-08: the .gpat library saves and
+// loads both directions in regular use on a real unit — these pins are
+// correct). If SD.begin() fails the instrument runs fully on its built-in
+// NVS slots and the library simply reports "no SD"; nothing about playing
+// the instrument depends on the card. Set kSdEnabled=false to compile the
+// SD path out entirely.
 constexpr bool     kSdEnabled = true;
-constexpr int      kSdSckPin  = 40;   // SPI clock   — VERIFY on ADV
-constexpr int      kSdMisoPin = 39;   // SPI MISO    — VERIFY on ADV
-constexpr int      kSdMosiPin = 14;   // SPI MOSI    — VERIFY on ADV
-constexpr int      kSdCsPin   = 12;   // SD chip-sel — VERIFY on ADV
+constexpr int      kSdSckPin  = 40;   // SPI clock
+constexpr int      kSdMisoPin = 39;   // SPI MISO
+constexpr int      kSdMosiPin = 14;   // SPI MOSI
+constexpr int      kSdCsPin   = 12;   // SD chip-sel
 constexpr uint32_t kSdFreqHz  = 25000000;
 constexpr const char* kSdDir  = "/glide";        // patch-library folder on the card
 constexpr const char* kSdExt  = ".gpat";         // one patch per file (tagged codec)
