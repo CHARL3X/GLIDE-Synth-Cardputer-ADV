@@ -18,9 +18,10 @@ DemoNote DemoMelody::next(int scaleLen) {
     const int hi = 3 * scaleLen;  // room for the lifted (B) phrase
 
     if (nOn == 0) {
-        // roll THE hook, once per run: 3..5 onsets, on the beat-ish, nothing
-        // faster than 8ths, with a rising contour from the mid root
-        static const uint8_t kGaps[6] = {2, 2, 3, 4, 4, 6};
+        // roll a hook: 3..5 onsets, on the beat-ish, nothing faster than
+        // 8ths, with a rising contour from the mid root. Re-rolled every
+        // section (see the turnaround) so the solo keeps developing.
+        static const uint8_t kGaps[6] = {2, 2, 2, 3, 4, 4};
         uint8_t pos = 0;
         nOn = 0;
         while (nOn < 5) {
@@ -39,24 +40,47 @@ DemoNote DemoMelody::next(int scaleLen) {
     const int lift = (phrase % 4 == 2) ? scaleLen : 0;
 
     DemoNote n;
-    if (bar == 2) {  // resolution: approach, slide down onto the root, breathe
+    if (bar == 3) {  // turnaround: one short breath, then a swept pickup run —
+                     // the trail never goes dark for more than a beat
+        if (idx == 0) {
+            n.type = DemoNote::Rest;
+            n.degree = scaleLen + lift;
+            n.steps16 = 4;
+            ++idx;
+            return n;
+        }
+        const int k = idx - 1;  // 0..5: six 8th-notes = the rest of the bar
+        // odd phrases dive an octave from the high root; even phrases climb
+        // from the low root back up to the hook's doorstep
+        int deg = (phrase & 1) ? 2 * scaleLen - 2 * k : scaleLen - 5 + k;
+        if (deg < 0) deg = 0;
+        if (deg > hi) deg = hi;
+        n.degree = deg;
+        n.steps16 = 2;
+        // one attack, then the run is a single swept glissando — the trail
+        // draws it as a curve, which is the whole point of the instrument
+        n.type = (k == 0) ? DemoNote::Attack : DemoNote::Slide;
+        if (++idx >= 7) {  // breath + 6 run notes: the bar is spent
+            idx = 0;
+            bar = 0;
+            ++phrase;
+            if (phrase % 4 == 0) nOn = 0;  // new section: re-roll the hook
+        }
+        return n;
+    }
+
+    if (bar == 2) {  // resolution: approach, slide down onto the root, ring
         if (idx == 0) {
             n.type = DemoNote::Attack;
             n.degree = scaleLen + lift + 1;
             n.steps16 = 4;
             ++idx;
-        } else if (idx == 1) {
+        } else {
             n.type = DemoNote::Slide;  // the money slide: down onto the root
             n.degree = scaleLen + lift;
             n.steps16 = 12;            // ring out the rest of the bar
-            ++idx;
-        } else {
-            n.type = DemoNote::Rest;   // the fourth bar is air — the bed shows
-            n.degree = scaleLen + lift;
-            n.steps16 = 16;
-            bar = 0;                   // next call starts the next phrase
             idx = 0;
-            ++phrase;
+            bar = 3;                   // next call plays the turnaround
         }
         return n;
     }

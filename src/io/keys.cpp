@@ -15,6 +15,7 @@
 #include "../ui/morph.h"
 #include "../ui/sound_card.h"
 #include "audio_engine.h"
+#include "demo.h"
 #include "looper.h"
 
 namespace keys {
@@ -433,6 +434,9 @@ void clearLeadNotes() {
 }
 
 void panic() {
+    demo::stop();    // panic means EVERYTHING stops — clearing the bed alone
+                     // left the demo melody soloing over silence until a grid
+                     // key delivered the takeover nobody was asking for
     looper::stop();  // silence the loop layer too — the take survives
     clearProg();     // the auto-progression clears with panic, like the drones
     clearAllNotes();

@@ -1365,41 +1365,66 @@ int main() {
         int slides = 0, attacks = 0, rests = 0;
         uint32_t pos16 = 0;  // cumulative 16ths — phrases must land on bars
         bool inRange = true, sameSeq = true, barAligned = true, resolves = true;
-        bool hookHolds = true;
+        bool restsShort = true;  // the turnaround breathes for ONE beat, never
+                                 // a whole bar — the screen must stay alive
+        bool runsFollow = true;  // ...and every breath is chased by the pickup run
+        bool hookHolds = true;   // within a section every phrase repeats the hook
+        bool evolves = false;    // across sections the hook re-rolls — the solo
+                                 // keeps developing instead of looping forever
         int lastDeg = -1;
         uint8_t lastDur = 0;
-        uint8_t hook[64];  // first phrase's duration sequence — THE hook
-        int hookLen = 0, curLen = 0;
-        uint8_t curSeq[64];
-        for (int i = 0; i < 400; ++i) {
+        bool prevWasRest = false;
+        // bar-0 duration rhythm per phrase (a phrase = 4 bars = 64 sixteenths):
+        // compare phrases inside one 4-phrase section, and sections to each other
+        uint8_t secHook[8];
+        int secHookLen = -1;
+        uint8_t curHook[8];
+        int curHookLen = 0;
+        uint32_t curPh = 0;
+        auto closePhrase = [&](uint32_t ph) {
+            if (ph % 4 == 0) {  // a section-opening phrase defines the hook
+                if (secHookLen >= 0) {
+                    bool same = curHookLen == secHookLen;
+                    for (int k = 0; same && k < curHookLen; ++k) same = curHook[k] == secHook[k];
+                    if (!same) evolves = true;
+                }
+                secHookLen = curHookLen;
+                for (int k = 0; k < curHookLen; ++k) secHook[k] = curHook[k];
+            } else if (secHookLen >= 0) {
+                hookHolds = hookHolds && curHookLen == secHookLen;
+                for (int k = 0; k < curHookLen && k < secHookLen; ++k)
+                    hookHolds = hookHolds && curHook[k] == secHook[k];
+            }
+            curHookLen = 0;
+        };
+        for (int i = 0; i < 600; ++i) {
             const DemoNote a = m1.next(5);  // pentatonic-sized scale
             const DemoNote b = m2.next(5);
             sameSeq = sameSeq && a.type == b.type && a.degree == b.degree &&
                       a.steps16 == b.steps16;
             inRange = inRange && a.degree >= 0 && a.degree <= 15;
-            if (curLen < 64) curSeq[curLen++] = a.steps16;
+            const uint32_t ph = pos16 / 64;
+            if (ph != curPh) {
+                closePhrase(curPh);
+                curPh = ph;
+            }
+            if ((pos16 / 16) % 4 == 0 && curHookLen < 8)  // event starts in bar 0
+                curHook[curHookLen++] = a.steps16;
             if (a.type == DemoNote::Rest) {
                 ++rests;
-                // the rest bar closes a phrase: it must start ON a barline and
-                // follow the long root note (the resolution; B phrases resolve
-                // to the lifted root an octave up)
+                // the breath opens the turnaround bar: it must start ON a
+                // barline, follow the long root note (the resolution; B phrases
+                // resolve to the lifted root an octave up), and stay short
                 barAligned = barAligned && (pos16 % 16) == 0;
                 resolves = resolves && (lastDeg == 5 || lastDeg == 10) && lastDur == 12;
-                // the RHYTHM of every phrase is the same hook — that's music
-                if (hookLen == 0) {
-                    hookLen = curLen;
-                    for (int k = 0; k < curLen; ++k) hook[k] = curSeq[k];
-                } else {
-                    hookHolds = hookHolds && curLen == hookLen;
-                    for (int k = 0; k < curLen && k < hookLen; ++k)
-                        hookHolds = hookHolds && curSeq[k] == hook[k];
-                }
-                curLen = 0;
-            } else if (a.type == DemoNote::Slide) {
-                ++slides;
+                restsShort = restsShort && a.steps16 <= 4;
             } else {
-                ++attacks;
+                if (prevWasRest)  // the pickup run strikes right after the breath
+                    runsFollow = runsFollow && a.type == DemoNote::Attack && a.steps16 == 2;
+                if (a.type == DemoNote::Slide) ++slides;
+                else ++attacks;
             }
+            prevWasRest = a.type == DemoNote::Rest;
             lastDeg = a.degree;
             lastDur = a.steps16;
             pos16 += a.steps16;
@@ -1407,9 +1432,12 @@ int main() {
         CHECK(sameSeq, "demo melody is deterministic per seed");
         CHECK(inRange, "demo degrees stay inside three octaves");
         CHECK(barAligned, "every phrase lands exactly on a bar boundary");
-        CHECK(resolves, "every phrase resolves: a long root before the rest");
-        CHECK(hookHolds, "one hook per run: every phrase repeats its rhythm");
-        CHECK(rests >= 3, "phrases breathe (a rest bar per phrase)");
+        CHECK(resolves, "every phrase resolves: a long root before the breath");
+        CHECK(restsShort, "the breath is a beat, never a dark bar");
+        CHECK(runsFollow, "every breath is chased by the pickup run");
+        CHECK(hookHolds, "one hook per section: its phrases repeat the rhythm");
+        CHECK(evolves, "sections re-roll the hook: the solo develops");
+        CHECK(rests >= 3, "phrases breathe (a short rest per phrase)");
         CHECK(slides > 20 && attacks > 20, "slides carry the line; downbeats re-attack");
     }
 

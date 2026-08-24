@@ -58,6 +58,8 @@ bool pending() { return gPending; }
 
 void start(uint32_t nowMs) {
     gPending = false;
+    store::historyCheckpoint();  // the pre-demo live sound stays one Undo away
+    store::demoLoanBegin();      // and nothing the demo touches reaches flash
     auto& g = store::get();
     if (g.jamRows == 0) g.jamRows = 1;  // the demo needs the progression bed
     g.jamMotion = 3;                    // progression
@@ -83,14 +85,18 @@ void start(uint32_t nowMs) {
     gRinging = false;
     gSoloEntered = false;
     gSoloIdx = 0;
-    gNextEv = nowMs + 4 * beatMs();          // one bar for the bed to establish
-    gSwapAt = nowMs + (4 + 32) * beatMs();   // then a new solo voice per 8 bars
+    gNextEv = nowMs + beatMs() / 2;   // a half-beat pickup: the line starts NOW
+                                      // (the video's screen must never sit dark)
+    gSwapAt = nowMs + 16 * beatMs();  // first face change after one phrase,
+                                      // then a new solo voice per 8 bars
     gActive = true;
 }
 
 void stop() {
     if (!gActive) return;
     gActive = false;
+    store::demoLoanYield();  // still a loan: the player's next EDIT adopts it,
+                             // a power cycle returns the instrument untouched
     if (gRinging) audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, kMelodyId));
     gRinging = false;
     // the bed keeps looping — stopping the demo IS the takeover
