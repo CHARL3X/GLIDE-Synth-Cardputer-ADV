@@ -7,7 +7,7 @@ Everything the instrument does and how to play it. For install and the five-minu
 ```
  string 3 (hi) |  1  2  3  4  5  6  7  8  9  0  |  - oct-   = oct+   bksp PANIC
  string 2      |  q  w  e  r  t  y  u  i  o  p  |  [ bend-  ] bend+  \  tap tempo
- string 1      |  a  s  d  f  g  h  j  k  l  ;  |  ' scale lock      enter tilt
+ string 1      |  a  s  d  f  g  h  j  k  l  ;  |                   enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
  `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer   [see note below]
@@ -138,7 +138,7 @@ The loop pedal records a *performance*, which means your timing has to be right,
 
 - **Tap the chords in order on the jam row. That's it.** Each tap appends a step (repeats allowed: I-IV-V-IV is four taps). No metronome, no pocket to hit. The HUD confirms each one (`PROG  3: E`).
 - The beat clock walks the steps **one chord per bar**, looping, at the *Jam tempo*. *Chord length* sets the beats per chord. The backing glides from chord to chord (of course it does) and re-blooms each bar, so on a pad or strings patch it's a soft wash you solo straight over.
-- Each step is a **diatonic triad** built from the current scale: real major/minor/dim color, and always in key. The same "you can't hit a wrong note" guarantee the melody gets, now for the backing too. (Hold `shift`, or turn scale lock off, while tapping a step for a chromatic power-chord voicing instead.)
+- Each step is a **diatonic triad** built from the current scale: real major/minor/dim color, and always in key. The same "you can't hit a wrong note" guarantee the melody gets, now for the backing too. (Hold `shift` while tapping a step for a chromatic power-chord voicing instead.)
 - It's a protected backing layer like the drones and the loop: cap-exempt, steal-proof, ignores your bends and tilt vibrato, and **re-voices through whatever sound you switch to** mid-jam. Lay down Ethereal, solo on Solo.
 - The progression is on screen: a `PROG  A  D  E  ▸` strip across the top of the scope with the current chord boxed, and its root outlined on the grid-map so you can watch the changes walk.
 - **bksp (panic)** clears the progression to start over, the same gesture that clears the drones. Like them, it's performance state and never hits flash.
