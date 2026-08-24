@@ -59,16 +59,16 @@ GLIDE runs from the microSD card through **[bmorcelli's Launcher](https://github
 
 1. **Flash Launcher first** (one time only). Follow the [Launcher instructions](https://github.com/bmorcelli/Launcher); its web flasher is the easy way. If your Cardputer already runs Launcher, skip this step.
 2. **[Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin)** and copy it to the `/apps/` folder on the microSD card. That link always points at the newest build; the [Releases page](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases) has the version notes.
-3. **Boot → SD → `apps` → GLIDE → Install.** Launcher writes GLIDE into the device's own flash and starts it. From then on it lives on the device: power on and it's there. The card matters again only when you update — see below.
+3. **Boot → SD → GLIDE.**
 
 No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single note gliding up an octave, played through the synth itself), play.
 
 ### Updating
 
-Two ways. Either way, saved sounds, tweaks, and settings all survive — they live in flash outside the app, and nothing needs backing up.
+Two ways; copying the file is easier.
 
-- **From the card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin) and overwrite the old one in `/apps/` on the card — then, on the device, **delete the installed GLIDE and install the new one** (Launcher adds a second copy rather than replacing one, so the delete isn't optional): press a key at boot to stay in Launcher, select the GLIDE tile and delete it, then go `SD` → `apps` → `GLIDE` → Install. The copy you play runs from the device's flash, so a newer file on the card alone changes nothing until you reinstall it. The full walkthrough, with pictures, is in **[docs/updating.md](docs/updating.md)**.
-- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list. Launcher downloads and installs the same latest build, no card shuffling.
+- **Copy the new bin.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin) and overwrite the old one in `/apps/` on the card. That's the whole update. Saved sounds, tweaks, and settings all survive, since they live in flash outside the app.
+- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list. Launcher downloads and installs the same latest build.
 
 <details>
 <summary><strong>Alternative: direct USB flash</strong> (overwrites Launcher)</summary>
@@ -162,7 +162,7 @@ GLIDE is source-available under the **[PolyForm Noncommercial License 1.0.0](LIC
 
 The name, the logo, and the artwork in `assets/` are not part of that grant — give your fork its own name so players can tell the builds apart.
 
-Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. (Releases v2.5 and earlier remain under the GPL v3 they shipped with.) Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. (Releases v2.5 and earlier remain under the GPL v3 they shipped with.) Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and their licences travel with the firmware in [`dist/NOTICES.txt`](dist/NOTICES.txt) — pass that along with any copy of the binary you share.
 
 ---
 
