@@ -9,7 +9,7 @@ viz_render.exe
 dist/GLIDE-nvsfill.bin
 dist/GLIDE-probe.bin
 
-# Local commerce working copy — never committed (see docs/HANDOFF.md)
+# Local commerce working copy — never committed
 commerce/
 
 # owner-guide font cache (fetched by support/guides/build.py, never committed)
