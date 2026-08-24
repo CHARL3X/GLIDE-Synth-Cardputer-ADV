@@ -180,11 +180,18 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
 .tr p{ font-size:9.1pt; line-height:1.42; color:var(--ink-soft); }
 
 .closing{ margin-top:11px; background:var(--black); color:#CFCABF;
-  padding:12px 16px; }
+  padding:12px 16px; display:flex; gap:16px; align-items:center; }
+.closing .words{ flex:1; }
 .closing h3{ color:#fff; font-size:11.8pt; font-weight:700; margin-bottom:6px; }
 .closing p{ font-size:9.3pt; line-height:1.45; }
 .closing .lit{ color:var(--phosphor); font-family:'JBMono',monospace; font-size:9pt; }
 .closing a{ color:var(--amber-bright); text-decoration:none; }
+/* the QR is the repo URL below it, as a picture — white tile so scanners get
+   their dark-on-light modules and quiet zone even on this black band */
+.closing .qrtile{ flex:0 0 auto; background:#fff; padding:7px; }
+.closing .qrtile svg{ display:block; width:0.88in; height:0.88in; }
+.closing .qrcap{ font-family:'JBMono',monospace; font-size:6.4pt; color:#6A696A;
+  letter-spacing:.14em; text-transform:uppercase; text-align:center; margin-top:5px; }
 </style>
 </head>
 <body>
@@ -430,9 +437,18 @@ code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill)
   </div>
 
   <div class="closing">
-    <h3>Updates are free, and they always will be.</h3>
-    <p>Every build is free, and your sounds carry across all of them. The manual, the release notes and the source all live here — and if you're stuck, message me. I wrote it.</p>
-    <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV</p>
+    <div class="words">
+      <h3>Updates are free, and they always will be.</h3>
+      <p>Every build is free, and your sounds carry across all of them. The manual, the release notes and the source all live here — and if you're stuck, message me. I wrote it.</p>
+      <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV</p>
+    </div>
+    <div>
+      <!-- QR = https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
+           (segno, error level M, version 4; regenerate the same way if the
+           URL ever changes) -->
+      <div class="qrtile"><svg viewBox="0 0 33 33" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m3 0h1m1 0h1m1 0h1m3 0h1m3 0h2m2 0h7m-33 1h1m5 0h1m2 0h1m1 0h1m3 0h3m3 0h1m1 0h2m1 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m3 0h1m1 0h1m1 0h1m2 0h2m4 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m2 0h2m2 0h1m3 0h1m4 0h3m1 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m5 0h1m3 0h1m1 0h3m1 0h2m2 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m1 0h7m4 0h2m5 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h1m1 0h1m2 0h7m-24 1h1m2 0h1m1 0h2m1 0h5m1 0h4m3 0h3m1 0h1m1 0h1m-28 1h1m1 0h4m1 0h4m1 0h1m2 0h2m1 0h4m2 0h4m-26 1h1m3 0h2m2 0h3m3 0h2m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m1 0h1m-31 1h1m6 0h1m2 0h1m1 0h1m1 0h2m2 0h2m4 0h1m1 0h2m2 0h1m-33 1h2m3 0h3m13 0h1m1 0h1m1 0h2m2 0h1m1 0h1m-28 1h2m2 0h3m1 0h1m2 0h3m2 0h1m1 0h1m1 0h1m2 0h3m1 0h2m-32 1h1m2 0h3m1 0h1m4 0h1m4 0h1m2 0h1m1 0h4m1 0h1m2 0h1m-27 1h1m1 0h2m2 0h1m3 0h1m1 0h1m1 0h3m1 0h2m1 0h3m2 0h1m-32 1h1m1 0h6m1 0h2m1 0h3m4 0h4m1 0h1m1 0h1m1 0h2m1 0h1m-30 1h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h1m-30 1h1m1 0h1m1 0h5m1 0h1m5 0h1m5 0h1m1 0h1m3 0h1m1 0h1m-30 1h1m1 0h1m2 0h1m3 0h3m2 0h5m1 0h5m3 0h1m-30 1h3m1 0h1m1 0h1m6 0h5m1 0h1m1 0h3m5 0h1m-31 1h2m2 0h1m1 0h3m4 0h3m1 0h5m1 0h3m2 0h4m-33 1h2m1 0h2m1 0h1m2 0h2m2 0h3m3 0h1m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m-32 1h1m1 0h3m2 0h1m1 0h3m1 0h1m1 0h1m2 0h5m5 0h1m1 0h2m-33 1h1m2 0h1m2 0h1m4 0h1m3 0h4m1 0h2m2 0h5m2 0h2m-25 1h3m3 0h1m1 0h1m1 0h2m1 0h2m1 0h1m3 0h2m-30 1h7m5 0h3m1 0h1m3 0h3m1 0h1m1 0h1m1 0h4m-32 1h1m5 0h1m1 0h2m4 0h2m3 0h3m2 0h1m3 0h1m2 0h1m-32 1h1m1 0h3m1 0h1m6 0h4m3 0h2m2 0h6m2 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m5 0h2m3 0h1m3 0h1m2 0h1m1 0h3m-31 1h1m1 0h3m1 0h1m2 0h3m2 0h1m2 0h2m2 0h1m6 0h1m3 0h1m-33 1h1m5 0h1m3 0h1m3 0h5m1 0h2m2 0h1m-25 1h7m1 0h1m1 0h3m1 0h1m2 0h1m1 0h1m1 0h1m2 0h2m2 0h1m2 0h1"/></svg></div>
+      <div class="qrcap">scan · the repo</div>
+    </div>
   </div>
 
   <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 4 of 4</span></div>
