@@ -1,0 +1,481 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 -->
+<!-- Copyright (C) 2026 Charles Tobin (CHARL3X) -->
+<!-- Owner's Guide No. 02 - Playing GLIDE. Source for docs/guides/GLIDE-Playing.pdf;
+     render it with support/guides/build.py (see that file). LOGO_B64 and the
+     fonts/ paths are placeholders the build script fills in. The <style> block
+     is lifted verbatim from updating.html plus a No. 02 tail - the two sheets
+     go in the same box and must not drift. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Playing GLIDE</title>
+<style>
+@font-face { font-family:'Inter'; src:url('fonts/Inter-400.ttf'); font-weight:400; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-600.ttf'); font-weight:600; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-700.ttf'); font-weight:700; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-400.ttf'); font-weight:400; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-700.ttf'); font-weight:700; }
+
+:root{
+  --paper:#F6F2EA;      /* warm ground, a lighter drafting bg */
+  --panelfill:#E7E0D5;  /* drafting panel */
+  --rule:#C3BAAC;       /* drafting line */
+  --ink:#181818;        /* drafting primary */
+  --ink-soft:#5C584E;
+  --ink-faint:#8B897B;  /* drafting dim */
+  --amber:#C67A00;      /* the annunciator, darkened for paper */
+  --amber-bright:#FFAE00;
+  --phosphor:#00FF00;
+  --phosphor-dim:#007D00;
+  --steel:#4A6D8B;
+  --red:#B42010;
+  --black:#000000;
+  --screen:#0A0C0A;
+}
+
+@page { size: letter; margin: 0; }
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:var(--paper); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:10.4pt; line-height:1.5;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+.page{ width:8.5in; height:11in; padding:0.62in 0.72in 0.5in;
+  position:relative; page-break-after:always; overflow:hidden;
+  display:flex; flex-direction:column; }
+.page:last-child{ page-break-after:auto; }
+
+/* ---------- running furniture ---------- */
+.runhead{ display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'JBMono',monospace; font-size:7pt; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-faint);
+  border-bottom:1px solid var(--rule); padding-bottom:6px; margin-bottom:22px; }
+.runhead .lit{ color:var(--amber); }
+.foot{ margin-top:auto; padding-top:9px; border-top:1px solid var(--rule);
+  display:flex; justify-content:space-between;
+  font-family:'JBMono',monospace; font-size:7.3pt; letter-spacing:.1em;
+  color:#6E695D; text-transform:uppercase; }
+
+/* ---------- cover ---------- */
+.masthead{ background:var(--black); margin:-0.62in -0.72in 0 -0.72in;
+  padding:0.40in 0.72in 0.34in; position:relative; }
+.masthead::after{ content:''; position:absolute; left:0; right:0; bottom:0;
+  height:3px; background:linear-gradient(90deg,var(--amber-bright) 0%,var(--amber-bright) 22%,var(--phosphor-dim) 22%,var(--phosphor-dim) 30%,#000 30%); }
+.masthead img{ width:2.15in; display:block; }
+.masthead .kicker{ font-family:'JBMono',monospace; font-size:7.5pt;
+  letter-spacing:.34em; text-transform:uppercase; color:var(--phosphor);
+  margin-top:12px; }
+h1{ font-size:27pt; line-height:1.04; font-weight:700; letter-spacing:-.022em;
+  color:#FFFFFF; margin-top:8px; }
+.masthead .sub{ color:#B9B4A8; font-size:10.6pt; margin-top:9px; max-width:5.1in;
+  line-height:1.45; }
+
+.leadgrid{ display:flex; gap:0.34in; margin-top:15px; }
+.leadgrid > div{ flex:1; }
+.sechead{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:9px;
+  padding-bottom:5px; border-bottom:1px solid var(--rule); }
+ul.tick{ list-style:none; }
+ul.tick li{ position:relative; padding-left:15px; margin-bottom:5px; font-size:9.6pt;
+  color:var(--ink-soft); }
+ul.tick li::before{ content:''; position:absolute; left:0; top:.52em;
+  width:5px; height:5px; background:var(--amber); }
+ul.tick li b{ color:var(--ink); font-weight:600; }
+
+.assure{ margin-top:13px; background:var(--panelfill); border-left:3px solid var(--phosphor-dim);
+  padding:11px 15px; }
+.assure h3{ font-size:10.5pt; font-weight:700; margin-bottom:5px; }
+.assure p{ font-size:9.6pt; color:var(--ink-soft); }
+
+/* ---------- the power band (cover) ---------- */
+.powerband{ margin-top:13px; background:var(--black); color:#E9E4D8;
+  padding:11px 16px 12px; border-left:5px solid var(--red);
+  display:flex; gap:17px; align-items:flex-start; }
+.powerband .pbtag{ flex:0 0 0.9in; font-family:'JBMono',monospace; font-size:7pt;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--red);
+  padding-top:4px; line-height:1.35; }
+.powerband .pbbig{ font-size:13.4pt; font-weight:700; color:#FFFFFF; line-height:1.18; }
+.powerband .pbbig em{ font-style:normal; color:var(--amber-bright); }
+.powerband .pbsub{ font-size:9.2pt; color:#B4AFA3; margin-top:6px; line-height:1.45; }
+
+/* ---------- a menu path, when a real screenshot isn't at hand ---------- */
+.path{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:11px;
+  font-family:'JBMono',monospace; font-size:8.1pt; }
+.path span{ background:var(--panelfill); border:1px solid var(--rule);
+  padding:4px 8px; color:var(--ink-soft); }
+.path span + span::before{ content:'\2192'; color:var(--amber);
+  margin-right:8px; margin-left:-2px; }
+.path .end{ background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700; }
+
+/* ---------- the two triggers, side by side ---------- */
+.edgekey{ display:flex; gap:0.3in; margin-top:11px; }
+.edgekey > div{ flex:1; }
+.edgekey .lbl{ font-family:'JBMono',monospace; font-size:7.4pt; letter-spacing:.14em;
+  text-transform:uppercase; margin-bottom:4px; }
+.edgekey .lbl.l{ color:var(--red); }
+.edgekey .lbl.r{ color:var(--steel); }
+.edgekey p{ font-size:9.4pt; color:var(--ink-soft); line-height:1.44; }
+
+/* ---------- the map ---------- */
+.maphead{ margin-top:13px; }
+.map{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:10px; }
+.mapcell{ border:1px solid var(--rule); background:#FFFFFF88; padding:6px 9px; }
+.mapcell .n{ font-family:'JBMono',monospace; font-size:7.5pt; color:var(--amber);
+  font-weight:700; letter-spacing:.1em; }
+.mapcell .t{ font-size:9pt; line-height:1.32; margin-top:3px; }
+.mapcell.part2{ border-color:var(--steel); }
+.mapcell.part2 .n{ color:var(--steel); }
+
+/* ---------- steps ---------- */
+.partbar{ display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+.partbar .tag{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:#fff; background:var(--ink); padding:4px 9px; }
+.partbar h2{ font-size:16.5pt; font-weight:700; letter-spacing:-.015em; }
+.partbar .note{ margin-left:auto; font-family:'JBMono',monospace; font-size:7.5pt;
+  color:var(--ink-faint); letter-spacing:.08em; }
+
+.step{ display:flex; gap:16px; margin-bottom:17px; page-break-inside:avoid; }
+.step .num{ flex:0 0 30px; height:30px; border:1.6px solid var(--ink);
+  font-family:'JBMono',monospace; font-weight:700; font-size:12pt;
+  display:flex; align-items:center; justify-content:center; }
+.step .body{ flex:1; }
+.step h3{ font-size:11.4pt; font-weight:600; line-height:1.3; margin-bottom:3px; }
+.step p{ font-size:9.7pt; color:var(--ink-soft); }
+.step p + p{ margin-top:5px; }
+.step .why{ font-size:9pt; color:var(--ink-faint); font-style:italic; margin-top:4px; }
+kbd{ font-family:'JBMono',monospace; font-size:9.4pt; font-weight:700; background:var(--ink);
+  color:#fff; padding:1px 7px; border-radius:2px; }
+code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill);
+  padding:1px 5px; color:var(--ink); }
+.url{ font-family:'JBMono',monospace; font-size:8.5pt; color:var(--ink);
+  background:var(--panelfill); border-left:2px solid var(--amber);
+  padding:7px 10px; margin-top:7px; word-break:break-all; line-height:1.4; }
+
+/* ---------- device screen mockups ---------- */
+.screen{ background:var(--screen); border:1px solid #000; padding:9px 11px;
+  font-family:'JBMono',monospace; font-size:8pt; line-height:1.55; color:#EEE;
+  margin-top:9px; position:relative; }
+.screen .bar{ color:var(--amber-bright); border-bottom:1px solid #2A2A2A;
+  padding-bottom:4px; margin-bottom:5px; display:flex; justify-content:space-between;
+  font-size:7.4pt; letter-spacing:.08em; }
+.screen .row{ color:#8A8A8A; }
+.screen .row.sel{ color:var(--screen); background:var(--phosphor); font-weight:700;
+  padding:0 4px; margin:0 -4px; }
+.screen .row.act{ color:var(--phosphor); }
+.screen .cap{ color:#6A696A; font-size:7pt; margin-top:6px; letter-spacing:.06em; }
+.caption{ font-family:'JBMono',monospace; font-size:7pt; color:var(--ink-faint);
+  letter-spacing:.1em; text-transform:uppercase; margin-top:5px; }
+
+/* the real Launcher UI (drawn from Launcher 2.7.2) */
+.lsc{ background:#000000; border:1px solid #2A2A2A; padding:7px 9px 6px; max-width:4.15in;
+  font-family:'JBMono',monospace; color:#DDE4F2; margin-top:9px; }
+.lsc .lbar{ display:flex; justify-content:space-between; align-items:center;
+  font-size:6.6pt; color:#9AA3B8; letter-spacing:.02em; }
+.lsc .batt{ display:inline-block; width:13px; height:7px; border:1px solid #9AA3B8;
+  margin-left:4px; position:relative; vertical-align:-1px; }
+.lsc .batt i{ position:absolute; left:1px; top:1px; bottom:1px; width:32%;
+  background:#DDE4F2; }
+.lsc .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin:7px 0 6px; }
+.lsc .tile{ border:1.3px solid #DDE4F2; border-radius:5px; text-align:center;
+  padding:3.5px 0 4px; font-size:8.4pt; letter-spacing:.02em; }
+.lsc .tile.sel{ background:#EDF2FB; color:#000000; border-color:#FFFFFF; font-weight:700; }
+.lsc .tile.app{ border-color:#FF6A45; color:#FF6A45; grid-column:2; }
+.lsc .tile.app.sel{ background:#FF6A45; color:#000000; border-color:#FFD2C4; }
+.lsc .hint{ text-align:center; font-size:6.6pt; color:#9AA3B8; }
+
+/* GLIDE's own splash: white line-art on black, dim stamps */
+.gsplash{ background:#000; padding:6px 9px 4px; margin-top:9px; position:relative;
+  font-family:'JBMono',monospace; }
+.gsplash .ver{ position:absolute; top:5px; right:9px; font-size:6.6pt; color:#6A696A; }
+.gsplash img{ display:block; width:50%; margin:3px auto 3px; }
+.gsplash .credit{ text-align:center; font-size:6.2pt; color:#6A696A; }
+
+.twocol{ display:flex; gap:0.3in; }
+.twocol > *{ flex:1; }
+
+/* ---------- callouts ---------- */
+.call{ border:1px solid var(--rule); border-left:3px solid var(--amber);
+  background:#FFFFFF88; padding:10px 14px; margin:13px 0; }
+.call.warn{ border-left-color:var(--red); }
+.call.info{ border-left-color:var(--steel); }
+.call h4{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:5px; }
+.call.warn h4{ color:var(--red); }
+.call.info h4{ color:var(--steel); }
+.call p{ font-size:9.4pt; color:var(--ink-soft); }
+
+/* ---------- troubleshooting ---------- */
+.tr{ border-top:1px solid var(--rule); padding:2.8px 0; page-break-inside:avoid; }
+.tr h4{ font-size:9.8pt; font-weight:600; margin-bottom:2px; }
+.tr h4::before{ content:'▸ '; color:var(--amber); }
+.tr p{ font-size:9.1pt; line-height:1.42; color:var(--ink-soft); }
+
+.closing{ margin-top:11px; background:var(--black); color:#CFCABF;
+  padding:12px 16px; display:flex; gap:16px; align-items:center; }
+.closing .words{ flex:1; }
+.closing h3{ color:#fff; font-size:11.8pt; font-weight:700; margin-bottom:6px; }
+.closing p{ font-size:9.3pt; line-height:1.45; }
+.closing .lit{ color:var(--phosphor); font-family:'JBMono',monospace; font-size:9pt; }
+.closing a{ color:var(--amber-bright); text-decoration:none; }
+/* the QR is the repo URL below it, as a picture — white tile so scanners get
+   their dark-on-light modules and quiet zone even on this black band */
+.closing .qrtile{ flex:0 0 auto; background:#fff; padding:7px; }
+.closing .qrtile svg{ display:block; width:0.76in; height:0.76in; }
+.closing .qrpair{ flex:0 0 auto; display:flex; gap:11px; }
+.closing .qrcap{ font-family:'JBMono',monospace; font-size:6.4pt; color:#6A696A;
+  letter-spacing:.14em; text-transform:uppercase; text-align:center; margin-top:5px; }
+
+/* ---------- No. 02: the string rows ---------- */
+.rows{ margin-top:12px; }
+.row2{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.row2 .tagl{ flex:0 0 1.15in; font-family:'JBMono',monospace; font-size:7.4pt;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); text-align:right; }
+.row2 .keys{ display:flex; gap:4px; }
+.row2 .keys span{ width:0.25in; height:0.25in; border:1px solid var(--rule);
+  background:#FFFFFF88; font-family:'JBMono',monospace; font-size:8.6pt;
+  display:flex; align-items:center; justify-content:center; color:var(--ink); }
+.row2.hi .keys span{ border-color:var(--phosphor-dim); }
+.row2.jam .keys span{ border-color:var(--amber); color:var(--amber); }
+.row2 .aside{ font-size:8.6pt; color:var(--ink-faint); font-family:'JBMono',monospace;
+  letter-spacing:.06em; }
+
+/* ---------- No. 02: a gesture, drawn as a sentence ---------- */
+.ges{ border:1px solid var(--rule); border-left:3px solid var(--phosphor-dim);
+  background:#FFFFFF88; padding:10px 14px; margin-bottom:10px; }
+.ges h4{ font-size:10.6pt; font-weight:700; margin-bottom:3px; }
+.ges p{ font-size:9.4pt; color:var(--ink-soft); line-height:1.45; }
+.ges .keysline{ font-family:'JBMono',monospace; font-size:8pt; color:var(--amber);
+  letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; }
+
+/* ---------- No. 02: two-up reference table ---------- */
+.ref{ width:100%; border-collapse:collapse; margin-top:9px; }
+.ref td{ padding:2.9px 0; border-top:1px solid var(--rule); vertical-align:top;
+  font-size:9.3pt; color:var(--ink-soft); }
+.ref td.k{ width:1.5in; font-family:'JBMono',monospace; font-size:8.6pt;
+  color:var(--ink); padding-right:9px; }
+.ref tr:first-child td{ border-top:none; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE 1 ============================ -->
+<section class="page">
+  <div class="masthead">
+    <img src="data:image/png;base64,LOGO_B64" alt="GLIDE">
+    <div class="kicker">Owner's guide · No. 02</div>
+    <h1>Playing GLIDE</h1>
+    <p class="sub">Four rows of keys, played like four strings. The scale is handled for you, so the first thing you press already sounds right — everything after that is the sliding.</p>
+  </div>
+
+  <div class="assure" style="margin-top:12px">
+    <h3>You can't really hit a wrong note.</h3>
+    <p>Every key is a note of the current scale — A minor pentatonic out of the box — so there are no dead keys and nothing to avoid. Press anything. The skill isn't finding the right note; it's how you move between them.</p>
+  </div>
+
+  <div class="sechead" style="margin-top:13px">The four rows are four strings</div>
+  <div class="rows">
+    <div class="row2 hi"><div class="tagl">string 3 · high</div><div class="keys"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+    <div class="row2 hi"><div class="tagl">string 2</div><div class="keys"><span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span></div></div>
+    <div class="row2 hi"><div class="tagl">string 1</div><div class="keys"><span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span><span>j</span><span>k</span><span>l</span><span>;</span></div></div>
+    <div class="row2 jam"><div class="tagl">string 0 · low</div><div class="keys"><span>z</span><span>x</span><span>c</span><span>v</span><span>b</span><span>n</span><span>m</span><span>,</span><span>.</span><span>/</span></div><div class="aside">← the backing row</div></div>
+  </div>
+  <p style="font-size:9.4pt;color:var(--ink-soft);margin-top:7px">Left to right walks up the scale. Each row is a register of its own, and behaves like a string: one voice at a time, gliding between whatever you press on it.</p>
+
+  <div class="sechead" style="margin-top:12px">Everything else, at a glance</div>
+  <div class="twocol" style="margin-top:2px">
+    <table class="ref">
+      <tr><td class="k">shift <em>(hold)</em></td><td>the notes between — off-scale semitones, only while held</td></tr>
+      <tr><td class="k">- / =</td><td>octave down / up</td></tr>
+      <tr><td class="k">[ / ]</td><td>bend down / up</td></tr>
+      <tr><td class="k">space</td><td>sustain</td></tr>
+      <tr><td class="k">bksp</td><td>panic — silences everything</td></tr>
+    </table>
+    <table class="ref">
+      <tr><td class="k">fn + q..p</td><td>switch between the ten sounds, live</td></tr>
+      <tr><td class="k">alt</td><td>the loop pedal (left thumb)</td></tr>
+      <tr><td class="k">enter</td><td>tilt on / off</td></tr>
+      <tr><td class="k">tab</td><td>settings — and a full help screen</td></tr>
+      <tr><td class="k">ctrl / opt</td><td>volume down / up</td></tr>
+    </table>
+  </div>
+
+  <div class="call info" style="margin-top:11px">
+    <h4>The whole manual is on the device</h4>
+    <p>Press <kbd>tab</kbd> for settings, then open <strong>help</strong>. Every gesture in this guide is listed there, so you're never stuck without the paper.</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 1 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 2 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Playing GLIDE</span><span class="lit">The gestures</span></div>
+
+  <div class="partbar">
+    <span class="tag">One</span>
+    <h2>The sliding is the instrument</h2>
+  </div>
+
+  <p style="font-size:10pt;color:var(--ink-soft);margin-bottom:14px">Four gestures. The first two take a minute; the third is the one people keep the device for.</p>
+
+  <div class="ges">
+    <div class="keysline">hold one key · press another on the same row</div>
+    <h4>Hammer-on</h4>
+    <p>The voice <em>glides</em> to the new note instead of restarting. No new attack, no click — one continuous line, exactly like sliding a finger up a string.</p>
+  </div>
+
+  <div class="ges">
+    <div class="keysline">then let the second one go</div>
+    <h4>Pull-off</h4>
+    <p>It glides back down to the key you're still holding. Hammer and pull together give you trills, grace notes, and the lazy scoops that make a line sound played rather than typed.</p>
+  </div>
+
+  <div class="ges" style="border-left-color:var(--amber)">
+    <div class="keysline">hold a shape across rows · re-finger it somewhere else</div>
+    <h4>Slide a chord — this is the thing</h4>
+    <p>Hold two or three keys across different rows, then move that shape while the old notes still ring. Every voice glides to its new home at once. It's the gesture no keyboard can make and the reason the instrument exists.</p>
+  </div>
+
+  <div class="ges">
+    <div class="keysline">hold shift</div>
+    <h4>The notes in between</h4>
+    <p>Pure chromatic semitones for as long as you hold it. The scale keeps you safe; <kbd>shift</kbd> is how you earn the notes it was protecting you from. It's momentary on purpose — let go and you're back on safe ground.</p>
+  </div>
+
+  <div class="sechead" style="margin-top:16px">What the screen is telling you</div>
+  <div class="twocol" style="margin-top:8px">
+    <div>
+      <p style="font-size:9.5pt;color:var(--ink-soft)">The big waveform is the <strong>real output</strong>, drawn with a phosphor afterglow. The readout above it tracks the lead voice in cents <em>through</em> a glide, so you can watch a slide land.</p>
+      <p style="font-size:9.5pt;color:var(--ink-soft);margin-top:6px">Settings → <em>Display</em> swaps it for the <strong>pitch trail</strong>: pitch drawn over time across about seven seconds, with gridlines on the root. Every glide and bend becomes a visible curve.</p>
+    </div>
+    <div>
+      <table class="ref">
+        <tr><td class="k">top left</td><td>the sound's name</td></tr>
+        <tr><td class="k">top middle</td><td>key and scale</td></tr>
+        <tr><td class="k">OCT<em>n</em></td><td>which octave you're in</td></tr>
+        <tr><td class="k">vox</td><td>voices sounding, against the cap</td></tr>
+        <tr><td class="k">a <em>*</em></td><td>the sound has unsaved edits</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="call">
+    <h4>Tilt</h4>
+    <p><kbd>enter</kbd> turns it on. Lean the device forward and back to morph toward the sound you were last on; tilt it side to side for vibrato. It is never pitch bend — that's what <kbd>[</kbd> and <kbd>]</kbd> are for. Settings → <em>Tilt center</em> teaches it where <em>your</em> flat is.</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 2 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 3 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Playing GLIDE</span><span class="lit">Your sounds</span></div>
+
+  <div class="partbar">
+    <span class="tag">Two</span>
+    <h2>The sounds are yours</h2>
+  </div>
+
+  <p style="font-size:10pt;color:var(--ink-soft);margin-bottom:12px">Ten sounds sit on <kbd>fn</kbd>+<kbd>q</kbd>..<kbd>p</kbd>, switchable while you play. Eight are a curated bank. The last two are not like anyone else's.</p>
+
+  <div class="call" style="border-left-color:var(--phosphor-dim);margin-top:0">
+    <h4 style="color:var(--phosphor-dim)">o and p are rolled for your device alone</h4>
+    <p>Those two slots are generated from a seed created on your Cardputer's very first boot, so no other unit on Earth has them. They aren't stored — they're re-derived from that seed every time, which is why a factory reset brings them back exactly as you know them.</p>
+  </div>
+
+  <div class="sechead" style="margin-top:16px">Rolling your own</div>
+  <p style="font-size:9.6pt;color:var(--ink-soft);margin-top:2px">Press <kbd>tab</kbd> for settings — <strong>Randomize</strong> and <strong>Mutate</strong> are the two big buttons at the top. Every action auditions itself on the spot with a short lick, so you can judge two rolls by ear.</p>
+
+  <table class="ref" style="margin-top:11px">
+    <tr><td class="k">Randomize</td><td>A whole new sound, and a whole new <em>kind</em> of sound. Each roll commits to a character first — a pluck that stops, a bell that rings, a pad that swells, an acid squelch, a wobble bass, a bowed string section, or pure chaos — then paints inside that character's bounds. Guardrails mean a roll is never dead, blown out, or off-key. Roll until you love one.</td></tr>
+    <tr><td class="k">Mutate</td><td>Don't start over — evolve what you have. Gentle keeps the character and nudges it; wild rewrites it. Sculpting toward a vibe instead of pulling a slot machine.</td></tr>
+    <tr><td class="k">Undo / Redo</td><td>Every roll and mutate checkpoints first. You can always step back to the sound you just had, so nothing you liked is ever one tap from gone.</td></tr>
+    <tr><td class="k">Init</td><td>A blank, neutral sound to build up by hand.</td></tr>
+  </table>
+
+  <div class="sechead" style="margin-top:17px">Keeping what you find</div>
+  <div class="twocol" style="margin-top:8px">
+    <div>
+      <p style="font-size:9.5pt;color:var(--ink-soft)"><strong>Fast — onto a slot.</strong> <kbd>fn</kbd>+<kbd>shift</kbd>+<kbd>q</kbd>..<kbd>p</kbd> saves the live sound over that slot. Your ten favourites, always a chord away.</p>
+      <p style="font-size:9.5pt;color:var(--ink-soft);margin-top:6px">A <em>*</em> in the switch list marks a slot holding a sound of your own.</p>
+    </div>
+    <div>
+      <p style="font-size:9.5pt;color:var(--ink-soft)"><strong>Unlimited — onto the card.</strong> Settings → <strong>Save to SD</strong> writes a <code>.gpat</code> file, offering the sound's own auto-name (<em>warm-haze-3f</em>) — press <kbd>enter</kbd> to keep it or type your own. <strong>Load from SD</strong> browses the whole library back.</p>
+      <p style="font-size:9.5pt;color:var(--ink-soft);margin-top:6px">No card? The instrument plays perfectly without one.</p>
+    </div>
+  </div>
+
+  <div class="call info">
+    <h4>Nothing you save is at risk from an update</h4>
+    <p>Slots, settings and card files all live outside the program, in a format built to be added to rather than replaced. Installing a new GLIDE cannot touch them — see Owner's Guide No. 01.</p>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 3 of 4</span></div>
+</section>
+
+<!-- ============================ PAGE 4 ============================ -->
+<section class="page">
+  <div class="runhead"><span>Playing GLIDE</span><span class="lit">Backing yourself</span></div>
+
+  <div class="partbar">
+    <span class="tag">Three</span>
+    <h2>One hand backs, the other solos</h2>
+  </div>
+
+  <p style="font-size:10pt;color:var(--ink-soft);margin-bottom:11px">Three ways to put something underneath you. All are performance state: they live until you clear them or power off, and none touch your saved sounds.</p>
+
+  <div class="ges">
+    <div class="keysline">tap a key on the bottom row</div>
+    <h4>Drones — the zero-timing option</h4>
+    <p>The bottom row latches. Tap a key and it rings an octave down, hands-free, until you tap it again. Lay down a root, or a root and a fifth, and solo on the rows above. Drones never compete with your lead for voices, and your bends and vibrato move only the solo.</p>
+  </div>
+
+  <div class="ges" style="border-left-color:var(--amber)">
+    <div class="keysline">settings → jam motion: progression · then tap chords in order</div>
+    <h4>A chord progression, spelled with no timing at all</h4>
+    <p>Tap the chords you want in order on the bottom row — four taps for I–IV–V–IV. No metronome, no pocket to hit. The clock walks them one chord per bar, looping, gliding between them, while you solo on top. Each step is a real triad from the current scale, so the backing is in key too.</p>
+  </div>
+
+  <div class="ges">
+    <div class="keysline">alt · tap to record, tap to close, tap to overdub</div>
+    <h4>The loop pedal</h4>
+    <p>It records the <em>performance</em>, not the audio — so the loop plays through whichever sound is selected. Record a bassline, switch to a lead, and the whole arrangement re-voices itself. Hold <kbd>alt</kbd> to clear; <kbd>fn</kbd>+<kbd>alt</kbd> peels the last overdub back off.</p>
+  </div>
+
+  <div class="call" style="border-left-color:var(--steel)">
+    <h4>Change your sound over a running jam and the split appears</h4>
+    <p>Switch patches while a backing is going and it <em>keeps</em> the sound it was playing, while the new one becomes your solo voice. Same for octave: shift up and only the solo moves. Lay down a pad, flip to a lead, wail over it. An amber <strong>LK</strong> marks the split; <kbd>bksp</kbd> clears everything and drops it.</p>
+  </div>
+
+  <div class="sechead" style="margin-top:13px">If a song is playing in the room</div>
+  <p style="font-size:9.6pt;color:var(--ink-soft);margin-top:2px">Hold <kbd>fn</kbd>+<kbd>k</kbd> and GLIDE goes quiet and <strong>listens</strong>. The mic works out the song's key and mode from a few seconds of it, and the instrument retunes so your scale fits what's playing. If it lands close but not quite, tap <kbd>space</kbd> on the result card to cycle the other likely readings, applied live. A quiet room changes nothing and says so. Tapping <kbd>fn</kbd>+<kbd>k</kbd> on its own just walks the key up a semitone by hand.</p>
+
+  <div class="closing">
+    <div class="words">
+      <h3>Go and play it. That's the whole point.</h3>
+      <p>The full manual, every setting, and the sounds other people have rolled all live online. The Discord is where players post what their device gave them — and where to find me if you're stuck.</p>
+      <p class="lit" style="margin-top:8px">github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV<br>discord.gg/uRcuJGCeHG</p>
+    </div>
+    <div class="qrpair">
+    <div>
+<!-- QR = https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
+           (segno, error level M, version 4; regenerate the same way if the
+           URL ever changes) -->
+      <div class="qrtile"><svg viewBox="0 0 33 33" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m3 0h1m1 0h1m1 0h1m3 0h1m3 0h2m2 0h7m-33 1h1m5 0h1m2 0h1m1 0h1m3 0h3m3 0h1m1 0h2m1 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m3 0h1m1 0h1m1 0h1m2 0h2m4 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m2 0h2m2 0h1m3 0h1m4 0h3m1 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m5 0h1m3 0h1m1 0h3m1 0h2m2 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m1 0h7m4 0h2m5 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h1m1 0h1m2 0h7m-24 1h1m2 0h1m1 0h2m1 0h5m1 0h4m3 0h3m1 0h1m1 0h1m-28 1h1m1 0h4m1 0h4m1 0h1m2 0h2m1 0h4m2 0h4m-26 1h1m3 0h2m2 0h3m3 0h2m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m1 0h1m-31 1h1m6 0h1m2 0h1m1 0h1m1 0h2m2 0h2m4 0h1m1 0h2m2 0h1m-33 1h2m3 0h3m13 0h1m1 0h1m1 0h2m2 0h1m1 0h1m-28 1h2m2 0h3m1 0h1m2 0h3m2 0h1m1 0h1m1 0h1m2 0h3m1 0h2m-32 1h1m2 0h3m1 0h1m4 0h1m4 0h1m2 0h1m1 0h4m1 0h1m2 0h1m-27 1h1m1 0h2m2 0h1m3 0h1m1 0h1m1 0h3m1 0h2m1 0h3m2 0h1m-32 1h1m1 0h6m1 0h2m1 0h3m4 0h4m1 0h1m1 0h1m1 0h2m1 0h1m-30 1h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h1m-30 1h1m1 0h1m1 0h5m1 0h1m5 0h1m5 0h1m1 0h1m3 0h1m1 0h1m-30 1h1m1 0h1m2 0h1m3 0h3m2 0h5m1 0h5m3 0h1m-30 1h3m1 0h1m1 0h1m6 0h5m1 0h1m1 0h3m5 0h1m-31 1h2m2 0h1m1 0h3m4 0h3m1 0h5m1 0h3m2 0h4m-33 1h2m1 0h2m1 0h1m2 0h2m2 0h3m3 0h1m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m-32 1h1m1 0h3m2 0h1m1 0h3m1 0h1m1 0h1m2 0h5m5 0h1m1 0h2m-33 1h1m2 0h1m2 0h1m4 0h1m3 0h4m1 0h2m2 0h5m2 0h2m-25 1h3m3 0h1m1 0h1m1 0h2m1 0h2m1 0h1m3 0h2m-30 1h7m5 0h3m1 0h1m3 0h3m1 0h1m1 0h1m1 0h4m-32 1h1m5 0h1m1 0h2m4 0h2m3 0h3m2 0h1m3 0h1m2 0h1m-32 1h1m1 0h3m1 0h1m6 0h4m3 0h2m2 0h6m2 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m5 0h2m3 0h1m3 0h1m2 0h1m1 0h3m-31 1h1m1 0h3m1 0h1m2 0h3m2 0h1m2 0h2m2 0h1m6 0h1m3 0h1m-33 1h1m5 0h1m3 0h1m3 0h5m1 0h2m2 0h1m-25 1h7m1 0h1m1 0h3m1 0h1m2 0h1m1 0h1m1 0h1m2 0h2m2 0h1m2 0h1"/></svg></div>
+      <div class="qrcap">scan · the repo</div>
+    </div>
+    <div>
+      <!-- QR = https://discord.gg/uRcuJGCeHG (permanent invite)
+           (segno, error level M, version 3; regenerate the same way if the
+           URL ever changes) -->
+      <div class="qrtile"><svg viewBox="0 0 29 29" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m1 0h1m1 0h7m-29 1h1m5 0h1m2 0h1m1 0h4m2 0h2m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h1m1 0h2m3 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m3 0h1m1 0h2m3 0h1m2 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h4m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m1 0h2m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-13 1h1m1 0h1m-18 1h7m2 0h3m1 0h3m2 0h1m3 0h2m3 0h1m-28 1h1m1 0h1m1 0h1m2 0h3m2 0h1m1 0h1m2 0h3m1 0h4m2 0h1m-27 1h1m3 0h1m1 0h1m2 0h1m2 0h1m1 0h3m1 0h4m1 0h2m-24 1h1m1 0h1m4 0h1m2 0h2m1 0h1m2 0h1m1 0h2m1 0h1m2 0h1m-27 1h3m1 0h2m2 0h1m1 0h1m2 0h2m1 0h1m3 0h1m1 0h1m2 0h3m-29 1h2m2 0h1m2 0h2m1 0h2m1 0h1m2 0h1m1 0h5m1 0h2m1 0h2m-29 1h4m1 0h4m5 0h2m1 0h1m5 0h1m-24 1h2m3 0h1m2 0h4m2 0h1m5 0h1m3 0h2m2 0h1m-24 1h3m1 0h1m3 0h4m1 0h1m6 0h2m-27 1h2m1 0h3m3 0h3m1 0h1m1 0h1m1 0h2m1 0h2m1 0h6m-29 1h1m2 0h5m3 0h1m2 0h4m2 0h1m1 0h1m2 0h2m-27 1h1m3 0h2m2 0h3m2 0h3m3 0h2m1 0h1m1 0h2m-26 1h1m1 0h2m1 0h2m1 0h1m2 0h2m2 0h1m1 0h1m2 0h7m1 0h1m-21 1h2m3 0h1m6 0h1m3 0h2m1 0h2m-29 1h7m1 0h3m2 0h1m1 0h1m2 0h3m1 0h1m1 0h1m-25 1h1m5 0h1m1 0h1m1 0h4m1 0h2m1 0h3m3 0h2m1 0h2m-29 1h1m1 0h3m1 0h1m1 0h1m1 0h4m1 0h1m2 0h1m1 0h7m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h3m1 0h4m1 0h1m1 0h1m-26 1h1m1 0h3m1 0h1m1 0h1m2 0h1m5 0h9m1 0h1m-28 1h1m5 0h1m1 0h3m2 0h1m2 0h1m1 0h1m2 0h2m1 0h2m1 0h1m-28 1h7m3 0h1m2 0h1m3 0h1m1 0h1m1 0h2m1 0h2"/></svg></div>
+      <div class="qrcap">scan · the discord</div>
+    </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>GLIDE · a pocket synth by CHARL3X</span><span>Page 4 of 4</span></div>
+</section>
+
+</body>
+</html>

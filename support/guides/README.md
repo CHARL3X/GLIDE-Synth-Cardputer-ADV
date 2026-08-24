@@ -7,6 +7,14 @@ a plain-text twin in `docs/` — the PDF is a rendering, never the only copy.
 | Guide | Source | Rendered | Text twin |
 | --- | --- | --- | --- |
 | No. 01 — Updating GLIDE | `updating.html` | `docs/guides/GLIDE-Updating.pdf` | [`docs/updating.md`](../../docs/updating.md) |
+| No. 02 — Playing GLIDE | `playing.html` | `docs/guides/GLIDE-Playing.pdf` | [`docs/manual.md`](../../docs/manual.md) |
+
+No. 02 is the everyday sheet: the four rows, the four gestures that make it a
+slide instrument, the ten sounds and how to roll your own, and the three ways
+to back yourself. It is a curated read, not a keymap dump — the manual is the
+complete reference and the device carries its own help screen. Its `<style>`
+block is lifted verbatim from `updating.html` plus a No. 02 tail, so the two
+sheets in the box can't drift apart; keep it that way.
 
 No. 01 opens with the power/charging page (the switch must be ON to charge —
 the single most common "it's broken" report) before the update walkthrough, and

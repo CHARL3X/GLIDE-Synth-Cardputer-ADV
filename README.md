@@ -69,7 +69,7 @@ No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single not
 
 A newer `GLIDE.bin` sitting on the card **does nothing on its own** — the copy that runs lives in the device's flash, so updating means replacing that copy. Saved sounds, tweaks and settings survive either way; they live outside the app.
 
-- **Card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin), put it in `/apps/`, then **delete the installed GLIDE in Launcher first** and install the new one from `SD` → `apps`. Launcher *adds* an app rather than replacing it, so skipping the delete leaves you with two GLIDE tiles and only the splash version number to tell them apart. The illustrated walkthrough is in **[docs/updating.md](docs/updating.md)** ([printable PDF](docs/guides/GLIDE-Updating.pdf)).
+- **Card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin), put it in `/apps/`, then **delete the installed GLIDE in Launcher first** and install the new one from `SD` → `apps`. Launcher *adds* an app rather than replacing it, so skipping the delete leaves you with two GLIDE tiles and only the splash version number to tell them apart. The illustrated walkthrough is in **[docs/updating.md](docs/updating.md)** ([printable PDF](docs/guides/GLIDE-Updating.pdf); there's a [playing guide](docs/guides/GLIDE-Playing.pdf) too).
 - **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list — Launcher fetches and installs it with no computer and no card shuffling.
 
 <details>
