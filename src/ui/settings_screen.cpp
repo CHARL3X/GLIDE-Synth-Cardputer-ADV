@@ -564,6 +564,7 @@ void pushLiveSound() {  // apply the working sound to the engine + persist
     auto& g = store::get();
     g.synth.tempoBpm = (float)g.jamBpm;
     audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+    store::markDirty();  // a player action — adopts a demo loan before the flush
     store::persistNow();
 }
 
@@ -1257,6 +1258,7 @@ void run(M5Canvas& canvas) {
                 auto& g = store::get();
                 g.synth.tempoBpm = (float)g.jamBpm;
                 audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+                store::markDirty();  // a load is the player's — adopts a demo loan
                 store::persistNow();
                 audition::start();  // audition the loaded sound on return
                 soundcard::show(audition::lengthMs());
@@ -1276,8 +1278,9 @@ void run(M5Canvas& canvas) {
         auto applyEdit = [&](bool immediate) {
             auto& g = store::get();
             g.synth.tempoBpm = (float)g.jamBpm;  // synced-delay preview
+            store::markDirty();  // always: a player edit must adopt a demo loan
+                                 // before the flush, or persistNow() skips it
             if (immediate) store::persistNow();
-            else store::markDirty();
             audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
         };
 

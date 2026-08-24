@@ -22,6 +22,10 @@ uint32_t gBootCount = 0;     // DIAGNOSTIC: boots survived in NVS (see begin())
 bool gWriteProbeOk = false;  // DIAGNOSTIC: did this boot's probe write+readback?
 bool gDirty = false;
 uint32_t gDirtySince = 0;
+// Demo loan (see the header): while out, no flat-key or morph-partner write
+// lands, so a power cycle after a demo restores the pre-demo instrument.
+bool gDemoLoan = false;     // demo state is borrowed — flash stays untouched
+bool gDemoDriving = false;  // demo's own markDirtys must not count as adoption
 
 // ---- odometer -------------------------------------------------------------
 // Lifetime play counters: notes the player actually struck, and hands-on time
@@ -975,6 +979,7 @@ void begin() {
 }
 
 void persistNow() {
+    if (gDemoLoan) return;  // demo state is a loan — it never reaches flash
     const auto& s = gCfg.synth;
     gPrefs.putUChar("wave", (uint8_t)s.wave);
     gPrefs.putUChar("gmode", (uint8_t)s.glideMode);
@@ -1079,6 +1084,9 @@ void persistNow() {
 
 void flushMorphPartner() {
     if (!gMorphSrcDirty || !gNvsOk) return;
+    if (gDemoLoan) return;  // the demo's bed-freeze pair must not clobber the
+                            // player's stored partner (unattended = idle hands,
+                            // so the quiet-moment gate WOULD fire mid-demo)
     // Called every idle frame from the perform loop: after a genuinely-full
     // failure (both attempts, flag still set), hold off so the retry can't
     // hammer flash with a failing erase-and-rewrite cycle per frame.
@@ -1089,9 +1097,19 @@ void flushMorphPartner() {
 }
 
 void markDirty() {
+    // A player edit while the loan is out (and the demo no longer driving)
+    // adopts the current state as theirs — persistence resumes from here.
+    if (gDemoLoan && !gDemoDriving) gDemoLoan = false;
     gDirty = true;
     gDirtySince = millis();
 }
+
+void demoLoanBegin() {
+    gDemoLoan = true;
+    gDemoDriving = true;
+}
+
+void demoLoanYield() { gDemoDriving = false; }
 
 void odoNote() {
     ++gOdoNotes;
@@ -1160,6 +1178,8 @@ void eraseAllStorage() {
 
 void resetDefaults() {
     const bool seen = gCfg.seenIntro;  // don't re-show the intro on reset
+    gDemoLoan = false;   // a reset supersedes any outstanding demo loan —
+    gDemoDriving = false;  // the flush below must land
     gCfg = GlideConfig();
     gCfg.seenIntro = seen;
     gPrefs.remove(kMorphKey);  // the remembered blend partner is stored state too

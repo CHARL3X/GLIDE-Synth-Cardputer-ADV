@@ -157,6 +157,17 @@ uint32_t bootCount();         // DIAGNOSTIC: boots persisted in NVS (climbs => p
 bool writeProbeOk();          // DIAGNOSTIC: did this boot's write+readback succeed?
 void markDirty();             // schedule a debounced persist
 
+// ---- demo loan ------------------------------------------------------------
+// Demo mode BORROWS the instrument: from demoLoanBegin() every flat-key flush
+// and morph-partner write is skipped, so nothing the demo touches (live sound,
+// currentPatch, jam knobs, the bed's frozen blend pair) reaches flash. The
+// loan ends two ways: a power cycle hands the instrument back exactly as it
+// was, or the player's own edit AFTER the demo has yielded (a markDirty while
+// not driving) adopts the current state and persistence resumes. Playing over
+// the takeover bed never adopts — notes aren't config. RAM-only flags.
+void demoLoanBegin();         // demo::start — before its first mutation
+void demoLoanYield();         // demo::stop — the demo is no longer driving
+
 // ---- odometer -------------------------------------------------------------
 // Lifetime play counters, shown as one quiet read-only row in SYSTEM. Notes =
 // player-struck note starts only (lead presses, drone latches, chord-step
