@@ -28,6 +28,7 @@ Twenty designed-and-planned features, written 2026-07-06 (by Claude Fable 5, at 
 | 18 | [groove](18-groove.md) | Synthesized tick/hat/thump under the jam + swing (curated, never a drum machine) | M | low-med | 2 rows ⚠ (human-approved flex) |
 | 19 | [midi-in](19-midi-in.md) | GLIDE as a sound module + clock follower (rides on doc 06's spike) | M-L | med | 0 rows (upgrades 06's) |
 | 20 | [wavetable-import](20-wavetable-import.md) | Import single-cycle .wav as Waveform::User — the wave rides *inside* the patch | M-L | med | 1 row |
+| 21 | [web-flasher](21-web-flasher.md) | One-click install/update from the browser + standalone image; Launcher path stays supported | M | med (HW-gated) | 0 rows |
 
 ## Suggested order
 
@@ -37,6 +38,7 @@ Twenty designed-and-planned features, written 2026-07-06 (by Claude Fable 5, at 
 - **Ecosystem:** 12 early if development velocity matters (it makes every later DSP doc audible without hardware, and adds CI); 06 and 13 start with go/no-go hardware probes — run the probes cheap and early, build only on evidence.
 - 14 after 07/10 if the "learn" pillar is the season's theme.
 - **The second wave (15–20):** 16 (psycho-bass) is a near-warm-up and pairs with any bass-heavy work; 17 (midi-export) anytime, compounding with 03; 18 (groove) after 03 so the pulse and the loop share a trustworthy clock; 15 (line-out) probe early — its dongle answer shapes how much 16 matters; 19 strictly after 06's Task 1 gate; 20 after 01 lands `Pluck = 6` (or use the explicit-value rule below and land in any order).
+- **Distribution:** 21 (web-flasher) is independent of every engine doc and directly retires the sharpest half of debt D1 for standalone units; its Task 2 hardware gate decides everything, so run that early and cheap.
 
 ## Cross-doc coordination ledger (read before editing shared enums/tags)
 
