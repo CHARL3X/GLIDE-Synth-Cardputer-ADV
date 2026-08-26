@@ -42,7 +42,8 @@ They look identical and do completely different things.
   settings swaps it for brighten, a pitch dive, or drive grit, momentary or
   latched). It never restarts anything.
 
-Below 20% the perform screen warns you, and at 10% it blinks red; settings
+Below 25% the perform screen warns you, and at 10% it blinks red; once it
+appears it stays put rather than flickering, so you can trust it. Settings
 always shows the exact percentage.
 
 ## First, the thing worth knowing

@@ -56,6 +56,25 @@ constexpr uint8_t  kBrightSaver    = 55;     // stage 2: enough for the trace on
 constexpr uint32_t kIdleDimMs      = 30000;  // 30 s hands-off -> dim
 constexpr uint32_t kScreensaverMs  = 90000;  // 90 s hands-off -> screensaver
 
+// ---- low-battery warning ----------------------------------------------
+// The ADV has no PMIC. getBatteryLevel() is a single ADC read of a divider
+// on GPIO10 scaled at roughly 8 mV per percent, and the 1 W speaker sags
+// that same rail on every transient — so a raw reading swings several
+// points with how hard you happen to be playing. That is why these
+// thresholds LATCH rather than compare: an unlatched test makes the badge
+// blink in and out while you play, which just teaches the player to ignore
+// it. The clear lines sit deliberately far above the arm lines because
+// nobody has measured the real sag yet (docs/roadmap/22-battery-warning.md,
+// Task 1) — a badge that lingers is the safe direction; one that flickers
+// is the bug being fixed.
+constexpr uint32_t kBatPollMs      = 5000;
+constexpr int      kBatWarnPct     = 25;  // amber, steady
+constexpr int      kBatWarnClear   = 35;
+constexpr int      kBatCritPct     = 10;  // red, blinking
+constexpr int      kBatCritClear   = 18;
+constexpr int      kBatClearPolls  = 2;   // consecutive polls above a clear
+                                          // line before that latch lets go
+
 // ---- storage ----------------------------------------------------------
 constexpr uint32_t kPersistDebounceMs = 500;  // NVS write debounce after edits
 constexpr const char* kNvsNamespace = "glide";

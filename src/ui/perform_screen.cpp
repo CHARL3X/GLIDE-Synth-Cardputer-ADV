@@ -1569,20 +1569,61 @@ void drawProg(M5Canvas& c, uint32_t now) {
 }
 
 // Low-battery warning: a pocket instrument that dies mid-jam without telling
-// you is a broken promise. Quiet until 20%, blinking red at 10%.
+// you is a broken promise. Amber and steady from kBatWarnPct, red and blinking
+// from kBatCritPct.
+//
+// The thresholds LATCH, and that is the entire point of this function. The
+// gauge is one ADC read of a rail the speaker sags (see the config.h note), so
+// the old bare `level > 20` test made the badge appear and vanish every poll
+// while you played — a warning that cries wolf is worse than none. Once armed,
+// a latch holds until the reading has recovered past a wide clear line on
+// kBatClearPolls polls in a row, so no single noisy sample can disarm it.
+//
+// The percentage shown is the LOWEST reading since the warning armed. It only
+// ever falls, so the digits never bounce, and it is the honest number: the
+// worst this battery has actually measured.
+//
+// NOT handled here, deliberately: suppressing the badge while charging.
+// isCharging() returns charge_unknown on this board — M5 document that the
+// Cardputer cannot report charge status at all — so it has to be inferred from
+// the voltage trend, and nobody has measured what that trend looks like yet.
+// Until then a charging unit clears the latch by itself once the reading
+// passes the clear line. See docs/roadmap/22-battery-warning.md.
 void drawBattery(M5Canvas& c, uint32_t now) {
-    static int level = -1;
+    static int level = -1;       // last raw reading
+    static int shown = -1;       // lowest reading since the warning armed
     static uint32_t lastPoll = 0;
-    if (level < 0 || now - lastPoll > 5000) {
+    static bool warned = false, crit = false;
+    static uint8_t clearRun = 0;
+
+    if (level < 0 || now - lastPoll > cfg::kBatPollMs) {
         lastPoll = now;
         level = M5.Power.getBatteryLevel();
+        if (level >= 0) {
+            if (level <= cfg::kBatWarnPct) warned = true;
+            if (level <= cfg::kBatCritPct) crit = true;
+            if (warned && (shown < 0 || level < shown)) shown = level;
+            // Only the latch currently showing gets to clear; when red drops
+            // back to amber the run restarts against amber's own clear line.
+            const bool recovering =
+                level >= (crit ? cfg::kBatCritClear : cfg::kBatWarnClear);
+            if (recovering) {
+                if (++clearRun >= cfg::kBatClearPolls) {
+                    clearRun = 0;
+                    if (crit) crit = false;                    // red -> amber
+                    else { warned = false; shown = -1; }       // amber -> gone
+                }
+            } else {
+                clearRun = 0;
+            }
+        }
     }
-    if (level < 0 || level > 20 || keys::quickEditActive()) return;
-    if (level <= 10 && (now >> 9) & 1) return;  // blink when critical
+    if (!warned || shown < 0 || keys::quickEditActive()) return;
+    if (crit && (now >> 9) & 1) return;  // blink when critical
     char buf[12];
-    snprintf(buf, sizeof buf, "BAT %d%%", level);
+    snprintf(buf, sizeof buf, "BAT %d%%", shown);
     c.setFont(&fonts::Font0);
-    c.setTextColor(level <= 10 ? theme::kRed : theme::kAmber, theme::kBg);
+    c.setTextColor(crit ? theme::kRed : theme::kAmber, theme::kBg);
     // drop below whatever owns the top-left corner (loop and/or progression)
     int y = kScopeY + 3;
     if (looper::state() != looper::State::Empty) y += 10;
