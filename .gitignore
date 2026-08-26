@@ -15,3 +15,6 @@ commerce/
 # owner-guide font cache (fetched by support/guides/build.py, never committed)
 support/guides/.fonts/
 support/guides/.build-*.html
+
+# macOS Finder droppings
+.DS_Store
