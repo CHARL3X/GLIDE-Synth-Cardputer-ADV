@@ -226,8 +226,9 @@ bool loadPatchData(int slot, PatchData& out) {
             const uint32_t sv = slotSeed(gSeed, slot);
             const bool legacy = gGenVer < 2;
             const dsp::GenPatch rolled = legacy       ? dsp::generateSoundLegacy(sv)
-                                         : gGenVer < 3 ? dsp::generateSound(sv)   // frozen v2 pool
-                                                       : dsp::generateSoundV3(sv); // expanded pool
+                                         : gGenVer < 3 ? dsp::generateSound(sv)    // frozen v2 pool
+                                         : gGenVer < 4 ? dsp::generateSoundV3(sv)  // expanded pool
+                                                       : dsp::generateSoundV4(sv); // + rolled drift
             genToPatchData(rolled, out, legacy);
         }
         return false;  // q..i keep their curated factory patch (already seeded above)
@@ -636,7 +637,7 @@ void begin() {
     if (gSeed == 0) {
         gSeed = esp_random();
         if (gSeed == 0) gSeed = 0x9E3779B9u;  // vanishingly unlikely, but never 0
-        gGenVer = 3;  // a brand-new seed rolls with the current (expanded) pool
+        gGenVer = 4;  // a brand-new seed rolls with the current pool (+ drift)
         if (gNvsOk) {
             gPrefs.putUInt("seed", gSeed);
             gPrefs.putUChar("genver", gGenVer);
@@ -761,6 +762,9 @@ void begin() {
     s.noiseLevel  = clampT<int>(gPrefs.getInt("noise", (int)(d.synth.noiseLevel * 100)), 0, 100) / 100.f;
     s.drive       = clampT<int>(gPrefs.getInt("drive", (int)(d.synth.drive * 100)), 100, 800) / 100.f;
     s.autoVibCents = (float)clampT<int>(gPrefs.getInt("avib", (int)d.synth.autoVibCents), 0, 100);
+    // Whole cents, and the settings row steps in whole cents, so unlike most of
+    // this block there is no quantisation loss between live and slot.
+    s.driftCents  = (float)clampT<int>(gPrefs.getInt("driftcents", (int)d.synth.driftCents), 0, 12);
 
     // modulation: 2 LFOs + mod-env + the routing matrix. Absent keys default to
     // the neutral values, so existing devices load with the matrix inert (no
@@ -1008,6 +1012,7 @@ void persistNow() {
     gPrefs.putInt("noise", (int)(s.noiseLevel * 100));
     gPrefs.putInt("drive", (int)(s.drive * 100));
     gPrefs.putInt("avib", (int)s.autoVibCents);
+    gPrefs.putInt("driftcents", (int)s.driftCents);
     gPrefs.putInt("l1r", (int)(s.lfo1RateHz * 100));
     gPrefs.putUChar("l1sh", s.lfo1Shape);
     gPrefs.putUChar("l1sy", s.lfo1Sync);
@@ -1357,7 +1362,7 @@ void reRollBank() {
     // regenerate on demand), so this also FREES whatever NVS the old saves held.
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
-    gGenVer = 3;  // a re-roll is the player's opt-in to the current (expanded) pool
+    gGenVer = 4;  // a re-roll is the player's opt-in to the current pool (+ drift)
     if (gNvsOk) {
         gPrefs.putUInt("seed", gSeed);
         gPrefs.putUChar("genver", gGenVer);

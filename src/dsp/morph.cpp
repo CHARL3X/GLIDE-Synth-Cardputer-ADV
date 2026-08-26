@@ -74,6 +74,7 @@ SynthParams morphParams(const SynthParams& a, const SynthParams& b, float t) {
     o.noiseLevel = lin(a.noiseLevel, b.noiseLevel, t);
     o.drive = lin(a.drive, b.drive, t);
     o.autoVibCents = lin(a.autoVibCents, b.autoVibCents, t);
+    o.driftCents = lin(a.driftCents, b.driftCents, t);
     o.chorusDepth = lin(a.chorusDepth, b.chorusDepth, t);
     o.delayMix = lin(a.delayMix, b.delayMix, t);
     o.delayFb = lin(a.delayFb, b.delayFb, t);

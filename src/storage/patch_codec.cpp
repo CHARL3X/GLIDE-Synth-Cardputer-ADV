@@ -33,6 +33,10 @@ enum Tag : uint16_t {
     T_fenvAtkS, T_fenvDecS, T_fenvOct, T_subLevel, T_noiseLevel, T_drive, T_autoVibCents,
     T_chorusDepth, T_delayMix, T_delayTimeS, T_delayFb, T_delaySync, T_reverbMix, T_reverbSize,
     T_filterMode,  // 27
+    // 28/29 are RESERVED for roadmap doc 02 (waveB, oscBlend) — see the ledger
+    // in docs/roadmap/00-INDEX.md. Hence the explicit value: without it this
+    // would silently become 28 and collide the day doc 02 lands.
+    T_driftCents = 30,
 
     // modulation (mod matrix) — range 40..99
     T_lfo1Rate = 40, T_lfo1Shape, T_lfo1Sync,
@@ -80,6 +84,7 @@ int buildTable(PatchData& pd, Field* f) {
     f[n++] = {T_noiseLevel,  T_F32, &s.noiseLevel};
     f[n++] = {T_drive,       T_F32, &s.drive};
     f[n++] = {T_autoVibCents,T_F32, &s.autoVibCents};
+    f[n++] = {T_driftCents,  T_F32, &s.driftCents};
     f[n++] = {T_chorusDepth, T_F32, &s.chorusDepth};
     f[n++] = {T_delayMix,    T_F32, &s.delayMix};
     f[n++] = {T_delayTimeS,  T_F32, &s.delayTimeS};

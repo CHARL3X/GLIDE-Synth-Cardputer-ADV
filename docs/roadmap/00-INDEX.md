@@ -17,8 +17,8 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 | 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows |
 | 08 | [breed](08-breed.md) | Crossover two sounds — the third generative verb, lineage for patches | S-M | low | 1 row |
 | 09 | [fx-freeze](09-fx-freeze.md) | Reverb freeze as a G0 trigger action — solo dry over your own frozen wash | S | low | 0 rows |
-| 10 | [guide-tones](10-guide-tones.md) | Grid marks the current chord's tones while the progression walks | S | very low | 0 rows |
-| 11 | [analog-drift](11-analog-drift.md) | Per-voice pitch wander — vintage-analog life, and a great generative gene | S | very low | 1 row |
+| 10 | [guide-tones](10-guide-tones.md) | Grid marks the current chord's tones while the progression walks | S | very low | 0 rows | ✅ **landed** |
+| 11 | [analog-drift](11-analog-drift.md) | Per-voice pitch wander — vintage-analog life, and a great generative gene | S | very low | 1 row | ✅ **landed** |
 | 12 | [wasm-glide](12-wasm-glide.md) | dsp/ compiled to WASM: GLIDE playable in a browser + CI + patch workbench | L | low (no FW risk) | n/a (off-device) |
 | 13 | [chirp-share](13-chirp-share.md) | Patches travel speaker→mic as an audible chirp (moonshot, probe-gated) | L | high (HW-gated) | 1 row |
 | 14 | [echo-trainer](14-echo-trainer.md) | Call-and-response practice that grades the *glide*, not just the note | M-L | low-med | 1 row |
@@ -29,6 +29,12 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 | 19 | [midi-in](19-midi-in.md) | GLIDE as a sound module + clock follower (rides on doc 06's spike) | M-L | med | 0 rows (upgrades 06's) |
 | 20 | [wavetable-import](20-wavetable-import.md) | Import single-cycle .wav as Waveform::User — the wave rides *inside* the patch | M-L | med | 1 row |
 | 21 | [web-flasher](21-web-flasher.md) | One-click install/update from the browser + standalone image; Launcher path stays supported | M | med (HW-gated) | 0 rows |
+
+**Landed so far:** doc 10 (guide tones) and doc 11 (analog drift) shipped
+2026-08-26 — drift as `genver 4` rather than an edit to the frozen V3, and
+with the one deviation doc 11 could not have known about: it was written
+before the generator freeze, so its "roll it in `generateSound`" step is no
+longer safe. Read the generator-versions note below before touching either.
 
 **Field-driven maintenance** — same plan format, but these came from players rather than from the idea bank. They harden or diagnose things that already ship, so neither one adds a feature:
 
@@ -58,7 +64,7 @@ These plans are written to land **in any order**. That only stays true if these 
 |-----|-------|-----------|
 | 28 | `T_waveB` | doc 02 |
 | 29 | `T_oscBlend` | doc 02 |
-| 30 | `T_driftCents` | doc 11 |
+| 30 | `T_driftCents` | doc 11 — **LANDED**, explicit value in the enum |
 | 119 | `T_userWaveMeta` (T_U8) | doc 20 |
 | 120–127 | `T_userWaveChunk0..7` (T_STR, 256 B each) | doc 20 |
 | next free scalar: 31 | — | future docs claim here first |
@@ -72,6 +78,14 @@ If doc 11 lands before doc 02, it still uses tag 30; 28–29 stay reserved. Upda
 - `dsp::kScales` + 4 rows (Just major, Just minor, Rast, Bayati) — doc 07
 
 **New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18) · `outtrim` (23, **only** if its remedy 4a wins — and it shares the output row with 15's `lineout`, so whichever lands first owns both) · `batwarn` (22, an explicitly *not recommended* trim; reserved so nobody reuses the name).
+
+**Generator versions** (`genver`, NVS): 1 = `generateSoundLegacy`, 2 = frozen
+v2 `generateSound`, 3 = `generateSoundV3` (expanded pool + polish), **4 =
+`generateSoundV4`** (V3 + a rolled `driftCents`, doc 11). Each is frozen the
+moment a device is born under it, because o/p slots re-derive through it on
+every boot — so a new ingredient means a NEW version, never an edit to an
+existing one. V4's drift roll uses its own `Rng(seed ^ k)` so V3's output is
+bit-identical; the suite asserts exactly that.
 
 **New file formats:** `.gjam` (doc 04, magic `'G','J'`, introduces `T_BLOB=6` wire type in its own codec — the `.gpat` codec is untouched by every doc except tag appends) · `.mid` export (doc 17, write-only) · `.wav` import (doc 20, read-only single cycles).
 

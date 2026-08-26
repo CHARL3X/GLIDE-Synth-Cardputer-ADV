@@ -120,6 +120,15 @@ GenPatch generateSoundV3(uint32_t seed);
 // generateSoundV3(seed, archetypeForSeedV3(seed)).
 GenPatch generateSoundV3(uint32_t seed, Archetype a);
 
+// The genver-4 roll: V3 plus a rolled analog drift, from an INDEPENDENT random
+// stream so V3's own output is untouched (asserted in the suite). It is its own
+// version rather than an edit to V3 for the usual reason — genver-3 devices
+// re-derive their o/p slots through V3 every boot, and an update must never
+// retune a sound somebody already owns. This is what the Randomize button and
+// genver>=4 seeds use.
+GenPatch generateSoundV4(uint32_t seed);
+GenPatch generateSoundV4(uint32_t seed, Archetype a);
+
 // Same, but with the character chosen by the caller — the hook for a future
 // "roll me a pad" style picker. Deterministic in (seed, a).
 GenPatch generateSound(uint32_t seed, Archetype a);

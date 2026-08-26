@@ -300,6 +300,18 @@ void aDetune(int d) {
     s.detuneCents = (float)clampT((int)s.detuneCents + d * 2, 0, 50);
 }
 
+// Per-voice pitch wander. Defaults non-zero, so the row's job is mostly to let
+// someone turn it DOWN — hence "off" rather than "0 cents" at the bottom.
+void fDrift(char* o, int c) {
+    const int v = (int)store::get().synth.driftCents;
+    if (v == 0) snprintf(o, c, "off");
+    else snprintf(o, c, "%d cents", v);
+}
+void aDrift(int d) {
+    auto& s = store::get().synth;
+    s.driftCents = (float)clampT((int)s.driftCents + d, 0, 12);
+}
+
 void fFilterMode(char* o, int c) {
     snprintf(o, c, "%s", dsp::filterModeName((dsp::FilterMode)store::get().synth.filterMode));
 }
@@ -538,6 +550,7 @@ void aDemo(int) { demo::requestStart(); }
 // at a glance; ranges mirror each row's adjust clamp)
 float gRes()       { return store::get().synth.resonance / 0.95f; }
 float gDetune()    { return store::get().synth.detuneCents / 50.f; }
+float gDrift()     { return store::get().synth.driftCents / 12.f; }
 float gChorus()    { return store::get().synth.chorusDepth; }
 float gDelaySend() { return store::get().synth.delayMix; }
 float gDelayTime() {  // synced: the ms value is dormant — no gauge
@@ -609,7 +622,7 @@ void aRandomize(int) {
     // preserve). The character is drawn explicitly so the card can NAME it.
     const uint32_t sd = esp_random();
     const dsp::Archetype arch = dsp::archetypeForSeedV3(sd);
-    store::applyGenerated(dsp::generateSoundV3(sd, arch));
+    store::applyGenerated(dsp::generateSoundV4(sd, arch));
     audition::start();
     soundcard::showRolled((uint8_t)arch, audition::lengthMs());  // see the roll — and its character, in colour
 }
@@ -775,6 +788,7 @@ const Item kItems[] = {
     {"Filter mode", fFilterMode, aFilterMode},
     {"Resonance", fRes, aRes, true, gRes},
     {"Fat detune", fDetune, aDetune, true, gDetune},
+    {"Drift", fDrift, aDrift, true, gDrift},
     {"EFFECTS", nullptr, nullptr},
     {"Chorus", fChorus, aChorus, true, gChorus},
     {"Delay send", fDelaySend, aDelaySend, true, gDelaySend},
@@ -951,7 +965,7 @@ void drawArrowsLR(M5Canvas& c, int x, int cy, uint16_t col) {
 // so the folded map still tells you what's inside. nullptr = no hint.
 const char* headerHint(const char* name) {
     if (!strcmp(name, "LIBRARY"))    return "save/load/reset";
-    if (!strcmp(name, "TONE"))       return "filter/reso/detune";
+    if (!strcmp(name, "TONE"))       return "filter/reso/detune/drift";
     if (!strcmp(name, "EFFECTS"))    return "chorus/delay/reverb";
     if (!strcmp(name, "MODULATION")) return "2 LFOs/matrix";
     if (!strcmp(name, "LAYOUT"))     return "key/scale/glide";

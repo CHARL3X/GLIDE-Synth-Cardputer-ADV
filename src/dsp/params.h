@@ -184,6 +184,16 @@ struct SynthParams {
     float noiseLevel = 0.f;   // per-voice white noise, env-gated, 0..1
     float drive = 1.f;        // pre-filter gain into the soft clipper, 1..8
     float autoVibCents = 0.f; // built-in vibrato depth (tilt adds on top)
+    // Per-voice pitch wander, in cents — the imperfection that separates warm
+    // analog from sterile digital. Every voice drifts on its own slow random
+    // walk, so a held chord never sits still. Non-zero BY DEFAULT, which is
+    // deliberate and is the one field here that is not neutral: a drift nobody
+    // can hear because they never found the settings row is not worth having.
+    // NOTE for whoever changes this default later — patches saved before the
+    // field existed carry no tag 30 and so inherit whatever this says, while
+    // patches saved after it are pinned to their own value. Move it and the two
+    // groups diverge.
+    float driftCents = 3.f;
 
     // ---- send effects (global block, post-filter; 0 = dry/off) -----------
     // The "space" a bare mono voice lacks. Defaults are fully dry so the

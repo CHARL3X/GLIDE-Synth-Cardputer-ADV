@@ -36,6 +36,11 @@ void Voice::noteOn(uint8_t id, uint8_t lane, float pitch, float fromPitch, bool 
     id_ = id;
     lane_ = lane;
     seq_ = seq;
+    // De-correlate this voice's drift from its neighbours' so a chord wanders
+    // as several independent strings, not as one detuned block. The walk value
+    // itself is NOT reset: a re-attacked voice keeps the position it drifted
+    // to, which is what an oscillator that never re-tunes actually does.
+    driftRng_ = 0x2545F491u ^ (seq * 2654435761u);
     drone_ = false;    // reused voice: caller re-flags via setDrone
     backing_ = false;  // same: caller re-flags via setBacking
     tgtPitch_ = pitch;
@@ -93,6 +98,23 @@ void Voice::render(float* out, int n, const SynthParams& p, float centsOffset) {
         newPitch = curPitch_ + (tgtPitch_ - curPitch_) * alpha;
         if (fabsf(tgtPitch_ - newPitch) < 0.002f) newPitch = tgtPitch_;
     }
+    // ---- analog drift ---------------------------------------------------
+    // A slow, bounded random walk in cents, advanced once per block and folded
+    // into this block's cents offset. It rides on centsOffset rather than on
+    // curPitch_ deliberately: curPitch_ feeds the note readout and the KeyTrack
+    // mod source, and a readout that jitters looks like a fault. The walk is
+    // pulled back toward centre in proportion to how far it has gone (an
+    // Ornstein-Uhlenbeck step), so it wanders without ever running away.
+    if (p.driftCents > 0.001f) {
+        driftRng_ = driftRng_ * 1664525u + 1013904223u;
+        const float r = (float)(int32_t)driftRng_ * (1.f / 2147483648.f);  // -1..1
+        const float pull = 3.5f * blockDur;   // ~0.3 s time constant
+        driftVal_ += r * blockDur * 4.f - driftVal_ * pull;
+        if (driftVal_ > 1.f) driftVal_ = 1.f;
+        else if (driftVal_ < -1.f) driftVal_ = -1.f;
+        centsOffset += driftVal_ * p.driftCents;
+    }
+
     const float off = centsOffset * 0.01f;
     const float f0 = midiToFreq(curPitch_ + off);
     const float f1 = midiToFreq(newPitch + off);

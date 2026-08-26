@@ -46,6 +46,7 @@ constexpr Range kSub      = {0.f, 0.85f};
 constexpr Range kNoise    = {0.f, 0.30f};
 constexpr Range kDrive    = {1.f, 6.f};
 constexpr Range kAutoVib  = {0.f, 15.f};
+constexpr Range kDrift    = {0.f, 12.f};
 constexpr Range kReverb   = {0.f, 0.6f};
 constexpr Range kRvbSize  = {0.30f, 0.95f};
 constexpr Range kDelay    = {0.f, 0.5f};
@@ -179,6 +180,7 @@ void sanitizePatch(GenPatch& g) {
         if (m.dest == (uint8_t)ModDest::Pitch) m.depth = clampT(m.depth, -0.08f, 0.08f);
         if (m.dest == (uint8_t)ModDest::Amp)   m.depth = clampT(m.depth, -0.60f, 0.60f);
     }
+    s.driftCents = clampR(s.driftCents, kDrift);  // RNG-free: cannot move a golden
     g.tiltDepth  = clampT(g.tiltDepth, 0.f, 1.f);
     g.tiltDepthB = clampT(g.tiltDepthB, 0.f, 1.f);
 }
@@ -814,6 +816,31 @@ GenPatch generateSoundV3(uint32_t seed, Archetype a) {
     return g;
 }
 
+GenPatch generateSoundV4(uint32_t seed) { return generateSoundV4(seed, archetypeForSeedV3(seed)); }
+
+GenPatch generateSoundV4(uint32_t seed, Archetype a) {
+    // V4 = V3 plus a rolled analog drift. It exists as its own version for one
+    // reason: V3 is frozen the moment a device is born under it, because
+    // genver-3 units re-derive their o/p slots through it on every boot. Adding
+    // the draw inside V3 would have quietly retuned sounds people already own.
+    //
+    // The draw takes its OWN Rng rather than the paint's, so it cannot advance
+    // the shared stream and shift every subsequent value — the whole reason a
+    // frozen generator is fragile. Consequence: V4's non-drift output is
+    // bit-identical to V3's, which the test suite asserts directly.
+    //
+    // Most rolls get a little; a quarter get none at all (dead-still digital is
+    // a legitimate character, and a pluck rarely wants wander); a few get a lot.
+    GenPatch g = generateSoundV3(seed, a);
+    Rng r(seed ^ 0x51ED2703u);
+    const float roll = r.f();
+    g.synth.driftCents = roll < 0.25f  ? 0.f
+                         : roll < 0.85f ? uni(r, 1.5f, 5.f)     // the usual: alive
+                                        : uni(r, 5.f, 11.f);    // seasick vintage
+    sanitizePatch(g);
+    return g;
+}
+
 GenPatch mutateSound(const GenPatch& base, float amount, uint32_t seed) {
     if (amount <= 0.f) return base;
     amount = clampT(amount, 0.f, 1.f);
@@ -849,6 +876,7 @@ GenPatch mutateSound(const GenPatch& base, float amount, uint32_t seed) {
     s.fenvAtkS     = nudge(r, s.fenvAtkS, kFenvAtk, amount, p);
     s.noiseLevel   = nudge(r, s.noiseLevel, kNoise, amount, p);
     s.autoVibCents = nudge(r, s.autoVibCents, kAutoVib, amount, p);
+    s.driftCents = nudge(r, s.driftCents, kDrift, amount, p);
     s.delayFb      = nudge(r, s.delayFb, kDelayFb, amount, p);
     s.delayTimeS   = nudge(r, s.delayTimeS, kDelayTm, amount, p);
     s.reverbSize   = nudge(r, s.reverbSize, kRvbSize, amount, p);
@@ -1009,6 +1037,7 @@ uint32_t patchHashFull(const GenPatch& g) {
     h = fhash(h, s.fenvDecS, 1000.f);
     h = fhash(h, s.noiseLevel, 100.f);
     h = fhash(h, s.autoVibCents, 10.f);
+    h = fhash(h, s.driftCents, 10.f);
     h = fhash(h, s.delayTimeS, 1000.f);
     h = fhash(h, s.delayFb, 100.f);
     h = fnv(h, (uint32_t)s.delaySync);

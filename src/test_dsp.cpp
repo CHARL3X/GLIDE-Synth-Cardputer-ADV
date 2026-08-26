@@ -621,6 +621,7 @@ int main() {
                    s.subLevel >= 0.f && s.subLevel <= 1.f &&
                    s.noiseLevel >= 0.f && s.noiseLevel <= 1.f &&
                    s.drive >= 1.f && s.drive <= 8.f &&
+                   s.driftCents >= 0.f && s.driftCents <= 12.f &&
                    s.reverbMix >= 0.f && s.reverbMix <= 1.f &&
                    s.delayMix >= 0.f && s.delayMix <= 1.f &&
                    s.chorusDepth >= 0.f && s.chorusDepth <= 1.f &&
@@ -656,6 +657,7 @@ int main() {
                       x.resonance == y.resonance && x.filterMode == y.filterMode &&
                       x.detuneCents == y.detuneCents && x.fenvOct == y.fenvOct && x.fenvDecS == y.fenvDecS &&
                       x.subLevel == y.subLevel && x.noiseLevel == y.noiseLevel && x.drive == y.drive &&
+                      x.autoVibCents == y.autoVibCents && x.driftCents == y.driftCents &&
                       x.chorusDepth == y.chorusDepth && x.delayMix == y.delayMix && x.delayFb == y.delayFb &&
                       x.delaySync == y.delaySync && x.reverbMix == y.reverbMix && x.reverbSize == y.reverbSize &&
                       x.lfo1RateHz == y.lfo1RateHz && x.lfo1Shape == y.lfo1Shape &&
@@ -768,17 +770,26 @@ int main() {
         // it (storage gates on "genver"), so ANY drift here silently changes
         // sounds players already have. The two hashes cover essentially every
         // field between them; the enums pin the categorical draws directly.
+        //
+        // The NAME hashes below are the original captures and have never moved —
+        // they are the ones that decide a re-derived slot's label. The FULL
+        // hashes were re-captured once, when driftCents joined patchHashFull:
+        // folding any field into that hash changes it for every patch, even at
+        // an unchanged value. Before re-capturing, every persisted field of
+        // these six patches was dumped and diffed against the previous build and
+        // came back bit-identical, so the generators themselves did not move.
+        // Do not re-capture again without repeating that proof.
         {
             const GenPatch l1 = generateSoundLegacy(0xC0FFEEu);
-            CHECK(patchHash(l1) == 0x023AE176u && patchHashFull(l1) == 0xE3B50DBCu,
+            CHECK(patchHash(l1) == 0x023AE176u && patchHashFull(l1) == 0x5F569A26u,
                   "legacy generator frozen (seed 0xC0FFEE)");
             CHECK(l1.synth.wave == Waveform::Sine && l1.synth.filterMode == (uint8_t)FilterMode::LP,
                   "legacy categorical draws frozen (seed 0xC0FFEE)");
             const GenPatch l2 = generateSoundLegacy(42u);
-            CHECK(patchHash(l2) == 0x96F5ADD4u && patchHashFull(l2) == 0xD15358A8u,
+            CHECK(patchHash(l2) == 0x96F5ADD4u && patchHashFull(l2) == 0x4FA5F21Cu,
                   "legacy generator frozen (seed 42)");
             const GenPatch l3 = generateSoundLegacy(0xDEADBEEFu);
-            CHECK(patchHash(l3) == 0x00BF90FEu && patchHashFull(l3) == 0x6BB25411u,
+            CHECK(patchHash(l3) == 0x00BF90FEu && patchHashFull(l3) == 0xFFAB9265u,
                   "legacy generator frozen (seed 0xDEADBEEF)");
         }
 
@@ -790,9 +801,9 @@ int main() {
         // hold.) Golden values captured from the first archetype build.
         {
             const Archetype kGoldenArchC0FFEE   = Archetype::Bass;
-            const uint32_t kGoldenV2NameC0FFEE  = 0x89CF064Au, kGoldenV2FullC0FFEE  = 0x19A7FDBCu;
-            const uint32_t kGoldenV2Name42      = 0x3415AEE2u, kGoldenV2Full42      = 0x1A66CF34u;
-            const uint32_t kGoldenV2NameDEADBEEF = 0x2F3E1BA5u, kGoldenV2FullDEADBEEF = 0x57CD1E5Bu;
+            const uint32_t kGoldenV2NameC0FFEE  = 0x89CF064Au, kGoldenV2FullC0FFEE  = 0xA36B8F50u;
+            const uint32_t kGoldenV2Name42      = 0x3415AEE2u, kGoldenV2Full42      = 0xA93388E2u;
+            const uint32_t kGoldenV2NameDEADBEEF = 0x2F3E1BA5u, kGoldenV2FullDEADBEEF = 0x43F6310Fu;
             const GenPatch v1 = generateSound(0xC0FFEEu);
             CHECK(archetypeForSeed(0xC0FFEEu) == kGoldenArchC0FFEE,
                   "v2 archetype pick frozen (seed 0xC0FFEE)");
@@ -907,6 +918,37 @@ int main() {
             CHECK(patchHashFull(generateSoundV3(sd0)) ==
                       patchHashFull(generateSoundV3(sd0, archetypeForSeedV3(sd0))),
                   "generateSoundV3(seed) == generateSoundV3(seed, archetypeForSeedV3(seed))");
+
+            // V4 = V3 + a rolled drift, and NOTHING else. This is the assertion
+            // that lets V4 exist at all: genver-3 devices re-derive their o/p
+            // slots through V3 every boot, so if V4's extra draw had touched the
+            // shared paint stream, every one of those sounds would have shifted.
+            // The drift roll takes its own Rng precisely so this holds.
+            {
+                CHECK(patchHashFull(generateSoundV4(0xB0BA7EAu)) ==
+                          patchHashFull(generateSoundV4(0xB0BA7EAu)),
+                      "generateSoundV4 deterministic");
+                CHECK(patchHashFull(generateSoundV4(sd0)) ==
+                          patchHashFull(generateSoundV4(sd0, archetypeForSeedV3(sd0))),
+                      "generateSoundV4(seed) == generateSoundV4(seed, archetypeForSeedV3(seed))");
+                bool sameElse = true, sawDrift = false, sawStill = false;
+                float driftMax = 0.f;
+                for (uint32_t i = 0; i < 300u; ++i) {
+                    const uint32_t sd = 0x9E3779B9u * (i + 7u);
+                    GenPatch v3 = generateSoundV3(sd);
+                    const GenPatch v4 = generateSoundV4(sd);
+                    if (v4.synth.driftCents > 0.f) sawDrift = true; else sawStill = true;
+                    if (v4.synth.driftCents > driftMax) driftMax = v4.synth.driftCents;
+                    if (v4.synth.driftCents < 0.f || v4.synth.driftCents > 12.f)
+                        sameElse = false;
+                    // compare everything EXCEPT the field V4 is allowed to move
+                    v3.synth.driftCents = v4.synth.driftCents;
+                    if (patchHashFull(v3) != patchHashFull(v4)) sameElse = false;
+                }
+                CHECK(sameElse, "V4 differs from V3 in driftCents and nothing else");
+                CHECK(sawDrift && sawStill, "V4 rolls both drifting and dead-still sounds");
+                CHECK(driftMax > 5.f, "V4 reaches the wide end of the drift window");
+            }
 
             // sweep the expanded pool: all fourteen archetypes occur, every
             // roll obeys every guardrail, and a sample renders finite & bounded
@@ -1221,6 +1263,7 @@ int main() {
         q = p; q.synth.fenvDecS += 0.05f;   flips(q, "fenvDecS flips the dirty hash");
         q = p; q.synth.noiseLevel += 0.1f;  flips(q, "noiseLevel flips the dirty hash");
         q = p; q.synth.autoVibCents += 5.f; flips(q, "autoVibCents flips the dirty hash");
+        q = p; q.synth.driftCents += 4.f; flips(q, "driftCents flips the dirty hash");
         q = p; q.synth.delayTimeS += 0.05f; flips(q, "delayTimeS flips the dirty hash");
         q = p; q.synth.delayFb += 0.1f;     flips(q, "delayFb flips the dirty hash");
         q = p; q.synth.delaySync = (uint8_t)((q.synth.delaySync + 1) % kDelaySyncCount);
@@ -1277,6 +1320,31 @@ int main() {
         CHECK(store::decodePatch(buf, na, out), "decode accepts the stream");
         CHECK(fabsf(out.synth.cutoffHz - 1234.f) < 0.5f, "scalar field round-trips");
         CHECK(strcmp(out.name, "my-bass") == 0, "name round-trips");
+
+        // (a2) tag 30 (driftCents) round-trips, and a stream written before the
+        // tag existed leaves the field at its default rather than zeroing it.
+        // That second half is what decides what happens to a player's existing
+        // rack: every patch saved before this feature gains the default drift.
+        {
+            PatchData d1;
+            d1.synth.driftCents = 9.f;
+            const size_t n1 = store::encodePatch(d1, buf, sizeof buf);
+            PatchData r1;
+            r1.synth.driftCents = 0.f;
+            CHECK(store::decodePatch(buf, n1, r1) &&
+                      fabsf(r1.synth.driftCents - 9.f) < 0.01f,
+                  "driftCents round-trips (tag 30)");
+            // an "old" stream: encode, then decode into a fresh struct after
+            // stripping the drift record by re-encoding a patch that never set
+            // it is not possible (the tag always emits), so assert the decoder
+            // contract directly — untouched fields keep the destination value.
+            PatchData r2;
+            r2.synth.autoVibCents = 7.f;  // a field the stream below never names
+            uint8_t tiny[3] = {buf[0], buf[1], buf[2]};  // magic + version only
+            CHECK(store::decodePatch(tiny, sizeof tiny, r2) &&
+                      fabsf(r2.synth.autoVibCents - 7.f) < 0.01f,
+                  "absent tags leave the destination field untouched");
+        }
 
         // (b) an empty name emits NO extra bytes and decodes back empty
         PatchData b;

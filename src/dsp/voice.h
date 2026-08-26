@@ -61,6 +61,12 @@ private:
     float curPitch_ = 60.f, tgtPitch_ = 60.f, startPitch_ = 60.f;
     uint32_t ph_[4] = {0, 0, 0, 0};  // main, fat up, fat down, sub (-1 oct)
     uint32_t rng_ = 0x9E3779B9u;     // per-voice noise state
+    // Analog drift: its OWN random stream, deliberately not rng_. That one is
+    // drawn per sample by the noise oscillator, so sharing it would change the
+    // noise whenever drift moved — two unrelated features tangled through one
+    // LCG. driftVal_ is a slow random walk in cents, advanced once per block.
+    uint32_t driftRng_ = 0x2545F491u;
+    float driftVal_ = 0.f;
     float pwmPhase_ = 0.f;           // slow pulse-width LFO (Pulse wave)
     bool drone_ = false;             // jam-row backing voice
     bool backing_ = false;           // loop-pedal playback voice
