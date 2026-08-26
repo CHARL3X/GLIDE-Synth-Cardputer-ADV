@@ -115,3 +115,45 @@ changes are exactly what breaks the crossing.
   precisely so it cannot be done by hand and drift.
 - **Launcher OTA listing:** units that stay on Launcher keep their OTA store
   entry (it points at the same releases). Nothing here touches it.
+
+## Downstream idea: updating from inside GLIDE (parked, and gated on this doc)
+
+Raised 2026-08-26: check for and install updates from within the instrument —
+no card, no computer. Recorded here rather than as its own doc because it is
+**not independently buildable**, and the reason is worth writing down before
+someone spends a week on the wrong half.
+
+The obvious cost is the UI, and it is enormous by this project's standards: a
+WiFi scan, a scrollable network list, and a password entry field is not "one
+settings row," it is a whole modal subsystem with a text-input mode, on an
+instrument whose identity is that it has almost no menus. That alone would
+need a human decision at review.
+
+**But the UI is not the blocker. Partition ownership is.** As a Launcher app,
+GLIDE does not own the OTA slots. Launcher writes the selected app into one;
+the other holds whatever the player installed before. So a self-update has
+nowhere honest to write:
+
+- Write to the inactive slot and it clobbers an app the player deliberately
+  installed — silently, from inside a synth.
+- Or, if that slot already held GLIDE, the unit now carries **two identical
+  GLIDE images** and a player has no way to tell them apart.
+- And GLIDE cannot reliably know which case it is in, because the allocation
+  is another program's business.
+
+Writing the new image to the SD card instead sidesteps the flash question and
+lands somewhere worse: the player is still running the old build and must go
+back through Launcher to install it — the manual step the feature existed to
+remove.
+
+**So it is strictly downstream of this doc.** Once GLIDE ships as a standalone
+image that owns its own partition table (Task 2 here), self-update becomes an
+ordinary A/B OTA: two slots, both GLIDE's, write the inactive one, flip the
+boot partition, restart. That is well-trodden ESP-IDF ground. It also retires
+debt D2 in `00-INDEX.md` as a side effect, since a GLIDE that owns its boot
+partition can answer the "exit vs restart" question honestly.
+
+**Verdict: parked, owner's call — "not for this batch."** The one rule for
+whoever revisits it: do not build the WiFi UI first. It is the expensive half
+of a feature the partition table currently forbids, and it would be built
+against assumptions this doc's Task 2 may overturn.
