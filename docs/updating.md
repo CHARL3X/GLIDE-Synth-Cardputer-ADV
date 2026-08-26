@@ -11,10 +11,11 @@ editing the PDF.
 
 ## Before anything else: it only charges switched ON
 
-**A switched-off Cardputer does not charge.** The switch on the side has to be
-in the **ON** position before you plug the USB-C cable in — otherwise the
-battery sits there all night exactly as empty as it started. That's how the
-hardware is built; it isn't a fault, and nothing is wrong with your device.
+**A switched-off Cardputer does not charge.** With the switch off the battery
+is disconnected from the circuit entirely — the device just runs off the cable,
+and the cell ends the night exactly as empty as it started. Slide the switch to
+**ON** first, then plug in. That's how M5 built it (their own Cardputer-Adv
+documentation says so); it isn't a fault, and nothing is wrong with your device.
 
 You can leave GLIDE running the whole time it charges. It dims itself after a
 while and then drifts into a screensaver, so nothing burns into the panel, and
