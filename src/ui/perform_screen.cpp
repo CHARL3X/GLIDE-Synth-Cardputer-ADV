@@ -1440,6 +1440,14 @@ void drawBottom(M5Canvas& c, uint32_t now) {
     const int gx = 166, gy = kBottomY, cw = 7, ch = 6;
     const auto& sc = dsp::kScales[cf.layout.scaleIdx];
     const int rowDeg = dsp::rowDegrees(cf.layout);
+    // Guide tones: while the progression walks, tick every key belonging to the
+    // chord sounding NOW. Scale lock already guarantees no wrong notes; this is
+    // the next rung — which of the right notes are the strong ones over this
+    // bar. Fetched once per frame; the cell in the loop is the only cost.
+    uint8_t guidePcs[3];
+    const int nGuide = keys::progChordPcs(guidePcs, 3);
+    int gs = -1, gc = -1;
+    keys::progCurrentCell(gs, gc);  // the root's own cell, already outlined below
     int droneCount = 0;
     for (int str = 0; str < dsp::kGridStrings; ++str) {
         const int y = gy + (3 - str) * ch;
@@ -1452,7 +1460,7 @@ void drawBottom(M5Canvas& c, uint32_t now) {
                                       : st == 2 ? theme::kSteel
                                                 : theme::kIdle;  // beat blink
                 c.fillRect(x, y, cw - 1, ch - 1, fill);
-                continue;
+                continue;  // held and drone cells win: no tick, no dot
             }
             bool mark;
             if (cf.layout.scaleLock) {
@@ -1461,13 +1469,26 @@ void drawBottom(M5Canvas& c, uint32_t now) {
                 mark = dsp::chromaticInScale(cf.layout, str, col);
             }
             c.fillRect(x + 2, y + 2, 2, 2, mark ? theme::kAmber : theme::kLine);
+            // A 1 px corner tick, clear of the centre dot. It must whisper —
+            // this map already carries held/drone/beat/in-scale meaning — so it
+            // takes the dim accent and the one free pixel. Skipped on the root's
+            // own cell, which the steel outline below already claims.
+            if (nGuide > 0 && !(str == gs && col == gc)) {
+                const int cellPc =
+                    (int)(dsp::gridToMidi(cf.layout, str, col, false) + 0.5f);
+                const uint8_t pcHere = (uint8_t)(((cellPc % 12) + 12) % 12);
+                for (int i = 0; i < nGuide; ++i)
+                    if (guidePcs[i] == pcHere) {
+                        c.drawPixel(x + cw - 2, y, theme::kAmberDim);
+                        break;
+                    }
+            }
         }
     }
     // progression: outline the chord root sounding now, so the walking
     // backing is visible on the grid map even though no key is held for it
-    int ps, pc;
-    if (keys::progCurrentCell(ps, pc)) {
-        const int x = gx + pc * cw, y = gy + (3 - ps) * ch;
+    if (gs >= 0) {
+        const int x = gx + gc * cw, y = gy + (3 - gs) * ch;
         c.drawRect(x, y, cw - 1, ch - 1, theme::kSteel);
     }
 
@@ -1634,8 +1655,15 @@ void drawBattery(M5Canvas& c, uint32_t now) {
 void drawHint(M5Canvas& c) {
     c.setFont(&fonts::Font0);
     if (keys::quickEditActive()) {
+        // Name the sound row here, not just "release fn to play". The edit
+        // panel already lists the ten slots down its right column — but that
+        // column yields to the context viz for six of the ten parameters, and
+        // the selection is sticky, so one poke at ATTACK hides the bank on
+        // every subsequent fn hold. This line is the one thing always on
+        // screen while fn is down, and players reported never finding the
+        // sounds at all. Deliberately echoes the edit status bar's wording.
         c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString("release fn to play", 4, kHintY);
+        c.drawString("q..p sounds  1-0 param  release to play", 2, kHintY);
         return;
     }
     if (demo::active()) {

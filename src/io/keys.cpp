@@ -1329,4 +1329,27 @@ bool progCurrentCell(int& string, int& col) {
     return true;
 }
 
+// The chord sounding right now, as pitch classes — the grid map marks the keys
+// that belong to it. Gated on the same condition as progCurrentCell (a chord is
+// actually ringing), not on progActive(), which only says the mode is selected.
+// The chromatic voicing is root/fifth/octave, so it yields two distinct classes,
+// not three; dedupe rather than reporting the octave twice.
+int progChordPcs(uint8_t* pcs, int cap) {
+    if (cap <= 0 || gProgLen == 0 || !gProgSounding) return 0;
+    float pp[kProgVoices];
+    const int np = dsp::chordPitches(gProgLayout, gProg[gProgIdx].string,
+                                     gProg[gProgIdx].col, gProg[gProgIdx].chrom,
+                                     pp, kProgVoices);
+    int n = 0;
+    for (int i = 0; i < np && n < cap; ++i) {
+        const int m = (int)(pp[i] + 0.5f);
+        const uint8_t pc = (uint8_t)(((m % 12) + 12) % 12);
+        bool dup = false;
+        for (int k = 0; k < n; ++k)
+            if (pcs[k] == pc) { dup = true; break; }
+        if (!dup) pcs[n++] = pc;
+    }
+    return n;
+}
+
 }  // namespace keys

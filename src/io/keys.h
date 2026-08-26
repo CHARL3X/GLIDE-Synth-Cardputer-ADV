@@ -75,6 +75,9 @@ int progIndex();
 bool progAppendStep(int string, int col, bool chrom);  // demo mode spells a bed
 void progStepName(int i, char* out, int cap);
 bool progCurrentCell(int& string, int& col);
+// The sounding chord's pitch classes (0..11), deduped. Returns 0..cap; 0 when
+// nothing is walking. Drives the grid map's guide-tone marks.
+int progChordPcs(uint8_t* pcs, int cap);
 
 // re-sync edge state after a blocking screen (settings) ate the keyboard
 void resync();
