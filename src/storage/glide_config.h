@@ -55,12 +55,15 @@ struct GlideConfig {
                               // (guitar feel); off = free poly allocation
     bool octaveGlide = true;  // octave keys sweep held notes instead of jumping
     // Tilt is NEVER pitch bend. Two simultaneous axes: A = forward/back,
-    // B = left/right roll. The stock rig is Morph on f/b + vibrato on l/r, both
-    // at 60% — and tiltLock (below) makes that map global, so it follows your
-    // hands across every sound instead of reloading per patch.
+    // B = left/right roll. The stock rig is Morph on f/b at 90% + vibrato on
+    // l/r at 60% — and tiltLock (below) makes that map global, so it follows
+    // your hands across every sound instead of reloading per patch. The morph
+    // axis is deep on purpose: at 60% a lean only ever half-arrived at the
+    // other sound, which reads as a wobble rather than a blend.
     TiltRoute tiltRoute = TiltRoute::Vibrato;   // axis A physical route (masked by
                                                 // tiltMorphA below in the stock rig)
-    float tiltDepth = 0.6f;   // axis A depth, 0..1
+    float tiltDepth = 0.9f;   // axis A depth, 0..1 (fresh devices only — an
+                              // existing unit has "tiltdep" in NVS and keeps it)
     float tiltCenter = 0.23f;  // axis A calibrated "flat" default (~20° of pitch,
                                // in angle units where 1.0 = 90°) — wherever YOU hold it
     TiltRoute tiltRouteB = TiltRoute::Vibrato;  // axis B (roll) route — vibrato l/r

@@ -22,13 +22,14 @@ namespace {
 // (120..122), loop playback (128..183) and the chime/preview (250/251..253).
 constexpr uint8_t kMelodyId = 200;
 
-// The demo is a CURATED performance, not a random tour. The bed is Ethereal —
-// the patch the README calls "a bed to solo over" — voiced in a register the
+// The demo is a CURATED performance, not a random tour. The bed is Organ —
+// near-full sustain so a held chord never decays, and a 1.1 kHz corner that
+// keeps it UNDER the solo instead of fighting it — voiced in a register the
 // 1 W speaker can actually speak (the progression pad sits an octave below
 // the grid, so a low layout octave lands it in inaudible mud). The solo
-// rotates through leads that are known to sing over a pad.
-constexpr uint8_t kBedSlot = 4;                  // t = Ethereal
-constexpr uint8_t kSoloSlots[4] = {3, 0, 1, 7};  // Solo, GLIDE, ACID, Drift
+// rotates through leads that are known to sing over a bed.
+constexpr uint8_t kBedSlot = 2;                  // e = Organ
+constexpr uint8_t kSoloSlots[4] = {4, 0, 1, 7};  // Crisp Horn, GLIDE, ACID, Big
 
 bool gPending = false, gActive = false;
 dsp::DemoMelody gMel;
@@ -70,7 +71,7 @@ void start(uint32_t nowMs) {
         g.jamChordBeats = 2;
         if (g.jamBpm < 70 || g.jamBpm > 130) g.jamBpm = 92;  // a groove tempo
         store::unlockBacking();  // a stale solo/backing split would trap the
-                                 // bed on its frozen sound — Ethereal must land
+                                 // bed on its frozen sound — Organ must land
         store::applyPatch(kBedSlot);         // nothing sounds yet — no lock
         const int8_t keepOct = g.layout.octave;
         g.layout.octave = 4;                 // bed = this minus an octave: audible

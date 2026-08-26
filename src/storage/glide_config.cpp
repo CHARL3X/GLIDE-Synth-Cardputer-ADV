@@ -692,9 +692,9 @@ void begin() {
     // Reclaim that space —
     // drop any stored slot blob whose sound still EXACTLY matches its regenerated
     // default (a sound you actually saved has a different hash and is left
-    // untouched). Runs once (the "regen1" sentinel). (void)freshDevice — the bank
-    // no longer depends on first-boot.
-    (void)freshDevice;
+    // untouched). Runs once (the "regen1" sentinel). The bank itself no longer
+    // depends on first-boot; freshDevice is used at the end of begin() to seed
+    // the live sound from slot q.
     if (gNvsOk && !gPrefs.getBool("regen1", false)) {
         for (int i = 1; i < dsp::kPatchCount; ++i) {
             if (!((gOverrideMask >> i) & 1u)) continue;  // no stored blob here
@@ -979,6 +979,45 @@ void begin() {
             refreshLiveName();  // canonical adj-noun from the NAME hash — liveHash
                                 // is the dirty hash now and must not seed names
         }
+    }
+
+    // FIRST BOOT ONLY: the live sound starts as SLOT q, not as the bare engine
+    // defaults. Those two used to be the same thing — slot q was defined as "no
+    // overrides", so a default-constructed SynthParams WAS the q patch and the
+    // power-on tone matched fn+q for free. Slot q is now a real patch (synth
+    // brass) like every other, so without this the very first power-on would
+    // sound like the old raw saw while the screen said GLIDE, and you'd have to
+    // press fn+q to hear what you supposedly booted into.
+    //
+    // The tempting alternative — moving the SynthParams defaults to match slot
+    // q — is FORBIDDEN. The frozen generators start every roll at a
+    // default-constructed SynthParams and paint only the fields their archetype
+    // owns (sound_gen.cpp: "starts at the neutral GLIDE defaults"), so shifting
+    // the defaults would silently re-voice o/p on every unit already in the
+    // field and break the golden hashes. Seed the live sound instead.
+    //
+    // Existing units never take this path: they have a boot counter, so
+    // prevBoot != 0. A factory reset wipes NVS, so its next boot does — which is
+    // what keeps the first sound, the factory-reset sound and fn+q one sound.
+    if (freshDevice) {
+        PatchData qp;
+        loadPatchData(gCfg.currentPatch, qp);
+        const float keepVol = gCfg.synth.masterVol;  // volume is the player's
+        gCfg.synth = qp.synth;
+        gCfg.synth.masterVol = keepVol;
+        gCfg.synth.bendCents = 0.f;   // live-mod fields never come from a patch
+        gCfg.synth.vibratoCents = 0.f;
+        gCfg.synth.cutoffModOct = 0.f;
+        gCfg.synth.volMod = 1.f;
+        gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
+        // Tilt is deliberately NOT taken from the patch: the stock rig is global
+        // (tiltLock on), exactly as applyPatchData leaves it on a locked device.
+        setLiveName(patchName(gCfg.currentPatch));
+        gCurSlotHash = liveHash();    // it IS the slot's sound, unedited
+        // Persist, or boot #2 reads the still-absent flat keys and falls all the
+        // way back to the bare defaults — the instrument would change sound
+        // between its first and second power-on.
+        if (gNvsOk) persistNow();
     }
 }
 

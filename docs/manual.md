@@ -53,14 +53,14 @@ Ten slots live on `fn`+`q`..`p`. Eight are a curated bank, led by **GLIDE** on `
 
 | key | sound | character | tilt (per-sound mode) |
 |-----|-------|-----------|-----------|
-| q | **GLIDE** | the signature dry saw, and the literal boot tone | vibrato (roll: filter) |
+| q | **GLIDE** | the signature saw, now with a body: synth brass that swells into each note. the literal boot tone | filter (roll: vibrato) |
 | w | **ACID** | resonant squelch. lean into it, tilt is the wah | filter (full) |
-| e | **Bass** | fat pulse bass: square sub for weight, driven, snappy filter pluck | filter (roll: vibrato) |
-| r | **Solo** | bright square lead, always-gliding, 1/8-triplet delay in the pocket | vibrato |
-| t | **Ethereal** | soft triangle pad, long glide, roomy hall. a bed to solo over | vibrato (roll: swell) |
+| e | **Organ** | drawbar organ with a leslie shimmer. holds a chord forever and sits *under* a solo — the bed | filter (roll: vibrato) |
+| r | **Taser** | open saw + sub. gets *darker* as you play up, and leaning swells the echo | vibrato (roll: filter) |
+| t | **Crisp Horn** | bright reed horn that sings its own vibrato without you leaning | filter (roll: vibrato) |
 | y | **Fat Square** | punchy square, bright per-note filter bloom, attack knock | filter |
 | u | **Hollow** | driven square through a *notch* filter, phasey and hollow | volume swell (roll: filter) |
-| i | **Drift** | lush always-gliding square, deep chorus and a 1/8 delay | filter |
+| i | **Big** | highpass square ringing at the corner: hollow and enormous at once, on a 1/4 echo | filter |
 | o | *generative* | rolled unique to your device, yours alone | (rolled) |
 | p | *generative* | rolled unique to your device, yours alone | (rolled) |
 
@@ -98,7 +98,7 @@ The gyro debate, resolved as agreed, then promoted, because in practice it's fan
   <img src="../assets/glide-tilt.svg" alt="Tilt: lean the device forward and back to morph between the live sound and the last one; left and right adds vibrato; enter toggles; never pitch bend" width="100%">
 </p>
 
-- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) and **vibrato on left/right**, both at 60%. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Ethereal and Solo into vibrato, per the table above), saved with the slot.
+- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) at 90% and **vibrato on left/right** at 60%. The morph axis is deep on purpose: at 60% a lean only half-arrives at the other sound, which reads as a wobble instead of a blend. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Taser into vibrato, per the table above), saved with the slot.
 - **Depth** (settings): how hard the motion drives the effect, 0 to 100%.
 - **Center calibration** (settings → *Tilt center*): "flat" becomes wherever *you* hold the thing, not wherever gravity says. Set it while holding the device in playing position.
 
@@ -124,7 +124,7 @@ The other half of "one hand backs, the other solos": **alt** (left thumb, since 
 - **fn + alt**: peel the last overdub (undo). Repeat the chord and it walks back up the stack; the gesture bounces at the ends, so it undoes to the base take and redoes to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
 - **panic** (bksp) silences the loop but keeps the take. Tap alt and it plays again.
 - The hint line goes loop-aware while a take exists (`alt dub  hold clear  fn+alt undo`), so the gestures are always on screen.
-- Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record a Bass line, switch to Solo, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
+- Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record an Organ line, switch to Taser, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
 - Loop playback is a protected backing layer like the drones. Its voices ride outside the voice cap, can't be robbed by chord-slide stealing, ignore live bends and tilt vibrato, never hijack the note readout, and survive sound switches and settings trips. Internally it plays on its own string lanes (4 to 7) with its own key ids, so it can never collide with your hands.
 - Timing belongs to the audio thread. Playback events are *scheduled* (block-accurate, ~4 ms), not fired from the ~33 ms UI frame, so the loop doesn't swing with the frame rate.
 - **The loop locks to the jam clock.** The tap that closes a take snaps its length to the nearest **bar** of the *Jam tempo* (minimum one bar; a tap 40% into bar one was meant as a 1-bar loop), so the loop and the auto-progression share one clock instead of drifting apart a little more every cycle. Notes played just past the bar line wrap to the downbeat; a note still held at the close rings to the loop end. Settings → *Loop snap* picks `bar` (default), `beat`, or `off` for the old free-time behaviour.
@@ -139,18 +139,18 @@ The loop pedal records a *performance*, which means your timing has to be right,
 - **Tap the chords in order on the jam row. That's it.** Each tap appends a step (repeats allowed: I-IV-V-IV is four taps). No metronome, no pocket to hit. The HUD confirms each one (`PROG  3: E`).
 - The beat clock walks the steps **one chord per bar**, looping, at the *Jam tempo*. *Chord length* sets the beats per chord. The backing glides from chord to chord (of course it does) and re-blooms each bar, so on a pad or strings patch it's a soft wash you solo straight over.
 - Each step is a **diatonic triad** built from the current scale: real major/minor/dim color, and always in key. The same "you can't hit a wrong note" guarantee the melody gets, now for the backing too. (Hold `shift` while tapping a step for a chromatic power-chord voicing instead.)
-- It's a protected backing layer like the drones and the loop: cap-exempt, steal-proof, ignores your bends and tilt vibrato, and **re-voices through whatever sound you switch to** mid-jam. Lay down Ethereal, solo on Solo.
+- It's a protected backing layer like the drones and the loop: cap-exempt, steal-proof, ignores your bends and tilt vibrato, and **re-voices through whatever sound you switch to** mid-jam. Lay down Organ, solo on Taser.
 - The progression is on screen: a `PROG  A  D  E  ▸` strip across the top of the scope with the current chord boxed, and its root outlined on the grid-map so you can watch the changes walk.
 - **bksp (panic)** clears the progression to start over, the same gesture that clears the drones. Like them, it's performance state and never hits flash.
 
-Pick Ethereal, Drift, or Hollow for the bed, set a slow tempo, tap four chords, and you've got a song to solo on in about ten seconds.
+Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and you've got a song to solo on in about ten seconds.
 
 ## Soloing over the jam: a separate register and sound
 
 Once the backing is looping, you don't want to be stuck in its octave or its sound. You want to *solo* over it. So the moment you change the solo while a jam runs, the backing holds its ground:
 
 - **Different register.** Shift octave (or even change key/scale) and only your **solo** moves. The progression keeps looping in the register and key it was built in. Build a progression low, solo two octaves up over it.
-- **Different sound.** Switch patches (`fn`+letter) over a running jam and the backing freezes onto the sound it was playing while the new patch becomes your solo voice. Lay down an Ethereal progression, flip to Solo, and wail over it. The pad keeps padding. An amber **`LK`** by the octave readout (and a `SOLO` flash on the switch) tells you the split is engaged.
+- **Different sound.** Switch patches (`fn`+letter) over a running jam and the backing freezes onto the sound it was playing while the new patch becomes your solo voice. Lay down an Organ progression, flip to Crisp Horn, and wail over it. The organ keeps holding. An amber **`LK`** by the octave readout (and a `SOLO` flash on the switch) tells you the split is engaged.
 - **Their own voice, a shared room.** The backing and the solo each keep their own oscillator, filter, envelope, and drive, but they wash into one shared reverb/delay space (the solo patch's), so the whole thing sits together instead of sounding like two unrelated machines.
 - **`bksp` (panic)** clears the jam and drops the split. The next sound switch goes back to changing everything, as normal.
 
@@ -162,7 +162,7 @@ One tempo (the *Jam tempo*) drives both the progression and the echo. Two things
 
 - **Tap tempo**, on `\`, right on the keyboard, so you can match a song's groove without leaving the instrument. Tap it in time and the BPM follows your hand; the HUD reads back the tempo on every tap. A single tap after a pause only *reports* the tempo, so a stray press can't move anything; it takes two taps to make a beat. (Also in settings → *Tap tempo*, tapped with `,` or `/`; it's the same series either way, so you can start in one place and finish in the other.)
 - **Or let LISTEN set it by ear.** Hold `fn`+`k` at a song and the detected key arrives with its tempo: when the beat is confident the jam clock takes the BPM, and everything synced to it follows. A weak or absent beat moves nothing.
-- **Tempo-synced delay** (settings → *Delay sync*): lock the echo to a musical division (`1/4`, `1/8.` the dotted eighth and the Edge/Gilmour trick, `1/8`, `1/8T`, or `1/16`) and every repeat lands on the beat. Solo and Drift ship with it on; switch to Solo over a progression and the repeats cascade right in the pocket. (Set it to `free` for a plain ms delay.) If a division is too long for the delay line at a slow tempo, it folds down an octave so it stays on the grid instead of clipping.
+- **Tempo-synced delay** (settings → *Delay sync*): lock the echo to a musical division (`1/4`, `1/8.` the dotted eighth and the Edge/Gilmour trick, `1/8`, `1/8T`, or `1/16`) and every repeat lands on the beat. Taser and Big ship with it on; switch to Taser over a progression and the repeats cascade right in the pocket. (Set it to `free` for a plain ms delay.) If a division is too long for the delay line at a slow tempo, it folds down an octave so it stays on the grid instead of clipping.
 
 The whole **send-FX rack is live on-device** (settings): *Chorus*, *Delay send / time / sync / feedback*, *Reverb send / size*. Dial the space to taste and `fn`+`shift`+letter saves it with the slot, like every other sound parameter. The effects were the one thing you couldn't reach before. Now nothing about the sound is off-limits.
 
@@ -210,7 +210,7 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | tap tempo | 40-240 bpm, tapped | live | `\` key, settings |
 | tilt map | global (follows your hands) / per sound | global | settings |
 | tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings, enter toggles |
-| tilt depth | 0-100% | 60% | settings |
+| tilt depth | 0-100% | 90% morph f/b, 60% vibrato l/r | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
 | display | waveform scope / pitch trail | pitch trail | settings |
 | screen idle | off / dim / dim + screensaver | dim + screensaver | settings |

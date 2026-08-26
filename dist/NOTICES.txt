@@ -48,8 +48,7 @@ All three are MIT. M5Cardputer ships no root LICENSE file; its licence is
 declared per-file, as `SPDX-License-Identifier: MIT` at the top of every
 source. The MIT text below is M5Unified's and governs all three.
 
-Text below: the copy vendored at support/licenses/MIT-M5Stack.txt
-(no build tree on this machine to read the installed library from).
+Text below: read at build time from .pio/libdeps/cardputer-adv/M5Unified/LICENSE.
 
 --------------------------------------------------------------------------------
 MIT License

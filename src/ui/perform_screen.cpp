@@ -1655,15 +1655,18 @@ void drawBattery(M5Canvas& c, uint32_t now) {
 void drawHint(M5Canvas& c) {
     c.setFont(&fonts::Font0);
     if (keys::quickEditActive()) {
-        // Name the sound row here, not just "release fn to play". The edit
-        // panel already lists the ten slots down its right column — but that
-        // column yields to the context viz for six of the ten parameters, and
-        // the selection is sticky, so one poke at ATTACK hides the bank on
-        // every subsequent fn hold. This line is the one thing always on
-        // screen while fn is down, and players reported never finding the
-        // sounds at all. Deliberately echoes the edit status bar's wording.
+        // Name the sound row here. The edit panel already lists the ten slots
+        // down its right column — but that column yields to the context viz for
+        // six of the ten parameters, and the selection is sticky, so one poke at
+        // ATTACK hides the bank on every subsequent fn hold. This line is the
+        // one thing always on screen while fn is down, and players reported
+        // never finding the sounds at all. It spells the range the same way the
+        // edit status bar three rows up does ("q-p sound") — two spellings of
+        // one range on one screen just looked like two different things. No
+        // "release to play": nobody holds fn by accident, and the row is worth
+        // more as two real gestures than as one gesture plus a reminder.
         c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString("q..p sounds  1-0 param  release to play", 2, kHintY);
+        c.drawString("q - p sounds   1-0 param", 2, kHintY);
         return;
     }
     if (demo::active()) {
