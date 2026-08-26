@@ -59,6 +59,52 @@ public:
         drawFastVLine(x, y, h, c);
         drawFastVLine(x + w - 1, y, h, c);
     }
+
+    // Rounded rects. The arcs are computed per-row from the radius rather than
+    // by LovyanGFX's own rasteriser, so a corner pixel may land one position
+    // differently; that is fine for judging a layout and a palette, which is
+    // all this shim is for.
+    static int cornerInset(int dy, int r) {
+        int dx = r;
+        while (dx > 0 && dx * dx + dy * dy > r * r) --dx;
+        return r - dx;
+    }
+    static int clampRadius(int w, int h, int r) {
+        const int maxr = ((w < h ? w : h) - 1) / 2;
+        return r < 0 ? 0 : (r > maxr ? maxr : r);
+    }
+    void fillRoundRect(int x, int y, int w, int h, int r, uint16_t c) {
+        r = clampRadius(w, h, r);
+        for (int j = 0; j < h; ++j) {
+            int dy = 0;
+            if (j < r) dy = r - j;
+            else if (j >= h - r) dy = j - (h - 1 - r);
+            const int in = dy ? cornerInset(dy, r) : 0;
+            drawFastHLine(x + in, y + j, w - 2 * in, c);
+        }
+    }
+    void drawRoundRect(int x, int y, int w, int h, int r, uint16_t c) {
+        r = clampRadius(w, h, r);
+        drawFastHLine(x + r, y, w - 2 * r, c);
+        drawFastHLine(x + r, y + h - 1, w - 2 * r, c);
+        drawFastVLine(x, y + r, h - 2 * r, c);
+        drawFastVLine(x + w - 1, y + r, h - 2 * r, c);
+        for (int j = 0; j < r; ++j) {
+            const int in = cornerInset(r - j, r);
+            drawPixel(x + in, y + j, c);
+            drawPixel(x + w - 1 - in, y + j, c);
+            drawPixel(x + in, y + h - 1 - j, c);
+            drawPixel(x + w - 1 - in, y + h - 1 - j, c);
+            // the arc also advances horizontally; fill the gap to its neighbour
+            const int prev = j ? cornerInset(r - j + 1, r) : r;
+            for (int k = in + 1; k < prev; ++k) {
+                drawPixel(x + k, y + j, c);
+                drawPixel(x + w - 1 - k, y + j, c);
+                drawPixel(x + k, y + h - 1 - j, c);
+                drawPixel(x + w - 1 - k, y + h - 1 - j, c);
+            }
+        }
+    }
     void pushSprite(int, int) {}  // the harness reads px[] directly
 
     // ---- text — semantics match LovyanGFX's drawString: with a background

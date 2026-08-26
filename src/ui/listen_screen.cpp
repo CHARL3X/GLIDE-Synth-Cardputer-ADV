@@ -29,21 +29,18 @@ namespace {
 constexpr int kChartX = 6, kChartW = 228;  // the panel rect, both screens
 constexpr int kBarW = 14, kBarStep = 17;
 constexpr int kBarX0 = kChartX + 13;
+constexpr int kRadius = 7;  // corner rounding, shared by the chart and the card
 
-// A framed, filled instrument panel with a half-scale graticule and the rule
-// its bars stand on. The FILL is the whole point of this shape: bars on a bare
-// ground vanish when nothing is heard, and the live view then reads as a hole
-// in the screen with the title floating oddly above it — which is exactly what
-// a quiet room produced. Filled, ruled and framed, the same silence reads as a
-// meter at rest, which is the truth.
-void drawChartPanel(M5Canvas& c, int y, int h, int base, int barTop) {
-    c.fillRect(kChartX, y, kChartW, h, theme::kPanel);
-    c.drawRect(kChartX, y, kChartW, h, theme::kLine);
-    // graticule fades toward the PANEL, not the screen ground — it is drawn on
-    // the panel, and fading to kBg would be a different colour entirely on the
-    // light palettes.
+// The chart's frame: a rounded outline, a half-scale graticule, and the rule
+// its bars stand on. Deliberately UNFILLED — the outline alone is what makes an
+// empty chart read as a meter at rest instead of a hole in the screen, and a
+// filled slab behind the bars only competed with them for attention.
+void drawChartFrame(M5Canvas& c, int y, int h, int base, int barTop) {
+    c.drawRoundRect(kChartX, y, kChartW, h, kRadius, theme::kLine);
+    // Both rules sit on the screen ground, so they fade toward kBg — which is
+    // also the only fade that stays correct on the two light palettes.
     c.drawFastHLine(kChartX + 4, (base + barTop) / 2, kChartW - 8,
-                    theme::blend(theme::kPanel, theme::kLine, 150));
+                    theme::fade(theme::kLine, 170));
     c.drawFastHLine(kChartX + 4, base, kChartW - 8, theme::kLine);
 }
 }  // namespace
@@ -120,7 +117,7 @@ void drawListening(M5Canvas& c, float frac, const float* chroma,
     // The chroma chart, peak-normalized. Green = the forming tonic; the pulse
     // brightens the rest for the beat of a landed round.
     const int base = 116, maxH = 44;
-    drawChartPanel(c, 66, 64, base, base - maxH);
+    drawChartFrame(c, 66, 64, base, base - maxH);
     float peak = 0.f;
     for (int pc = 0; pc < 12; ++pc)
         if (chroma[pc] > peak) peak = chroma[pc];
@@ -135,11 +132,10 @@ void drawListening(M5Canvas& c, float frac, const float* chroma,
                              : pulse ? theme::kIdle
                                      : theme::kDim;
         c.fillRect(x, base - h, kBarW, h, col);
-        // Text drawn on the panel takes the PANEL as its background: kBg here
-        // would punch a screen-coloured box through the panel behind every
-        // glyph, which is invisible on phosphor (both are black) and glaring
-        // on the two light palettes.
-        c.setTextColor(tonic ? theme::kGreen : theme::kDim, theme::kPanel);
+        // The frame is unfilled, so these labels sit on the screen ground and
+        // take kBg as their background. (The verdict card's copies of the same
+        // labels take kPanel, because there they sit on the card.)
+        c.setTextColor(tonic ? theme::kGreen : theme::kDim, theme::kBg);
         c.drawString(dsp::kNoteNames[pc], x + 1, 119);
     }
     c.pushSprite(0, 0);
@@ -165,10 +161,10 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
     // one line lifts the panel on a dark ground and drops a shadow on a light
     // one — no per-theme special case, and none of the ten can invert it.
     const int cx = kChartX, cy = 3, cw = kChartW, chh = 117;
-    c.drawRect(cx - 1, cy - 1, cw + 2, chh + 2,
-               theme::blend(theme::kBg, theme::kLine, 110));
-    c.fillRect(cx, cy, cw, chh, theme::kPanel);
-    c.drawRect(cx, cy, cw, chh, theme::kLine);
+    c.drawRoundRect(cx - 1, cy - 1, cw + 2, chh + 2, kRadius + 1,
+                    theme::blend(theme::kBg, theme::kLine, 110));
+    c.fillRoundRect(cx, cy, cw, chh, kRadius, theme::kPanel);
+    c.drawRoundRect(cx, cy, cw, chh, kRadius, theme::kLine);
 
     char head[24];
     snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[ap.tonicPc],
