@@ -1,6 +1,6 @@
 # GLIDE roadmap — the idea bank
 
-Twenty designed-and-planned features, written 2026-07-06 (by Claude Fable 5, at the humans' request) so any capable agent can pick one up cold and execute it. Each doc is self-contained: design intent, exact files, task breakdown with test-first steps, risks, and its **UI-cost budget** against the house simplicity rule (*no new feature without pricing its UI: zero new gestures, ≤1 settings row — overruns are flagged in the doc, never hidden*).
+Designed-and-planned work, written so any capable agent can pick one up cold and execute it. Docs 01–20 were the original bank (2026-07-06, by Claude Fable 5 at the humans' request); 21 and up were added as they were designed. Each doc is self-contained: design intent, exact files, task breakdown with test-first steps, risks, and its **UI-cost budget** against the house simplicity rule (*no new feature without pricing its UI: zero new gestures, ≤1 settings row — overruns are flagged in the doc, never hidden*).
 
 **Read `CLAUDE.md` and `README.md` before any doc.** Every plan assumes both, plus the native test gate: `pio run -e native && .pio/build/native/program` green before anything lands.
 
@@ -30,6 +30,13 @@ Twenty designed-and-planned features, written 2026-07-06 (by Claude Fable 5, at 
 | 20 | [wavetable-import](20-wavetable-import.md) | Import single-cycle .wav as Waveform::User — the wave rides *inside* the patch | M-L | med | 1 row |
 | 21 | [web-flasher](21-web-flasher.md) | One-click install/update from the browser + standalone image; Launcher path stays supported | M | med (HW-gated) | 0 rows |
 
+**Field-driven maintenance** — same plan format, but these came from players rather than from the idea bank. They harden or diagnose things that already ship, so neither one adds a feature:
+
+| # | doc | one line | effort | risk | UI cost |
+|---|-----|----------|--------|------|---------|
+| 22 | [battery-warning](22-battery-warning.md) | The low-battery badge stops flickering, hides while charging, and warns at 25% / 10% | S | low | 0 rows, 0 gestures |
+| 23 | [poly-stutter](23-poly-stutter.md) | Dense chords reportedly break up on the headphone jack — measure first, then fix the thing it actually is | S–M | low (diagnosis-gated) | 0 rows to diagnose, 1 if the trim remedy wins |
+
 ## Suggested order
 
 - **Warm-ups / immediate wins:** 11 (the parameter-recipe exemplar) → 09 → 07 → 03 → 10. Five small features, each shippable in a day or less, all high felt-value.
@@ -39,6 +46,7 @@ Twenty designed-and-planned features, written 2026-07-06 (by Claude Fable 5, at 
 - 14 after 07/10 if the "learn" pillar is the season's theme.
 - **The second wave (15–20):** 16 (psycho-bass) is a near-warm-up and pairs with any bass-heavy work; 17 (midi-export) anytime, compounding with 03; 18 (groove) after 03 so the pulse and the loop share a trustworthy clock; 15 (line-out) probe early — its dongle answer shapes how much 16 matters; 19 strictly after 06's Task 1 gate; 20 after 01 lands `Pluck = 6` (or use the explicit-value rule below and land in any order).
 - **Distribution:** 21 (web-flasher) is independent of every engine doc and directly retires the sharpest half of debt D1 for standalone units; its Task 2 hardware gate decides everything, so run that early and cheap.
+- **Maintenance (22–23):** both are ahead of every feature above in a release that ships units to strangers. 22 is a half-day and touches one UI function; 23 is a measurement first — its Task 1–2 gate is cheap and can run the same afternoon, and its answer may be "nothing to build," which is a fine outcome. 23 must be sequenced with 15 (line-out) if both are live: they share the output stage and the settings row.
 
 ## Cross-doc coordination ledger (read before editing shared enums/tags)
 
@@ -63,11 +71,11 @@ If doc 11 lands before doc 02, it still uses tag 30; 28–29 stay reserved. Upda
 - `TriggerAction` + `Freeze` (glide_config.h) — doc 09
 - `dsp::kScales` + 4 rows (Just major, Just minor, Rast, Bayati) — doc 07
 
-**New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18).
+**New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18) · `outtrim` (23, **only** if its remedy 4a wins — and it shares the output row with 15's `lineout`, so whichever lands first owns both) · `batwarn` (22, an explicitly *not recommended* trim; reserved so nobody reuses the name).
 
 **New file formats:** `.gjam` (doc 04, magic `'G','J'`, introduces `T_BLOB=6` wire type in its own codec — the `.gpat` codec is untouched by every doc except tag appends) · `.mid` export (doc 17, write-only) · `.wav` import (doc 20, read-only single cycles).
 
-**Shared seams multiple docs touch:** the G0 trigger dispatch in `keys.cpp` (09), the NoteEvent tap point where `looper::record` sits (06 out, 19 in — both directions coexist), the audio engine's finished-block consumers (05 recorder tap, 15 line-out mirror — symmetric copies, coexist) and its render-source override (13), the jam clock (18 adds eighth callbacks + swing; 19's MIDI clock sets the same `tempoBpm` all consumers read), the looper's take (04 serialize, 17 read-only iterator). Each doc specifies a minimal, additive seam; any subset lands cleanly.
+**Shared seams multiple docs touch:** the G0 trigger dispatch in `keys.cpp` (09), the NoteEvent tap point where `looper::record` sits (06 out, 19 in — both directions coexist), the audio engine's finished-block consumers (05 recorder tap, 15 line-out mirror — symmetric copies, coexist) and its render-source override (13), the output stage between `softLimit` and the `int16` write (15 and 23 both want a level control there — one control, not two), the jam clock (18 adds eighth callbacks + swing; 19's MIDI clock sets the same `tempoBpm` all consumers read), the looper's take (04 serialize, 17 read-only iterator). Each doc specifies a minimal, additive seam; any subset lands cleanly.
 
 **Live-mod / rig fields on `SynthParams`** (never persisted in patches): `fxFreeze` (09), `deepBass` (16). Follow the `bendCents` precedent; the patch-save hygiene must exclude them.
 
