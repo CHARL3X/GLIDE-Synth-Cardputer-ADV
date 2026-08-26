@@ -3,19 +3,273 @@
 #include "listen_screen.h"
 
 #include "../config.h"
-#include "../dsp/beat_detect.h"
 #include "../dsp/key_detect.h"
 #include "../dsp/scales.h"
+#include "theme.h"
+
+#ifndef GLIDE_HOST_BUILD
+#include "../dsp/beat_detect.h"
+#include "../io/audio_engine.h"
 #include "../io/keys.h"
 #include "../io/listen.h"
 #include "../io/looper.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
 #include "morph.h"
-#include "theme.h"
+#endif
 
 namespace listen_screen {
 
+// ---- shared chart geometry -------------------------------------------------
+// Both screens show the same twelve-bar pitch-class chart in the same place, so
+// the live view and the verdict read as one instrument rather than two designs.
+// The bar block is centred inside the panel: 12 * 17 - 3 = 201 wide in a 228
+// panel leaves 13 either side.
+namespace {
+constexpr int kChartX = 6, kChartW = 228;  // the panel rect, both screens
+constexpr int kBarW = 14, kBarStep = 17;
+constexpr int kBarX0 = kChartX + 13;
+
+// A framed, filled instrument panel with a half-scale graticule and the rule
+// its bars stand on. The FILL is the whole point of this shape: bars on a bare
+// ground vanish when nothing is heard, and the live view then reads as a hole
+// in the screen with the title floating oddly above it — which is exactly what
+// a quiet room produced. Filled, ruled and framed, the same silence reads as a
+// meter at rest, which is the truth.
+void drawChartPanel(M5Canvas& c, int y, int h, int base, int barTop) {
+    c.fillRect(kChartX, y, kChartW, h, theme::kPanel);
+    c.drawRect(kChartX, y, kChartW, h, theme::kLine);
+    // graticule fades toward the PANEL, not the screen ground — it is drawn on
+    // the panel, and fading to kBg would be a different colour entirely on the
+    // light palettes.
+    c.drawFastHLine(kChartX + 4, (base + barTop) / 2, kChartW - 8,
+                    theme::blend(theme::kPanel, theme::kLine, 150));
+    c.drawFastHLine(kChartX + 4, base, kChartW - 8, theme::kLine);
+}
+}  // namespace
+
+// The live view: the twelve chroma bins fill in real time as rounds land — the
+// instrument visibly hearing — with a short pulse on each audible round and,
+// once a verdict starts forming, what it currently thinks. Redrawn every
+// ~100 ms progress tick. Everything it shows is passed in, so it stays pure.
+void drawListening(M5Canvas& c, float frac, const float* chroma,
+                   const dsp::KeyGuess& guess, int rounds, bool pulse) {
+    c.fillScreen(theme::kBg);
+
+    c.setTextDatum(top_right);
+    c.setFont(&fonts::Font0);
+    c.setTextColor(theme::kDim, theme::kBg);
+    c.drawString("` cancel", cfg::kScreenW - 8, 5);
+
+    c.setTextDatum(middle_center);
+    c.setFont(&fonts::Font4);
+    c.setTextColor(pulse ? theme::kGreen : theme::kAmber, theme::kBg);
+    c.drawString("LISTENING", cfg::kScreenW / 2, 27);
+
+    c.setFont(&fonts::Font0);
+    char sub[28];
+    if (rounds == 0) {
+        snprintf(sub, sizeof sub, "play the song at me");
+        c.setTextColor(theme::kDim, theme::kBg);
+    } else if (guess.valid) {
+        snprintf(sub, sizeof sub, "hearing %s %s...", dsp::kNoteNames[guess.rootPc],
+                 guess.minor ? "min" : "maj");
+        c.setTextColor(theme::kIdle, theme::kBg);
+    } else {
+        snprintf(sub, sizeof sub, "locking in...");
+        c.setTextColor(theme::kDim, theme::kBg);
+    }
+    c.drawString(sub, cfg::kScreenW / 2, 48);
+
+    const int pw = 168, px0 = (cfg::kScreenW - pw) / 2, py0 = 57;
+    c.drawRect(px0, py0, pw, 6, theme::kLine);
+    const int fw = (int)((pw - 2) * (frac > 1.f ? 1.f : frac));
+    if (fw > 0) c.fillRect(px0 + 1, py0 + 1, fw, 4, theme::kAmber);
+
+    // The chroma chart, peak-normalized. Green = the forming tonic; the pulse
+    // brightens the rest for the beat of a landed round.
+    const int base = 116, maxH = 44;
+    drawChartPanel(c, 66, 64, base, base - maxH);
+    float peak = 0.f;
+    for (int pc = 0; pc < 12; ++pc)
+        if (chroma[pc] > peak) peak = chroma[pc];
+    c.setTextDatum(top_left);
+    c.setFont(&fonts::Font0);
+    for (int pc = 0; pc < 12; ++pc) {
+        const int x = kBarX0 + pc * kBarStep;
+        int h = 2;
+        if (peak > 1e-9f) h = 2 + (int)(chroma[pc] / peak * (float)(maxH - 2));
+        const bool tonic = guess.valid && pc == guess.rootPc;
+        const uint16_t col = tonic   ? theme::kGreen
+                             : pulse ? theme::kIdle
+                                     : theme::kDim;
+        c.fillRect(x, base - h, kBarW, h, col);
+        // Text drawn on the panel takes the PANEL as its background: kBg here
+        // would punch a screen-coloured box through the panel behind every
+        // glyph, which is invisible on phosphor (both are black) and glaring
+        // on the two light palettes.
+        c.setTextColor(tonic ? theme::kGreen : theme::kDim, theme::kPanel);
+        c.drawString(dsp::kNoteNames[pc], x + 1, 119);
+    }
+    c.pushSprite(0, 0);
+}
+
+// The verdict card. It FLOATS — a panel inset from the screen edges with the
+// live scope running in the strip below it — because the card is played over
+// and has to look like it. Full-bleed it read as a wall even after the keys
+// went live underneath: nothing on screen belonged to the instrument any more.
+//
+// ap is the SONG's refined truth ("A DOR", not the raw profile winner a modal
+// vamp can mislabel); sel is the landing currently applied to the instrument
+// (== ap until the player nudges to an alternate with space). The chroma bars
+// show what was actually heard, and the amber strip under them shows the
+// applied scale's footprint against it — the fit is visible, not asserted.
+void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
+                const dsp::ListenApply& sel, int prevRoot, int prevScale,
+                int altIdx, int altCount, int bpm, const float* wave, int waveN) {
+    c.fillScreen(theme::kBg);
+    const bool scaleChanged = sel.scaleIdx != prevScale;
+
+    // The card body. The soft outer edge is defined against kBg, so the same
+    // one line lifts the panel on a dark ground and drops a shadow on a light
+    // one — no per-theme special case, and none of the ten can invert it.
+    const int cx = kChartX, cy = 3, cw = kChartW, chh = 117;
+    c.drawRect(cx - 1, cy - 1, cw + 2, chh + 2,
+               theme::blend(theme::kBg, theme::kLine, 110));
+    c.fillRect(cx, cy, cw, chh, theme::kPanel);
+    c.drawRect(cx, cy, cw, chh, theme::kLine);
+
+    char head[24];
+    snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[ap.tonicPc],
+             dsp::listenModeName(ap.mode));
+    c.setTextDatum(top_left);
+    c.setFont(&fonts::Font4);
+    c.setTextColor(theme::kGreen, theme::kPanel);
+    c.drawString(head, 13, 7);
+
+    c.setFont(&fonts::Font0);
+    if (sel.rootPc != prevRoot || scaleChanged) {
+        c.setTextDatum(top_right);
+        c.setTextColor(theme::kAmber, theme::kPanel);
+        c.drawString("RETUNED", cfg::kScreenW - 13, 7);
+    }
+    if (bpm > 0) {  // the jam tempo it locked (only shown when applied)
+        char tb[12];
+        snprintf(tb, sizeof tb, "%d BPM", bpm);
+        c.setTextDatum(top_right);
+        c.setTextColor(theme::kGreen, theme::kPanel);
+        c.drawString(tb, cfg::kScreenW - 13, 19);
+    }
+    c.setTextDatum(top_left);
+
+    // How sure it is, shown honestly: a thin meter under the verdict it
+    // belongs to, green once the lock threshold was truly cleared, amber below.
+    const int mx = 13, my = 33, mw = 96;
+    c.drawRect(mx, my, mw, 4, theme::kLine);
+    float conf = g.confidence;
+    if (conf > 1.f) conf = 1.f;
+    const int mf = (int)((mw - 2) * conf);
+    if (mf > 0)
+        c.fillRect(mx + 1, my + 1, mf, 2,
+                   conf >= 0.5f ? theme::kGreen : theme::kAmber);
+
+    // The applied landing.
+    char sub[30];
+    if (scaleChanged)
+        snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[sel.rootPc],
+                 dsp::kScales[sel.scaleIdx].shortName);
+    else if (sel.rootPc != ap.tonicPc)
+        snprintf(sub, sizeof sub, "-> root %s (your scale)",
+                 dsp::kNoteNames[sel.rootPc]);
+    else
+        snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[sel.rootPc],
+                 dsp::kScales[sel.scaleIdx].shortName);
+    c.setFont(&fonts::Font2);
+    c.setTextColor(theme::kIdle, theme::kPanel);
+    c.drawString(sub, 13, 40);
+
+    // One status line. With nothing to warn about it becomes the invitation,
+    // because the card's whole reason to exist is that you play through it.
+    c.setFont(&fonts::Font0);
+    char st[32];
+    uint16_t stCol = theme::kDim;
+    if (altIdx > 0) {
+        snprintf(st, sizeof st, "2nd guess %d/%d", altIdx + 1, altCount);
+        stCol = theme::kAmber;
+    } else if (sel.safe) {
+        snprintf(st, sizeof st, "clash heard - safe pent");
+        stCol = theme::kAmber;
+    } else if (g.confidence < 0.3f) {
+        snprintf(st, sizeof st, "weak signal");
+    } else {
+        snprintf(st, sizeof st, "play it - that's how you know");
+    }
+    c.setTextColor(stCol, theme::kPanel);
+    c.drawString(st, 13, 59);
+
+    // The chroma chart: same bars, same columns, same place as the live view.
+    bool inScale[12] = {false};
+    if (sel.scaleIdx >= 0 && sel.scaleIdx < dsp::kScaleCount) {
+        const dsp::Scale& sc = dsp::kScales[sel.scaleIdx];
+        for (int i = 0; i < sc.len; ++i)
+            inScale[(sel.rootPc + sc.steps[i]) % 12] = true;
+    }
+    const int base = 103, maxH = 31;
+    c.drawFastHLine(kChartX + 4, base, kChartW - 8, theme::kLine);
+    for (int pc = 0; pc < 12; ++pc) {
+        const int x = kBarX0 + pc * kBarStep;
+        const int h = 2 + (int)(g.chroma[pc] * (maxH - 2));
+        const uint16_t col = pc == ap.tonicPc    ? theme::kGreen
+                             : pc == sel.rootPc  ? theme::kAmber
+                                                 : theme::kDim;
+        c.fillRect(x, base - h, kBarW, h, col);
+        if (inScale[pc]) c.fillRect(x, base + 2, kBarW, 2, theme::kAmber);
+        c.setTextColor(pc == ap.tonicPc ? theme::kGreen : theme::kDim,
+                       theme::kPanel);
+        c.drawString(dsp::kNoteNames[pc], x + 1, base + 6);
+    }
+
+    // Outside the card, on the bare screen: the live scope. The card is played
+    // over, and this is the proof — it moves the instant a key goes down, which
+    // no amount of hint text says as fast. A silent room draws a flat line,
+    // which is a horizon rather than an absence.
+    const int wx = 8, ww = 112, wcy = 129, wamp = 5;
+    // Silence draws in the dim green and playing in the live one, so a resting
+    // trace recedes into the furniture instead of reading as a decorative rule
+    // ruled under the card — and the moment a key goes down the strip lights.
+    float wpk = 0.f;
+    for (int i = 0; i < waveN; ++i) {
+        const float a = wave[i] < 0.f ? -wave[i] : wave[i];
+        if (a > wpk) wpk = a;
+    }
+    const uint16_t wcol = wpk > 0.02f ? theme::kGreen : theme::kGreenDim;
+    int lx = wx, ly = wcy;
+    for (int i = 0; i < ww; ++i) {
+        float v = 0.f;
+        if (waveN > 0) {
+            v = wave[i * waveN / ww];
+            if (v > 1.f) v = 1.f;
+            else if (v < -1.f) v = -1.f;
+        }
+        const int x = wx + i, y = wcy - (int)(v * wamp);
+        if (i) c.drawLine(lx, ly, x, y, wcol);
+        lx = x;
+        ly = y;
+    }
+    // The key hint lives out here with the scope rather than inside the card:
+    // it is about what your hands can do, not about the verdict. "space: alt"
+    // used to sit inside and was read as the ALT KEY — which is a real key on
+    // this keyboard, and the first thing a player reached for.
+    c.setFont(&fonts::Font0);
+    c.setTextDatum(top_right);
+    c.setTextColor(theme::kDim, theme::kBg);
+    c.drawString(altCount > 1 ? "space: next guess" : "` closes",
+                 cfg::kScreenW - 8, 125);
+    c.setTextDatum(top_left);
+    c.pushSprite(0, 0);
+}
+
+#ifndef GLIDE_HOST_BUILD
 namespace {
 
 struct Ctx {
@@ -95,70 +349,10 @@ uint32_t cardKeysDown() {
     return m;
 }
 
-// The live view: the twelve chroma bins fill in real time as rounds land —
-// the instrument visibly hearing — with a short pulse on each audible round
-// and, once a verdict starts forming, what it currently thinks. Redrawn
-// every ~100 ms progress tick; everything it shows lives in Ctx (stack of
-// this modal — the RAM ceiling forbids anything resident).
-void drawListening(M5Canvas& c, float frac, const Ctx& ctx) {
-    c.fillScreen(theme::kBg);
-    const bool pulse = (int32_t)(ctx.pulseUntil - millis()) > 0;
-
-    c.setTextDatum(top_right);
-    c.setFont(&fonts::Font0);
-    c.setTextColor(theme::kDim, theme::kBg);
-    c.drawString("` cancel", cfg::kScreenW - 8, 6);
-
-    c.setTextDatum(middle_center);
-    c.setFont(&fonts::Font4);
-    c.setTextColor(pulse ? theme::kGreen : theme::kAmber, theme::kBg);
-    c.drawString("LISTENING", cfg::kScreenW / 2, 30);
-
-    c.setFont(&fonts::Font0);
-    char sub[28];
-    if (ctx.rounds == 0) {
-        snprintf(sub, sizeof sub, "play the song at me");
-        c.setTextColor(theme::kDim, theme::kBg);
-    } else if (ctx.guess.valid) {
-        snprintf(sub, sizeof sub, "hearing %s %s...",
-                 dsp::kNoteNames[ctx.guess.rootPc],
-                 ctx.guess.minor ? "min" : "maj");
-        c.setTextColor(theme::kIdle, theme::kBg);
-    } else {
-        snprintf(sub, sizeof sub, "locking in...");
-        c.setTextColor(theme::kDim, theme::kBg);
-    }
-    c.drawString(sub, cfg::kScreenW / 2, 50);
-
-    const int bw = 168, bx = (cfg::kScreenW - bw) / 2, by = 62;
-    c.drawRect(bx, by, bw, 6, theme::kLine);
-    const int fw = (int)((bw - 2) * (frac > 1.f ? 1.f : frac));
-    if (fw > 0) c.fillRect(bx + 1, by + 1, fw, 4, theme::kAmber);
-
-    // The chroma bins so far, peak-normalized. Green = the forming tonic;
-    // the pulse brightens the rest for the beat of a landed round.
-    float peak = 0.f;
-    for (int pc = 0; pc < 12; ++pc)
-        if (ctx.chroma[pc] > peak) peak = ctx.chroma[pc];
-    const int cbx = 12, cbw = 15, cmax = 44, cy0 = 126;
-    for (int pc = 0; pc < 12; ++pc) {
-        const int x = cbx + pc * (cbw + 4);
-        int h = 2;
-        if (peak > 1e-9f)
-            h = 2 + (int)(ctx.chroma[pc] / peak * (float)(cmax - 2));
-        const bool tonic = ctx.guess.valid && pc == ctx.guess.rootPc;
-        const uint16_t col = tonic   ? theme::kGreen
-                             : pulse ? theme::kIdle
-                                     : theme::kDim;
-        c.fillRect(x, cy0 - h, cbw, h, col);
-    }
-    c.setTextDatum(top_left);
-    c.pushSprite(0, 0);
-}
-
 bool onProgress(void* user, float frac) {
     Ctx& ctx = *(Ctx*)user;
-    drawListening(*ctx.c, frac, ctx);
+    drawListening(*ctx.c, frac, ctx.chroma, ctx.guess, ctx.rounds,
+                  (int32_t)(ctx.pulseUntil - millis()) > 0);
     const bool bt = backtickHeld();
     const bool cancel = bt && !ctx.btPrev;  // newly pressed only
     ctx.btPrev = bt;
@@ -195,114 +389,6 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.prevApplied = applied;
     if (ctx.heardSamples < kMinHeardForStop) return true;
     return !(stable && ctx.guess.confidence >= kEnoughConfidence);
-}
-
-// The verdict card. ap is the SONG's refined truth (tonic + mode — "A DOR",
-// not the raw profile winner a modal vamp can mislabel); sel is the landing
-// currently applied to the instrument (== ap until the player nudges to an
-// alternate with space). The chroma bars show what was actually heard, and
-// the amber strip under them shows the applied scale's footprint against it
-// — the fit is visible, not asserted.
-void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
-                const dsp::ListenApply& sel, int prevRoot, int prevScale,
-                int altIdx, int altCount, int bpm) {
-    c.fillScreen(theme::kBg);
-    const bool scaleChanged = sel.scaleIdx != prevScale;
-
-    char head[24];
-    snprintf(head, sizeof head, "%s %s", dsp::kNoteNames[ap.tonicPc],
-             dsp::listenModeName(ap.mode));
-    c.setTextDatum(top_left);
-    c.setFont(&fonts::Font4);
-    c.setTextColor(theme::kGreen, theme::kBg);
-    c.drawString(head, 12, 6);
-
-    // How sure it is, shown honestly: a thin meter, green once the lock
-    // threshold was truly cleared, amber below it.
-    const int mx = 12, my = 33, mw = 96;
-    c.drawRect(mx, my, mw, 4, theme::kLine);
-    float conf = g.confidence;
-    if (conf > 1.f) conf = 1.f;
-    const int mf = (int)((mw - 2) * conf);
-    if (mf > 0)
-        c.fillRect(mx + 1, my + 1, mf, 2,
-                   conf >= 0.5f ? theme::kGreen : theme::kAmber);
-
-    if (sel.rootPc != prevRoot || scaleChanged) {
-        c.setFont(&fonts::Font0);
-        c.setTextColor(theme::kAmber, theme::kBg);
-        c.setTextDatum(top_right);
-        c.drawString("RETUNED", cfg::kScreenW - 12, 8);
-        c.setTextDatum(top_left);
-    }
-    if (bpm > 0) {  // the jam tempo it locked (only shown when applied)
-        char tb[12];
-        snprintf(tb, sizeof tb, "%d BPM", bpm);
-        c.setTextDatum(top_right);
-        c.setTextColor(theme::kGreen, theme::kBg);
-        c.drawString(tb, cfg::kScreenW - 12, 20);
-        c.setTextDatum(top_left);
-    }
-
-    // The applied landing.
-    char sub[28];
-    if (scaleChanged)
-        snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[sel.rootPc],
-                 dsp::kScales[sel.scaleIdx].shortName);
-    else if (sel.rootPc != ap.tonicPc)
-        snprintf(sub, sizeof sub, "-> root %s (your scale)",
-                 dsp::kNoteNames[sel.rootPc]);
-    else
-        snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[sel.rootPc],
-                 dsp::kScales[sel.scaleIdx].shortName);
-    c.setFont(&fonts::Font2);
-    c.setTextColor(theme::kIdle, theme::kBg);
-    c.drawString(sub, 12, 42);
-
-    // Status left / nudge hint right, one Font0 line.
-    c.setFont(&fonts::Font0);
-    if (altIdx > 0) {
-        char at[20];
-        snprintf(at, sizeof at, "2nd guess %d/%d", altIdx + 1, altCount);
-        c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString(at, 12, 62);
-    } else if (sel.safe) {
-        c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString("clash heard - safe pent", 12, 62);
-    } else if (g.confidence < 0.3f) {
-        c.setTextColor(theme::kDim, theme::kBg);
-        c.drawString("weak signal", 12, 62);
-    }
-    if (altCount > 1) {
-        c.setTextDatum(top_right);
-        c.setTextColor(theme::kDim, theme::kBg);
-        c.drawString("space: alt", cfg::kScreenW - 12, 62);
-        c.setTextDatum(top_left);
-    }
-
-    // The twelve chroma bars: what the instrument actually heard. Green =
-    // the refined tonic, amber = the applied root; the amber strip under a
-    // bar marks a note the applied scale contains.
-    bool inScale[12] = {false};
-    if (sel.scaleIdx >= 0 && sel.scaleIdx < dsp::kScaleCount) {
-        const dsp::Scale& sc = dsp::kScales[sel.scaleIdx];
-        for (int i = 0; i < sc.len; ++i)
-            inScale[(sel.rootPc + sc.steps[i]) % 12] = true;
-    }
-    const int bx = 12, bw = 15, bmax = 42, by0 = 116;
-    for (int pc = 0; pc < 12; ++pc) {
-        const int x = bx + pc * (bw + 4);
-        const int h = 2 + (int)(g.chroma[pc] * (bmax - 2));
-        const uint16_t col = pc == ap.tonicPc    ? theme::kGreen
-                             : pc == sel.rootPc  ? theme::kAmber
-                                                 : theme::kDim;
-        c.fillRect(x, by0 - h, bw, h, col);
-        if (inScale[pc]) c.fillRect(x, by0 + 2, bw, 2, theme::kAmber);
-        c.setFont(&fonts::Font0);
-        c.setTextColor(pc == ap.tonicPc ? theme::kGreen : theme::kDim, theme::kBg);
-        c.drawString(dsp::kNoteNames[pc], x + 2, by0 + 6);
-    }
-    c.pushSprite(0, 0);
 }
 
 // Speaker.begin() failed after the mic released the codec: the instrument
@@ -363,7 +449,7 @@ bool runModal(M5Canvas& canvas) {
     ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 
-    drawListening(canvas, 0.f, ctx);
+    drawListening(canvas, 0.f, ctx.chroma, ctx.guess, ctx.rounds, false);
     const listen::Result r = listen::capture(onProgress, &ctx, onSegment);
 
     // Take the tempo verdict and free the envelope HERE, before the result
@@ -457,9 +543,19 @@ bool runModal(M5Canvas& canvas) {
     // so a near-miss verdict is fixed in one tap instead of a re-listen) —
     // and the instrument PLAYS underneath it, which is the whole point of the
     // card: hearing the key it just named is how you know it got it right.
+    //
+    // The card redraws every frame now, because the scope strip under it is
+    // LIVE — that strip is what tells a player the keys still work, and a
+    // still picture cannot say it. The buffer is a modal-lifetime local: the
+    // perform screen's equivalent is a 2 KB static, which rule 7 forbids
+    // adding a second of, and 112 floats of stack costs nothing here (the
+    // 4 KB onset envelope this frame was hosting is already freed).
+    float wave[112] = {0.f};
+    int waveN = 0;
     drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx, nAlts,
-               appliedBpm);
+               appliedBpm, wave, waveN);
     uint32_t until = millis() + kCardMs;
+    uint32_t nextFrame = millis() + cfg::kFrameMs;
     uint32_t keysPrev = cardKeysDown();
     while ((int32_t)(until - millis()) > 0) {
         const uint32_t now = millis();
@@ -502,9 +598,16 @@ bool runModal(M5Canvas& canvas) {
             Serial.printf("[listen] nudge %d/%d -> %s (%s)\n", altIdx + 1,
                           nAlts, dsp::kNoteNames[sel.rootPc],
                           dsp::kScales[sel.scaleIdx].shortName);
-            drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx,
-                       nAlts, appliedBpm);
             until = millis() + kCardMs;  // a full window to judge this one
+            nextFrame = now;             // show the new landing immediately
+        }
+        // ~30 fps, the perform screen's own cadence: fast enough that the
+        // scope reads as live, slow enough to leave poll() the loop.
+        if ((int32_t)(now - nextFrame) >= 0) {
+            nextFrame = now + cfg::kFrameMs;
+            waveN = audio::copyScope(wave, (int)(sizeof wave / sizeof wave[0]));
+            drawResult(canvas, ctx.guess, ap, sel, prevRoot, prevScale, altIdx,
+                       nAlts, appliedBpm, wave, waveN);
         }
         delay(16);
     }
@@ -530,5 +633,6 @@ void run(M5Canvas& canvas) {
     // and are resynced on the way out, exactly as before.
     if (!runModal(canvas)) keys::resync();
 }
+#endif  // GLIDE_HOST_BUILD
 
 }  // namespace listen_screen

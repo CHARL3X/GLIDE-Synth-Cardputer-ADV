@@ -73,7 +73,41 @@ Writes `help_<theme>.bmp`. First run already earned its keep: the widest key
 token (`fn+shift+q..p`) sat flush against its description column until the
 render showed it.
 
+## The two LISTEN screens (`render_listen.cpp`)
+
+```
+g++ -std=gnu++14 -O2 -DGLIDE_HOST_BUILD -I support/viz_render/shim -I src \
+    support/viz_render/render_listen.cpp src/ui/theme.cpp src/dsp/key_detect.cpp \
+    -o render_listen
+./render_listen        # phosphor
+./render_listen 9      # paper (a LIGHT ground)
+./render_listen all    # every palette, one sheet each
+```
+
+Writes `listen_<theme>.bmp`: eight panels covering the live view (silent room,
+hearing, a round landing) and the verdict card (plain, retuned + tempo, nudged
+to a second guess, the pentatonic retreat, a weak verdict).
+
+It exists because both screens have states you cannot conjure on demand — and
+the one that was WRONG was the emptiest: with nothing heard, the live view drew
+twelve 2 px stubs on bare ground and read as a hole in the screen with the title
+floating oddly above it. That is obvious in a contact sheet and invisible in
+source. The same sheet is how the verdict card's float was tuned, and how the
+one real theme hazard here got caught: text drawn on the card must pass
+`theme::kPanel` as its background colour, because `kBg` punches a
+screen-coloured box behind every glyph — invisible on phosphor, where both are
+black, and glaring on the two light palettes.
+
+`ui/listen_screen.cpp` is host-clean the same way `help.cpp` is: the two draws
+are pure and public, and everything with a keyboard, a microphone or a clock in
+it sits behind `#ifndef GLIDE_HOST_BUILD`.
+
 ## Extending it
+
+Font0 is the only REAL glyph table the shim carries. `Font2` and `Font4` are
+approximated by scaling it 2x and 3x, which runs a little wide and a little
+short against the proportional originals — a layout that fits in a render fits
+on the device, but do not judge letterforms by it.
 
 The perform screen's eight scope modes are **not** renderable this way:
 `perform_screen.cpp` pulls in M5Unified, the keyboard, storage and the audio

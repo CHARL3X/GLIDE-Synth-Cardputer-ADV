@@ -21,9 +21,12 @@
 #include "glcdfont.h"
 
 // Just enough of LovyanGFX's loose symbols for UI sources that draw text.
-enum TextDatum : uint8_t { top_left = 0, top_right = 2 };
+enum TextDatum : uint8_t {
+    top_left = 0, top_center = 1, top_right = 2,
+    middle_left = 3, middle_center = 4, middle_right = 5,
+};
 namespace fonts {
-static const int Font0 = 0;
+static const int Font0 = 0, Font2 = 2, Font4 = 4;
 }
 
 class M5Canvas {
@@ -31,6 +34,7 @@ public:
     static const int W = 240, H = 135;  // the Cardputer panel, cfg::kScreenW/H
     uint16_t px[W * H];
     uint8_t datum_ = top_left;
+    int scale_ = 1;                       // 1/2/3 for Font0/Font2/Font4
     uint16_t fg_ = 0xFFFF, bg_ = 0xFFFF;  // bg == fg -> transparent text
 
     void fillScreen(uint16_t c) {
@@ -49,27 +53,48 @@ public:
     void fillRect(int x, int y, int w, int h, uint16_t c) {
         for (int j = 0; j < h; ++j) drawFastHLine(x, y + j, w, c);
     }
+    void drawRect(int x, int y, int w, int h, uint16_t c) {
+        drawFastHLine(x, y, w, c);
+        drawFastHLine(x, y + h - 1, w, c);
+        drawFastVLine(x, y, h, c);
+        drawFastVLine(x + w - 1, y, h, c);
+    }
+    void pushSprite(int, int) {}  // the harness reads px[] directly
 
-    // ---- text (Font0 only) — semantics match LovyanGFX's drawString: with a
-    // background colour set, each 6x8 cell is painted opaque; datum top_right
-    // right-aligns the string at x.
-    void setFont(const void*) {}
+    // ---- text — semantics match LovyanGFX's drawString: with a background
+    // colour set, each glyph cell is painted opaque, and the datum aligns the
+    // string at (x, y).
+    //
+    // Only Font0's real glyph table is vendored, so Font2 and Font4 are
+    // APPROXIMATED by scaling Font0 2x (12x16) and 3x (18x24). The shipping
+    // fonts are proportional and 16 / 26 px tall, so the approximation runs a
+    // little WIDE and a little short: a layout that fits here fits on the
+    // device, which is the direction a check should err. Do not trust it for
+    // letterforms — only for whether things collide.
+    void setFont(const void* f) {
+        scale_ = f == &fonts::Font4 ? 3 : (f == &fonts::Font2 ? 2 : 1);
+    }
     void setTextDatum(uint8_t d) { datum_ = d; }
     void setTextColor(uint16_t fg, uint16_t bg) {
         fg_ = fg;
         bg_ = bg;
     }
     void drawString(const char* s, int x, int y) {
-        const int n = (int)std::strlen(s);
-        if (datum_ == top_right) x -= n * 6;
-        for (int i = 0; i < n; ++i, x += 6) {
+        const int n = (int)std::strlen(s), adv = 6 * scale_;
+        if (datum_ == top_right || datum_ == middle_right) x -= n * adv;
+        else if (datum_ == top_center || datum_ == middle_center) x -= n * adv / 2;
+        if (datum_ >= middle_left) y -= 4 * scale_;  // half the 8 px cell
+        for (int i = 0; i < n; ++i, x += adv) {
             const unsigned char ch = (unsigned char)s[i];
             for (int col = 0; col < 6; ++col) {
                 const uint8_t bits = col < 5 ? font[(size_t)ch * 5 + col] : 0;
                 for (int row = 0; row < 8; ++row) {
                     const bool on = (bits >> row) & 1;
-                    if (on) drawPixel(x + col, y + row, fg_);
-                    else if (bg_ != fg_) drawPixel(x + col, y + row, bg_);
+                    if (on) fillRect(x + col * scale_, y + row * scale_, scale_,
+                                     scale_, fg_);
+                    else if (bg_ != fg_)
+                        fillRect(x + col * scale_, y + row * scale_, scale_,
+                                 scale_, bg_);
                 }
             }
         }
