@@ -75,6 +75,7 @@ public:
         scale_ = f == &fonts::Font4 ? 3 : (f == &fonts::Font2 ? 2 : 1);
     }
     void setTextDatum(uint8_t d) { datum_ = d; }
+    int textWidth(const char* s) const { return (int)std::strlen(s) * 6 * scale_; }
     void setTextColor(uint16_t fg, uint16_t bg) {
         fg_ = fg;
         bg_ = bg;

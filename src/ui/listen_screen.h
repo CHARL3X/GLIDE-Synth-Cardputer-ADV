@@ -17,7 +17,8 @@ void run(M5Canvas& canvas);
 // support/viz_render can render both on the host across every palette. They
 // are designed screens; they get reviewed as pixels, not as source.
 void drawListening(M5Canvas& c, float frac, const float* chroma,
-                   const dsp::KeyGuess& guess, int rounds, bool pulse);
+                   const dsp::KeyGuess& guess, int rounds, bool pulse,
+                   uint32_t nowMs);  // nowMs drives the title sweep only
 void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
                 const dsp::ListenApply& sel, int prevRoot, int prevScale,
                 int altIdx, int altCount, int bpm, const float* wave, int waveN);

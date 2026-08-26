@@ -142,12 +142,14 @@ int main(int argc, char** argv) {
         };
 
         // --- live view -------------------------------------------------------
+        // The three title-sweep phases are chosen to land the glint near the
+        // start, the middle and the end of the word: head = (ms/90) % 15 - 3.
         // 1. the silent room: the state that was broken
-        listen_screen::drawListening(canvas, 0.05f, ch0, quiet, 0, false);   snap();
+        listen_screen::drawListening(canvas, 0.05f, ch0, quiet, 0, false, 360);  snap();
         // 2. hearing something, no verdict yet
-        listen_screen::drawListening(canvas, 0.35f, chA, quiet, 3, false);   snap();
-        // 3. a round just landed (pulse) with a forming verdict
-        listen_screen::drawListening(canvas, 0.72f, chA, forming, 5, true);  snap();
+        listen_screen::drawListening(canvas, 0.35f, chA, quiet, 3, false, 630);  snap();
+        // 3. a round just landed — the glint runs hot instead of green
+        listen_screen::drawListening(canvas, 0.72f, chA, forming, 5, true, 900); snap();
 
         // --- verdict card ----------------------------------------------------
         // 4. the ordinary landing: nothing to warn about, so it invites you to play

@@ -53,7 +53,8 @@ void drawChartPanel(M5Canvas& c, int y, int h, int base, int barTop) {
 // once a verdict starts forming, what it currently thinks. Redrawn every
 // ~100 ms progress tick. Everything it shows is passed in, so it stays pure.
 void drawListening(M5Canvas& c, float frac, const float* chroma,
-                   const dsp::KeyGuess& guess, int rounds, bool pulse) {
+                   const dsp::KeyGuess& guess, int rounds, bool pulse,
+                   uint32_t nowMs) {
     c.fillScreen(theme::kBg);
 
     c.setTextDatum(top_right);
@@ -61,11 +62,41 @@ void drawListening(M5Canvas& c, float frac, const float* chroma,
     c.setTextColor(theme::kDim, theme::kBg);
     c.drawString("` cancel", cfg::kScreenW - 8, 5);
 
-    c.setTextDatum(middle_center);
+    // The title sits amber and a glint sweeps through it, letter by letter. It
+    // replaces a two-state colour flash that was doing the same job badly: the
+    // word never changes colour as a whole, so nothing blinks, and a travelling
+    // highlight says "still working" where a static title cannot.
+    //
+    // The ramp runs amber -> kIdle rather than amber -> green, because those
+    // two roles are the accent and the HOT text and so are far apart in all ten
+    // palettes; amber and green sit almost on top of each other on paper and
+    // drafting, where the sweep would have been invisible. A landed round is
+    // carried by the glint's reach and intensity instead of by its colour —
+    // the surge is legible without anything flashing.
+    //
+    // Per-letter because Font4 is proportional: textWidth() gives each advance,
+    // and the cells tile on a ground already painted kBg, so no seams show.
+    static const char kWord[] = "LISTENING";
+    const int nch = (int)(sizeof kWord - 1);
     c.setFont(&fonts::Font4);
-    c.setTextColor(pulse ? theme::kGreen : theme::kAmber, theme::kBg);
-    c.drawString("LISTENING", cfg::kScreenW / 2, 27);
+    c.setTextDatum(middle_left);
+    const int reach = pulse ? 4 : 3, peakF = pulse ? 255 : 150;
+    int wx = cfg::kScreenW / 2 - c.textWidth(kWord) / 2;
+    const int head = (int)((nowMs / 90) % (uint32_t)(nch + 6)) - 3;
+    for (int i = 0; i < nch; ++i) {
+        const char one[2] = {kWord[i], '\0'};
+        int d = i - head;
+        if (d < 0) d = -d;
+        const int f = d >= reach ? 0 : peakF - d * (peakF / reach);
+        c.setTextColor(f > 0 ? theme::blend(theme::kAmber, theme::kIdle,
+                                            (uint8_t)f)
+                             : theme::kAmber,
+                       theme::kBg);
+        c.drawString(one, wx, 27);
+        wx += c.textWidth(one);
+    }
 
+    c.setTextDatum(middle_center);
     c.setFont(&fonts::Font0);
     char sub[28];
     if (rounds == 0) {
@@ -351,8 +382,9 @@ uint32_t cardKeysDown() {
 
 bool onProgress(void* user, float frac) {
     Ctx& ctx = *(Ctx*)user;
+    const uint32_t now = millis();
     drawListening(*ctx.c, frac, ctx.chroma, ctx.guess, ctx.rounds,
-                  (int32_t)(ctx.pulseUntil - millis()) > 0);
+                  (int32_t)(ctx.pulseUntil - now) > 0, now);
     const bool bt = backtickHeld();
     const bool cancel = bt && !ctx.btPrev;  // newly pressed only
     ctx.btPrev = bt;
@@ -449,7 +481,7 @@ bool runModal(M5Canvas& canvas) {
     ctx.heard = false;
     ctx.btPrev = backtickHeld();  // swallow a backtick already down at entry
 
-    drawListening(canvas, 0.f, ctx.chroma, ctx.guess, ctx.rounds, false);
+    drawListening(canvas, 0.f, ctx.chroma, ctx.guess, ctx.rounds, false, millis());
     const listen::Result r = listen::capture(onProgress, &ctx, onSegment);
 
     // Take the tempo verdict and free the envelope HERE, before the result
