@@ -176,6 +176,8 @@ Tilt was the first assignable modulator. Now there's a whole rack of them, which
 
 **Filter modes** (settings → TONE → *Filter mode*): the filter does **lowpass** (the original voice), **highpass** (thin/airy), **bandpass** (vocal/telephone), and **notch** (hollow/phasey), free, because the filter already computes them all.
 
+**Drift** (settings → TONE → *Drift*): every voice wanders in pitch on its own slow random walk, a few cents either side. It is the imperfection that separates a warm analog synth from a sterile digital one — real oscillators never sat still, and a chord whose notes are *mathematically* identical is a chord your ear reads as fake. It ships on, subtly, because a feature nobody finds is a feature nobody has; turn it to **off** for dead-still digital, or up to 12 cents for something that has not seen a service in years. It is per-voice, so a held chord shimmers against itself rather than sliding as a block. The note readout deliberately does not wander with it.
+
 Every one of these saves with the slot (`fn`+`shift`+letter) and survives a reboot. And because patches use a **tagged format**, adding the next knob, or the one after that, will never wipe the sounds you've already saved. Expansion is the point. The further you get from the default, the more the instrument is *yours*.
 
 ## Every parameter
