@@ -79,6 +79,16 @@ bool progCurrentCell(int& string, int& col);
 // re-sync edge state after a blocking screen (settings) ate the keyboard
 void resync();
 
+// Consume the HOLD gesture on a key a modal just used for its own dismiss:
+// ` (exit) and enter (tilt latch on long-press, route-cycle on release).
+// resync() already does this as part of its rebuild, but a modal that is
+// PLAYED OVER can't resync on the way out — that would clearLeadNotes() and
+// cut a note still under the player's fingers. LISTEN's result card is the
+// case: without this, dismissing with ` and holding a beat too long reboots
+// the instrument, and dismissing with enter cycles the tilt route on release.
+// Both keys go inert until they are released and pressed anew.
+void consumeDismissHold();
+
 // Advance the living backing (jam motion / arp / chord progression / drones)
 // for one frame. poll() already does this every frame; a modal screen that
 // owns the loop instead of poll() (e.g. settings) calls this so the backing
