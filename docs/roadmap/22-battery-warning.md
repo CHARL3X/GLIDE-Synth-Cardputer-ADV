@@ -86,13 +86,15 @@ Once armed, a latch does not disarm on a dip back over the line — it disarms o
 
 ### Task 1: measure the real gauge before writing any threshold
 
-**Files:** none yet — this is a measurement task, and skipping it means picking numbers out of the air.
+**Files:** a temporary debug build. Nothing here ships; both traces come back out in Task 2.
 
-- [ ] Add a temporary serial trace: `getBatteryVoltage()` every 2 s with a millis stamp.
-- [ ] Capture three traces on a real unit: (a) idle on battery, (b) a hard dense passage — 8-voice FatSaw pad with FX up, backlight full, (c) plugged in from ~1%.
-- [ ] From (a) vs (b), record **the actual sag in mV under load**. That number sets `kBatDecayMvPerPoll` and the hysteresis gaps; the 50–100 mV figure above is a prediction, not a measurement.
-- [ ] From (c), record how fast a charging unit's reading rises. That sets the charge-inference delta and window.
-- [ ] Write the three numbers into this doc before proceeding. Remove the trace.
+**The trap — read this before reaching for `Serial.printf`.** The sag measurement has to happen **on battery**, and USB serial means the unit is plugged in, which means the charger is holding the rail up. A serial trace of the battery voltage is a trace of the *charger*, not the battery. The two measurements need two different instruments, and only one of them can use serial at all.
+
+- [ ] **Sag trace — unplugged, logged to the SD card.** Append `millis(),mV` every 2 s to a CSV in `/glide/` (copy the write path in `src/io/sd_store.cpp`; the card is already mounted and this is a few lines). Then play the unit **normally, unplugged, for 20+ minutes**, making sure it includes both quiet stretches and at least one hard dense passage — 8-voice FatSaw pad, FX up, backlight full. Pull the card and read the file on a computer. This is unattended by design: nobody has to sit watching a number, and it captures far more of the discharge than anyone would have the patience to observe.
+  - *Fallback with no card:* draw the raw mV on screen where the percentage goes and read it off the panel by eye, quiet vs. hammering. Crude, but it answers the one question that gates the design.
+- [ ] From that file, record **the actual sag in mV between quiet and hard-played passages** — the whole design hinges on this one number. It sets `kBatDecayMvPerPoll` and the hysteresis gaps. The 50–100 mV figure above is a prediction, not a measurement.
+- [ ] **Charge trace — plugged in, and here serial is exactly right**, because being plugged in *is* the experiment. From a genuinely flat unit (run one down on purpose — see `docs/updating.md` for what that state looks like), print `getBatteryVoltage()` every 2 s and watch the first ten minutes. Record two things: how far the reading jumps the instant the cable goes in (the fake-full float), and how fast it climbs after that. Those set the charge-inference delta and window.
+- [ ] Write all three numbers into this doc before proceeding, then remove both traces.
 
 ### Task 2: the estimator and the latches
 
