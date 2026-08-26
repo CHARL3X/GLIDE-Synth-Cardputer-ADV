@@ -22,6 +22,14 @@ any key wakes it *and* plays the note. If you'd rather have the screen off,
 restart into Launcher, open **CFG**, and choose **charge mode** — a dim battery
 percentage and nothing else.
 
+If it has been run completely flat, the battery-only symptom is dramatic: the
+Launcher logo shows for a moment, then the device restarts, over and over.
+That loop is an empty battery, not a broken unit. Switch **ON**, plug in,
+choose **charge mode**, and give it a full hour — a flat battery takes charge
+slowly at first, and the on-screen percentage isn't honest while the cell is
+empty: it can read full the moment the cable goes in. Trust the hour, not the
+number.
+
 ### The two triggers, on the top edge
 
 They look identical and do completely different things.
