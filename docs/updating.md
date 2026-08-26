@@ -17,6 +17,9 @@ and the cell ends the night exactly as empty as it started. Slide the switch to
 **ON** first, then plug in. That's how M5 built it (their own Cardputer-Adv
 documentation says so); it isn't a fault, and nothing is wrong with your device.
 
+It charges slowly — think hours, not minutes — but the 1750 mAh cell lasts a
+long time once it is full.
+
 You can leave GLIDE running the whole time it charges. It dims itself after a
 while and then drifts into a screensaver, so nothing burns into the panel, and
 any key wakes it *and* plays the note. If you'd rather have the screen off,
