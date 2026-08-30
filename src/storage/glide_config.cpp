@@ -350,7 +350,10 @@ void setMorphSrcName(const char* s) {
 //      slot, so trading the old copy for the new one is exactly their intent.
 //      The old bytes are held in RAM and put back if even the retry fails; if
 //      THAT fails too the slot falls back to factory, which the callers make
-//      visible (mask + name re-sync) — never a silent half-state.
+//      visible (mask + name re-sync) — never a silent half-state. A power cut
+//      inside the erase→write window leaves the slot factory too, but never
+//      loses the SOUND: the live sound rides the flat keys (savePatch) and a
+//      library sound stays on the card (saveToSlot) — re-save and it's back.
 bool putPatchBytes(const char* key, const uint8_t* buf, size_t n) {
     if (gPrefs.putBytes(key, buf, n) == n) {
         gSavePinched = false;  // a landed save is proof to the contrary
