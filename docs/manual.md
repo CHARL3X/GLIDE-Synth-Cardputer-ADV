@@ -20,6 +20,7 @@ Everything the instrument does and how to play it. For install and the five-minu
  fn + shift + q..p : save your current tweaks over that slot
  fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone, live
+ fn + s            : cycle the scale, live
  fn + k  (HOLD)    : LISTEN - the mic hears the song and retunes for you
 ```
 
@@ -38,6 +39,7 @@ the top edge, marked `BTN RST`**, and tap any key as the device comes up. (The
   <img src="../assets/glide-slide.svg" alt="The slide: hold one key, tap another on the same row and the voice glides up to it; release and it glides back. The bottom row latches a chord progression under you." width="100%">
 - **Hold `shift` to break out of the scale.** Pure chromatic semitones, only while held. That's the skill gate. The scale keeps beginners safe; shift is how you earn the notes in between.
 - **Match a song's key on the fly with `fn`+`k`.** Each tap walks the root up a semitone (wrapping at B), so you can step the key, play a phrase against whatever's on, and step again until it locks in, with no trip to settings. The current key shows on the status bar and flashes in the HUD on every tap.
+- **Change the mood with `fn`+`s`.** The same audition loop for scale color: each tap walks the scale table (pentatonics, the modes, blues, exotics — the HUD names each in full), held notes keep ringing, and new notes land in the new scale. Key and scale together are the whole "play along with anything" gesture, and they live under one finger.
 - **Or let the instrument find it: hold `fn`+`k` and it LISTENS.** The synth goes quiet while the mic hears whatever's playing in the room, in ~3-second rounds, stopping the moment it's sure and listening up to ~9 s when the song is being coy (a single round can land on one chord and name *its* key; more rounds hear the changes). A chromagram works out the song's key (root *and* major/minor), and the instrument retunes itself. It hears the *mode*, not just major-or-minor: the degrees that separate Dorian from minor and Mixolydian from major are read straight from the capture, and a two-chord vamp that fools the textbook reading (an Am7-D9 groove scores as "D major" as honestly as "A minor") gets its tonic re-seated where the song actually lives. The verdict then lands in YOUR scale family: the plain seven-note scales play the detected mode itself; pentatonics swap flavor and sit on the tonic; Blues is never switched, only re-centred (the tonic over minor, Dorian, and dominant grooves, the relative-minor boxes trick over a plain major song); other exotics keep their flavor and take the relative root as always. Weak evidence changes nothing, since mode and tonic corrections sit behind stricter gates than the key itself. The same capture reads the song's tempo from its onsets: a confident beat sets the jam clock (the synced delay and LFOs follow), a beatless room leaves it untouched, and the card shows the locked BPM. And when a song refuses to pick a side — it audibly plays *both* sixths, or a note your scale asserts is one the song contradicts (a Lydian #4, a Phrygian b2) — the landing retreats to the pentatonic at the tonic, which simply omits the clash note: when unsure, play fewer notes rather than a wrong one (the card says "clash heard - safe pent"). While it listens you watch the twelve pitch-class bins fill in real time, pulsing as each round lands, with its forming verdict underneath. The result card shows the bars it heard, the detected key and mode, a confidence meter, and the applied root, with an amber strip marking which notes your applied scale contains; a weak or silent room says NO SIGNAL and changes nothing. The card is a playing surface, not a wall: it holds for about six seconds and the keyboard stays live underneath it, so you can play the key it just named while you are still reading the verdict — a running loop and any jam motion keep going too. If the verdict is *close but not quite*, tap `space` while the card is up to cycle the second guesses (the sibling mode, the safe pentatonic, the relative twin — each applied live as you cycle, and each press handing you a fresh six seconds to judge it); `` ` `` or `enter` keeps what's showing and dismisses early, and tapping `fn`+`k` again re-listens. (Cardputer ADV only, since it needs the mic; no mic just means a visible "mic unavailable", never a broken instrument.)
 
   <img src="../assets/glide-listen.svg" alt="LISTEN: a song plays in the room, hold fn+k, the mic works out the key, mode, and tempo, and the instrument retunes itself" width="100%">
@@ -191,7 +193,7 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | voices | 1-8 | 6 | fn+8 |
 | bend range / bend time | 1-12 st / 50-1000 ms | 2 st / 250 ms | fn+9 / settings |
 | volume | 0-100% | 70% | ctrl/opt (left thumb) or fn+0 |
-| root / scale / row interval | C-B / 13 scales / 1-12 st | A / min pent / 4th | settings |
+| root / scale / row interval | C-B / 13 scales / 1-12 st | A / min pent / 4th | fn+k / fn+s (live), settings |
 | glide mode | legato-only / always | legato-only | settings (per sound) |
 | allocation | strings (mono rows) / free poly | strings | settings |
 | jam rows (drones) | off / bottom / bottom 2 | bottom | settings |
@@ -215,6 +217,14 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | display | waveform scope / pitch trail | pitch trail | settings |
 | screen idle | off / dim / dim + screensaver | dim + screensaver | settings |
 | solo/backing split | auto when you change sound/octave over a jam | live | live |
+
+## The instrument teaches you
+
+Real players kept missing the gestures above — `fn`+`k`, `fn`+`s`, the LISTEN hold, even Randomize — for weeks, because a pocket instrument has no manual in your hand. So GLIDE now teaches with *your* hands, three ways:
+
+- **The tour.** A ~60-second playable ritual: a banner along the bottom asks for one gesture at a time (press a key → the slide → `fn`+`k` → `fn`+`s` → `fn`+`w` → Randomize → the LISTEN tell) and advances only when your fingers actually do it — the instrument keeps playing normally the whole way through. A fresh unit boots straight into it (it replaces the old intro card); a unit that updated gets asked once, with a card (`enter` starts, any other key passes). `` ` `` skips at any point, and settings → *Tutorial* replays it — it's also the thing to hand a friend with the device.
+- **One-shot tips.** The coach watches for the moment a gesture would have helped and names it exactly once, ever: play a lot of off-scale (`shift`) notes and it mentions `fn`+`k` / `fn`+`s`; go boots without touching the sound slots or Randomize and it points them out. A tip never repeats, never fires twice a session, and retires silently the moment you use the gesture on your own.
+- **The hints know the layer.** While `fn` is held, the bottom line now spells the whole layer (`q-p sound  k key  s scale  hold k: mic`), and the resting hint line alternates between the classic `fn edit  tab setup...` and the fn-layer headliners. *How to play* — the full scrollable cheat sheet — moved to the very first row of settings.
 
 ## Persistence and reset
 
