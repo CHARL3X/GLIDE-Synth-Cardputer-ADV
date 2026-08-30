@@ -20,6 +20,7 @@
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "audition.h"
+#include "coach.h"
 #include "help.h"
 #include "sd_browser.h"
 #include "sound_card.h"
@@ -556,6 +557,15 @@ MOD_SLOT_THUNKS(5)
 void fHelp(char* o, int c) { snprintf(o, c, "open ->"); }
 void aHelp(int) { gOpenHelp = true; }  // run() does the actual modal open
 
+// The playable tour (ui/coach.cpp). Settings just arms it; run() exits and the
+// perform loop launches the banner — the tour happens ON the instrument, not
+// in a menu. Same hand-off as Demo mode.
+void fTut(char* o, int c) {
+    snprintf(o, c, "%s%c", store::get().tutDone ? "replay the tour" : "take the tour",
+             kLRtag);
+}
+void aTut(int) { coach::requestTutorial(); }
+
 // Demo mode: settings just arms it; run() exits and the perform loop starts it
 // (the demo plays on the perform screen, where the scope and trail can dance).
 void fDemo(char* o, int c) { snprintf(o, c, "play itself%c", kLRtag); }
@@ -641,6 +651,7 @@ void aRandomize(int) {
     store::applyGenerated(dsp::generateSoundV4(sd, arch));
     audition::start();
     soundcard::showRolled((uint8_t)arch, audition::lengthMs());  // see the roll — and its character, in colour
+    coach::notify(coach::Ev::Randomize);
 }
 
 // Evolve the CURRENT sound instead of rolling fresh — sculpt toward a vibe. The
@@ -782,6 +793,11 @@ const Item kItems[] = {
     // fn+up/down still jumps header-to-header. Order = make -> keep -> shape ->
     // play -> system.
     //
+    // "How to play" rides ABOVE the fold, first row on the screen, exempt from
+    // collapsing (isHidden): it spent a year as the last row of the last
+    // section and ten out of ten surveyed players never found the manual —
+    // or the gestures it documents. The one navigational row outranks a knob.
+    {"How to play", fHelp, aHelp},
     // CREATE leads on purpose: opening settings lands the cursor on RANDOMIZE, so
     // the generative loop (randomize -> hear -> mutate -> keep) is the first thing
     // every player meets — never buried. A rough sound is never a dead end:
@@ -877,7 +893,7 @@ const Item kItems[] = {
     {"Screen idle", fIdle, aIdle},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
-    {"How to play", fHelp, aHelp},
+    {"Tutorial", fTut, aTut},
     {"Odometer", fOdo, aOdo},
     {"Storage", fStorage, aStorage},
     {"Reset defaults", fReset, aReset},
@@ -925,6 +941,8 @@ int slotOfSub(void (*adj)(int)) {  // slot index if adj is a dest/amount thunk, 
 }
 bool isHidden(int i) {
     if (isHeader(i)) return false;                  // headers always show (they're the map)
+    if (i == 0) return false;                       // "How to play" rides above the fold —
+                                                    // always visible, in no one's section
     if (!gExpanded[sectionOf(i)]) return true;      // section folded -> all its rows hidden
     const int s = slotOfSub(kItems[i].adjust);      // within MODULATION: unused slot sub-rows
     return s >= 0 && store::get().synth.slots[s].src == (uint8_t)dsp::ModSource::None;
@@ -1185,8 +1203,9 @@ void run(M5Canvas& canvas) {
     for (int s = 0; s < kMaxSections; ++s) gExpanded[s] = false;
     gExpanded[0] = true;
 
-    int sel = step(kItemCount - 1, +1);  // -> CREATE header (first selectable)
-    sel = step(sel, +1);                 // -> the RANDOMIZE button
+    int sel = step(kItemCount - 1, +1);  // -> "How to play" (row 0, above the fold)
+    sel = step(sel, +1);                 // -> the CREATE header
+    sel = step(sel, +1);                 // -> the RANDOMIZE button (the landing spot)
     int top = 0;
     uint64_t prev = ~0ULL;  // force first frame to treat keys as already-held
 
@@ -1316,6 +1335,8 @@ void run(M5Canvas& canvas) {
         };
 
         if (demo::pending()) break;  // Demo mode fired: hand off to the perform loop
+        if (coach::tutorialPending()) break;  // Tutorial fired: same hand-off — the
+                                              // tour runs on the instrument itself
 
         bool justExpanded = false;  // -> scroll the opened section to the top
         if (isHeader(sel)) {

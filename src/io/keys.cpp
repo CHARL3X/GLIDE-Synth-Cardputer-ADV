@@ -11,6 +11,7 @@
 #include "../dsp/pitch.h"
 #include "../dsp/scales.h"
 #include "../storage/glide_config.h"
+#include "../ui/coach.h"
 #include "../ui/hud.h"
 #include "../ui/morph.h"
 #include "../ui/sound_card.h"
@@ -318,6 +319,7 @@ void notePress(int cd, bool shiftHeld) {
         // the lane already sings if anything is on its stack
         legato = gLaneDepth[n.string] > 0;
         lanePush(n.string, (uint8_t)cd);
+        if (legato) coach::notify(coach::Ev::Slide);  // the slide, performed
     }
     const dsp::NoteEvent ev = dsp::NoteEvent::make(dsp::NoteEvent::On, (uint8_t)cd,
                                                    (uint8_t)n.string, legato, n.pitch);
@@ -525,6 +527,7 @@ void cycleRootKey() {
     g.layout.rootSemis = (uint8_t)((g.layout.rootSemis + 1) % 12);
     store::markDirty();
     hud::show("KEY", dsp::kNoteNames[g.layout.rootSemis], -1.f);
+    coach::notify(coach::Ev::KeyCycle);
 }
 
 // fn+S: walk the scale table — the same audition loop as fn+K but for mode
@@ -535,6 +538,7 @@ void cycleScale() {
     g.layout.scaleIdx = (uint8_t)((g.layout.scaleIdx + 1) % dsp::kScaleCount);
     store::markDirty();
     hud::show("SCALE", dsp::kScales[g.layout.scaleIdx].name, -1.f);
+    coach::notify(coach::Ev::ScaleCycle);
 }
 
 // ---- tilt mode cycle --------------------------------------------------------
@@ -924,6 +928,19 @@ Actions poll(uint32_t nowMs) {
         return act;  // nothing else acts while the card is up
     }
 
+    // The one-time tour offer (existing devices) is modal the same way: enter
+    // accepts, any other key declines, and the key is consumed either way.
+    // coach ignores answers inside its grace window — a key mashed before the
+    // card could be read is swallowed, never counted as "no thanks" forever.
+    if (coach::offerActive()) {
+        if (pressed) {
+            if (held(pressed, kKeyTilt)) coach::offerAccept();  // enter
+            else coach::offerDecline();
+        }
+        gPrevMask = cur;
+        return act;
+    }
+
     const bool shiftHeld = held(cur, kKeyShift);
     gSustainHeld = held(cur, kKeySpace);  // alt is the loop pedal now
     const bool wasQuickEdit = gQuickEdit;
@@ -978,12 +995,17 @@ Actions poll(uint32_t nowMs) {
                         // own SOLO tag when the backing is locked)
                         soundcard::show();
                         morph::kick();  // arrive by glide, not by snap
+                        coach::notify(coach::Ev::SlotLoad);
                     }
                 }
                 continue;  // grid is muted while editing
             }
             act.gridPressed = true;
             notePress(cd, shiftHeld);
+            coach::notify(coach::Ev::Grid);
+            // deliberately off-scale under scale lock: the player is fighting
+            // the key/scale — exactly what fn+k / fn+s exist for
+            if (shiftHeld && cfgr.layout.scaleLock) coach::notify(coach::Ev::ShiftNote);
             continue;
         }
 
@@ -993,7 +1015,10 @@ Actions poll(uint32_t nowMs) {
                 // easy to brush. Stamp it; the hold check below fires the exit.
                 gExitDownMs = nowMs;
                 gExitFired = false;
-                hud::show("EXIT", "hold ` to exit", -1.f);
+                // while the tour banner is up, a ` tap skips the tour instead
+                // of hinting (the deliberate hold still exits as always)
+                if (coach::tutorialActive()) coach::skip();
+                else hud::show("EXIT", "hold ` to exit", -1.f);
                 break;
             case kKeyTab:
                 act.openSettings = true;
@@ -1165,6 +1190,7 @@ Actions poll(uint32_t nowMs) {
         nowMs - gKeyCyclePressMs >= kListenHoldMs) {
         gKeyListenFired = true;
         act.listen = true;
+        coach::notify(coach::Ev::KeyCycle);  // the hold proves fn+k is known too
     }
 
     // sustain pedal lifted -> let go of everything not physically held

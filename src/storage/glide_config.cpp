@@ -1010,6 +1010,12 @@ void begin() {
     }
     gCfg.bootSound = gPrefs.getBool("boot", d.bootSound);
     gCfg.seenIntro = gPrefs.getBool("intro", d.seenIntro);
+    // coach state (see the header). 6 = coach::kTutSteps - 1, spelled as a
+    // literal so storage/ never includes ui/; coach re-clamps on its side too.
+    gCfg.tutStep = clampT<int>(gPrefs.getUChar("tutstep", d.tutStep), 0, 6);
+    gCfg.tutDone = gPrefs.getBool("tutdone", d.tutDone);
+    gCfg.tutOffered = gPrefs.getBool("tutoffer", d.tutOffered);
+    gCfg.taughtMask = gPrefs.getUInt("taught", d.taughtMask);
 
     // G0 trigger macro (absent on pre-existing devices -> the muffle default,
     // i.e. the original behaviour at the gentler default depth)
@@ -1197,6 +1203,10 @@ void persistNow() {
     gPrefs.putUChar("idlemd", gCfg.idleMode);
     gPrefs.putBool("boot", gCfg.bootSound);
     gPrefs.putBool("intro", gCfg.seenIntro);
+    gPrefs.putUChar("tutstep", gCfg.tutStep);
+    gPrefs.putBool("tutdone", gCfg.tutDone);
+    gPrefs.putBool("tutoffer", gCfg.tutOffered);
+    gPrefs.putUInt("taught", gCfg.taughtMask);
     gPrefs.putUChar("trigact", gCfg.triggerAction);
     gPrefs.putInt("trigdep", (int)(gCfg.triggerDepth * 100));
     gPrefs.putBool("triglat", gCfg.triggerLatch);
@@ -1317,10 +1327,20 @@ void eraseAllStorage() {
 
 void resetDefaults() {
     const bool seen = gCfg.seenIntro;  // don't re-show the intro on reset
+    // ...and don't re-run the onboarding either: a settings reset (or the boot
+    // factory reset) is the same player, and re-teaching them is a nag. A truly
+    // fresh start (wiped NVS) still meets the tour.
+    const uint8_t tstep = gCfg.tutStep;
+    const bool tdone = gCfg.tutDone, toffer = gCfg.tutOffered;
+    const uint32_t taught = gCfg.taughtMask;
     gDemoLoan = false;   // a reset supersedes any outstanding demo loan —
     gDemoDriving = false;  // the flush below must land
     gCfg = GlideConfig();
     gCfg.seenIntro = seen;
+    gCfg.tutStep = tstep;
+    gCfg.tutDone = tdone;
+    gCfg.tutOffered = toffer;
+    gCfg.taughtMask = taught;
     gPrefs.remove(kMorphKey);  // the remembered blend partner is stored state too
     gMorphSrcDirty = false;    // ...and must not be rewritten by the flush below
     seedMorphFromPartner();    // back to the signature pair right now, not on the
