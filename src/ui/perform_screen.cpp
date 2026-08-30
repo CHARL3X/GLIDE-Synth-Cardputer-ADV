@@ -18,6 +18,7 @@
 #include "../io/looper.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
+#include "coach.h"
 #include "hud.h"
 #include "listen_screen.h"
 #include "morph.h"
@@ -1652,21 +1653,20 @@ void drawBattery(M5Canvas& c, uint32_t now) {
     c.drawString(buf, kTraceX + 2, y);
 }
 
-void drawHint(M5Canvas& c) {
+void drawHint(M5Canvas& c, uint32_t now) {
     c.setFont(&fonts::Font0);
     if (keys::quickEditActive()) {
-        // Name the sound row here. The edit panel already lists the ten slots
-        // down its right column — but that column yields to the context viz for
-        // six of the ten parameters, and the selection is sticky, so one poke at
-        // ATTACK hides the bank on every subsequent fn hold. This line is the
-        // one thing always on screen while fn is down, and players reported
-        // never finding the sounds at all. It spells the range the same way the
-        // edit status bar three rows up does ("q-p sound") — two spellings of
-        // one range on one screen just looked like two different things. No
-        // "release to play": nobody holds fn by accident, and the row is worth
-        // more as two real gestures than as one gesture plus a reminder.
+        // The one line always on screen while fn is down — so it must carry the
+        // WHOLE fn layer, not just the edit half. The edit status bar up top
+        // already spells the mechanics (1-0 param, q-p sound, [ ] adj); this
+        // line names the sounds again (the panel's slot column yields to the
+        // context viz for six of the ten parameters, and players reported never
+        // finding the sounds at all — same "q-p sound" spelling as the bar, two
+        // spellings read as two different things) and then the layer's headline
+        // commands, which nobody was finding after WEEKS: k steps the key, s
+        // the scale, and holding k points the mic at the song (LISTEN).
         c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString("q - p sounds   1-0 param", 2, kHintY);
+        c.drawString("q-p sound  k key  s scale  hold k: mic", 2, kHintY);  // 38ch
         return;
     }
     if (demo::active()) {
@@ -1684,6 +1684,12 @@ void drawHint(M5Canvas& c) {
         c.drawString("tap row = chord progression   bksp clear", 2, kHintY);
     else if (ls != looper::State::Empty)
         c.drawString("alt dub   hold clear   fn+alt undo", 2, kHintY);
+    else if ((now / 6000) & 1)
+        // the resting hint ROTATES: half the time it teaches the fn layer's
+        // headline commands — the ones every surveyed player missed — instead
+        // of framing fn as "edit" only. Slow enough to read, fast enough that
+        // a session always sees both faces.
+        c.drawString("fn+k key  fn+s scale  fn+q..p sounds", 2, kHintY);  // 36ch
     else
         c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
 }
@@ -1757,6 +1763,7 @@ void run() {
         auto& cf = store::get();
 
         keys::Actions act = keys::poll(frameStart);
+        coach::tick(frameStart);  // tour timers + the one-shot contextual tips
 
         // Which idle stage are we in? (Guarded by the "Screen idle" setting.)
         const uint32_t idle = frameStart - keys::lastActivityMs();
@@ -1765,8 +1772,9 @@ void run() {
         if (cf.idleMode >= 2 && idle >= cfg::kScreensaverMs) idleStage = 2;
         // Demo mode is an unattended showcase — keep the screen lit and playing
         // for it. (A plain loop/jam still lets the screen rest: the screensaver
-        // breathes with it, which is half the point.)
-        if (demo::active()) idleStage = 0;
+        // breathes with it, which is half the point.) Same for the tour banner
+        // and its offer card: teaching must never dim mid-sentence.
+        if (demo::active() || coach::active()) idleStage = 0;
         if (idleStage != prevIdleStage) {
             if (idleStage == 2) screensaver::reset();
             if (prevIdleStage == 2) {  // waking from the saver: restart the short-
@@ -1789,6 +1797,7 @@ void run() {
         }
         looper::tick(frameStart);  // schedule due loop-playback events
         if (demo::pending()) demo::start(frameStart);  // armed from settings
+        if (coach::tutorialPending()) coach::startPending();  // ditto, the tour
         if (demo::active() && act.gridPressed) demo::stop();  // the takeover
         demo::tick(frameStart);
         if (act.gridPressed) soundcard::dismiss();  // playing reclaims the scope
@@ -1916,10 +1925,12 @@ void run() {
         drawMorphStrip(canvas);
         drawBattery(canvas, frameStart);
         drawBottom(canvas, frameStart);
-        drawHint(canvas);
+        drawHint(canvas, frameStart);
         soundcard::draw(canvas, frameStart);  // under the HUD: fresh feedback wins
+        coach::draw(canvas, frameStart);  // tour banner/offer/tip paints over the
+                                          // bottom strip; transient HUD stays on top
         hud::draw(canvas, frameStart);
-        if (!cf.seenIntro) drawIntro(canvas);
+        if (!cf.seenIntro && !coach::active()) drawIntro(canvas);
         if (demo::active() && morph::pos() < 0.02f && ((frameStart >> 9) & 1) &&
             !keys::quickEditActive()) {  // blinking DEMO badge (yields to the strip)
             canvas.setFont(&fonts::Font0);

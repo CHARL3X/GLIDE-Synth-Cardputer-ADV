@@ -123,6 +123,18 @@ struct GlideConfig {
     bool bootSound = true;
     bool seenIntro = false;
 
+    // ---- coach (ui/coach.cpp): the playable tour + one-shot tips ----------
+    // tutDone resolves the tour for good (completed, skipped, or declined);
+    // tutStep is the resume point while a first run is unfinished; tutOffered
+    // marks the one-time offer card existing devices get in place of the
+    // fresh-unit auto-start. taughtMask is a bit per contextual tip — set when
+    // the tip shows OR when the player performs the gesture unprompted, so
+    // every tip fires at most once in the instrument's life.
+    uint8_t tutStep = 0;
+    bool tutDone = false;
+    bool tutOffered = false;
+    uint32_t taughtMask = 0;
+
     // ---- G0 trigger macro ---------------------------------------------------
     // Default is SYNTH MORPH, latched: tap G0 to become the previous sound,
     // tap to come back. (The partner survives a reboot, and the boot seeds the
