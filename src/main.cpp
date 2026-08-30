@@ -14,6 +14,7 @@
 #include "io/led.h"
 #include "io/tilt.h"
 #include "storage/glide_config.h"
+#include "ui/coach.h"
 #include "ui/perform_screen.h"
 #include "ui/splash.h"
 #include "ui/theme.h"
@@ -141,6 +142,8 @@ void setup() {
     keys::begin();
     tilt::begin();
     led::begin();
+    coach::begin();  // after the splash/factory-reset block: the tour auto-runs
+                     // on a fresh unit, offers itself once on an existing one
 
     Serial.printf("[glide] ready  heap=%u  starved=%u\n", (unsigned)ESP.getFreeHeap(),
                   (unsigned)audio::starvedBlocks());

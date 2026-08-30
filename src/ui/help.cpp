@@ -71,6 +71,7 @@ const Line kLines[] = {
     {kGap, nullptr, nullptr},
     {kHd, nullptr, "KEY & SCALE"},
     {kKey, "fn+k", "key up (match a song)"},
+    {kKey, "fn+s", "next scale (the mood)"},
     {kKey, "fn+k hold", "LISTEN: the mic hears"},
     {kSub, nullptr, "the song, retunes you"},
 
