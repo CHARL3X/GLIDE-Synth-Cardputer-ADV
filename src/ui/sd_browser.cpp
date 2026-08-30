@@ -217,17 +217,12 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                     if (!loadFile(gNames[sel], pd)) {
                         snprintf(flash, sizeof flash, "load: %s", sdstore::lastError());
                     } else if (!store::saveToSlot(slot, pd)) {
-                        // The sound is SAFE — it lives on the card; only the slot
-                        // copy failed. Name the real cause (usually the shared
-                        // partition, full) and the way out, not a shrug —
-                        // "(nvs?)" read as "bricked" to anyone who isn't us.
-                        if (store::lastSaveHint()[0])  // full -> the fix exists
-                            snprintf(flash, sizeof flash, "%s - hold BKSP at boot",
-                                     store::lastSaveError());
-                        else
-                            snprintf(flash, sizeof flash, "slot: %s",
-                                     store::lastSaveError());
-                        flashMs = 3600;  // a fix line needs reading time
+                        // The library file is untouched; only the slot copy (also
+                        // a card file since v2.8) failed — almost always a card
+                        // problem, and the copy says so in card words.
+                        snprintf(flash, sizeof flash, "slot copy failed: %s",
+                                 store::lastSaveError());
+                        flashMs = 3600;  // an error line needs reading time
                     } else {
                         snprintf(flash, sizeof flash, "put on slot %c", kSlotLetters[slot]);
                         flashErr = false;
@@ -291,8 +286,10 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                 canvas.drawString("No SD card.", 8, 40);
                 canvas.setTextColor(theme::kDim, theme::kBg);
                 canvas.drawString(sdstore::lastError(), 8, 56);
-                canvas.drawString("Saved sounds live on the microSD.", 8, 72);
-                canvas.drawString("The 10 slots (q..p) work without it.", 8, 84);
+                canvas.drawString("Your sounds save to the microSD.", 8, 72);
+                canvas.drawString("Without it the slots (q..p) play", 8, 84);
+                canvas.drawString("their factory sounds - insert a", 8, 96);
+                canvas.drawString("card to save your own.", 8, 108);
             } else if (gCount <= 0) {
                 canvas.setTextColor(theme::kIdle, theme::kBg);
                 canvas.drawString("No saved sounds yet.", 8, 44);

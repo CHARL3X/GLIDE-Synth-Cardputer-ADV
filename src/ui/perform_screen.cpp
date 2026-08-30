@@ -16,6 +16,7 @@
 #include "../io/keys.h"
 #include "../io/led.h"
 #include "../io/looper.h"
+#include "../io/sd_store.h"
 #include "../io/tilt.h"
 #include "../storage/glide_config.h"
 #include "coach.h"
@@ -154,6 +155,9 @@ void applyTilt() {
     s.tiltAVal = rawA;  // matrix sources (separate from the hardwired routes above)
     s.tiltBVal = rawB;
     s.tempoBpm = (float)c.jamBpm;  // publish the jam tempo for the synced delay
+    s.metroOn = c.metroOn ? 1 : 0;     // metronome: performance state, published
+    s.metroBeats = c.jamChordBeats;    // like tempo (the synth edge-detects the
+    s.metroLevel = c.metroVol;         // toggle and free-runs the beat)
 }
 
 inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -1575,9 +1579,23 @@ void drawProg(M5Canvas& c, uint32_t now) {
     c.drawString("PROG", x0, y);
     const int cur = keys::progIndex();
     int x = x0 + 28;
-    char nm[6];
+    char nm[12];
     for (int i = 0; i < len && x < kTraceX + kTraceW - 14; ++i) {
         keys::progStepName(i, nm, sizeof nm);
+        // The SOUNDING chip also names its harmony: "F# vi" — the Roman
+        // numeral teaches the progression as it plays (Jordan's ask). Current
+        // step only: a full row of numerals overflows the trace width.
+        if (i == cur) {
+            char rn[6];
+            const int nl = (int)strlen(nm);
+            if (keys::progRomanNumeral(i, rn, sizeof rn) &&
+                nl + 1 + (int)strlen(rn) < (int)sizeof nm - 1) {
+                nm[nl] = ' ';
+                int k = 0;
+                for (; rn[k]; ++k) nm[nl + 1 + k] = rn[k];
+                nm[nl + 1 + k] = '\0';
+            }
+        }
         const int w = (int)strlen(nm) * 6 + 3;
         if (i == cur) {
             c.fillRect(x - 1, y - 1, w, 9, theme::kAmber);
@@ -1736,15 +1754,43 @@ void drawIntro(M5Canvas& c) {
 
 }  // namespace
 
+// The frame buffer, claimed once by preallocUi() as the boot's FIRST big heap
+// allocation (only this 4-byte pointer is static — the 65 KB lives on a virgin
+// heap where it can never be squeezed out by driver residue or fragmentation).
+M5Canvas* gUiCanvas = nullptr;
+
+bool preallocUi() {
+    if (gUiCanvas) return true;
+    gUiCanvas = new M5Canvas(&M5Cardputer.Display);
+    if (gUiCanvas->createSprite(cfg::kScreenW, cfg::kScreenH)) return true;
+    delete gUiCanvas;
+    gUiCanvas = nullptr;
+    return false;
+}
+
+M5Canvas* uiCanvas() { return gUiCanvas; }
+
 void run() {
-    M5Canvas canvas(&M5Cardputer.Display);
-    if (!canvas.createSprite(cfg::kScreenW, cfg::kScreenH)) {
-        // No RAM for the frame buffer is a visible failure, not a blank stare.
-        M5Cardputer.Display.fillScreen(theme::kBg);
-        M5Cardputer.Display.setTextColor(theme::kRed);
-        M5Cardputer.Display.drawString("UI ALLOC FAILED", 10, 40);
-        for (;;) delay(1000);
+    if (!preallocUi()) {
+        // No RAM for the frame buffer is a visible failure — but NEVER a dead
+        // end on a shipped instrument: say what happened in plain words and
+        // reboot; a restart re-runs the (first-allocation) claim on a clean
+        // heap, which by construction succeeds unless the build itself is
+        // broken. Serial gets the numbers for us.
+        Serial.printf("[ui] frame buffer alloc FAILED  heap=%u largest=%u\n",
+                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+        auto& d = M5Cardputer.Display;
+        d.fillScreen(theme::kBg);
+        d.setFont(&fonts::Font2);
+        d.setTextColor(theme::kRed, theme::kBg);
+        d.drawString("SCREEN MEMORY HICCUP", 10, 30);
+        d.setFont(&fonts::Font0);
+        d.setTextColor(theme::kIdle, theme::kBg);
+        d.drawString("Restarting to clear it...", 10, 60);
+        delay(2500);
+        ESP.restart();
     }
+    M5Canvas& canvas = *gUiCanvas;
 
     uint32_t introShownAt = millis();
 
@@ -1806,6 +1852,7 @@ void run() {
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::AllOff, 0));
             led::off();
             store::persistNow();
+            store::flushLiveSound();     // the live sound's blob + SD mirror
             store::flushMorphPartner();  // the blend pair must survive the reboot
             delay(120);  // let the release tails fade
             ESP.restart();
@@ -1890,7 +1937,10 @@ void run() {
         const bool quiet =
             frameStart - keys::lastActivityMs() > 4000 && !keys::backingActive();
         store::tick(frameStart, quiet);
-        if (quiet) store::flushMorphPartner();
+        if (quiet) {
+            store::flushLiveSound();  // the sound blob rides the same quiet gate
+            store::flushMorphPartner();
+        }
 
         // onboard LED mirrors the lead voice: pitch -> hue, activity ->
         // brightness, fresh attacks and bends throw a white sparkle

@@ -9,6 +9,9 @@
 
 #include "../config.h"
 #include "../dsp/scales.h"
+#include "../io/sd_store.h"  // v2.8: the ten slots + the boot-heal mirrors
+                             // live on the card (glide_config is not part of
+                             // env:native, so io/ is reachable here)
 #include "patch_codec.h"
 
 namespace store {
@@ -59,32 +62,35 @@ constexpr int kPatchBlobEntries = 16;     // worst-case entries one slot blob oc
 bool gSavePinched = false;  // patch-size writes fail (boot probe / a failed save);
                             // small key writes may still land — the earlier failure
 
-void noteSaveFailure(bool nvsWrite) {
-    if (!nvsWrite) {
+// tiny prefix test — glide_config stays free of <cstring>
+bool startsWith(const char* s, const char* pre) {
+    while (*pre)
+        if (*s++ != *pre++) return false;
+    return true;
+}
+
+void noteSaveFailure(bool storageWrite) {
+    if (!storageWrite) {
         snprintf(gSaveErr, sizeof gSaveErr, "patch too big");
         gSaveHint[0] = '\0';
         Serial.println("[store] save failed: encodePatch overflow");
         return;
     }
-    gSavePinched = true;  // a real save just failed — that IS the probe's answer
-    // Layman-honest on screen ("NVS full 365/504" read as gibberish — and as
-    // 139 free); the fix on the detail line; real numbers on serial.
-    snprintf(gSaveErr, sizeof gSaveErr, "storage full");
-    snprintf(gSaveHint, sizeof gSaveHint, "save to SD, then BKSP at boot");
-    nvs_stats_t st;
-    if (nvs_get_stats(nullptr, &st) == ESP_OK) {
-        const int eff = (int)st.free_entries - kNvsReservedEntries;
-        Serial.printf(
-            "[store] save failed: NVS write. used %u free %u total %u "
-            "(namespaces %u) — minus the %d-entry GC-reserve page that is ~%d "
-            "writable; a slot blob needs ~%d. The 16K partition is shared with "
-            "the Launcher and every app\n",
-            (unsigned)st.used_entries, (unsigned)st.free_entries,
-            (unsigned)st.total_entries, (unsigned)st.namespace_count,
-            kNvsReservedEntries, eff < 0 ? 0 : eff, kPatchBlobEntries);
+    // v2.8: slot saves live on the CARD — the failure copy names a fix a
+    // human understands ("NVS" never appears on screen again). The old
+    // storage-full pathology can't reach a slot save at all.
+    const char* e = sdstore::lastError();
+    if (!sdstore::available()) {
+        snprintf(gSaveErr, sizeof gSaveErr, "no SD card");
+        snprintf(gSaveHint, sizeof gSaveHint, "insert a card to save sounds");
+    } else if (startsWith(e, "short write")) {
+        snprintf(gSaveErr, sizeof gSaveErr, "SD card full");
+        snprintf(gSaveHint, sizeof gSaveHint, "free some space on the card");
     } else {
-        Serial.println("[store] save failed: NVS write (stats unavailable)");
+        snprintf(gSaveErr, sizeof gSaveErr, "card error");
+        snprintf(gSaveHint, sizeof gSaveHint, "check / reinsert the SD card");
     }
+    Serial.printf("[store] slot save failed: %s\n", e);
 }
 
 // Ground truth for "can a slot save land?". The stats alone can't say: the
@@ -245,33 +251,27 @@ uint32_t slotSeed(uint32_t seed, int slot);  // defined below
 // shared NVS stays free). Seeds from the factory patch first so any field a
 // stored blob predates keeps its default. Handles the new tagged format and
 // legacy binary blobs. Returns true iff a user override blob exists.
-bool loadPatchData(int slot, PatchData& out) {
+// Seed a PatchData from the slot's compiled-in factory patch — the default
+// every read overlays onto (fields a stored sound predates keep this).
+void seedFactory(int slot, PatchData& out) {
     const dsp::Patch& fp = dsp::factoryPatches()[slot];
-    out.synth = fp.synth;  // seed: defaults for anything the blob doesn't carry
+    out.synth = fp.synth;
     out.tiltRoute = (uint8_t)fp.tiltRoute;
     out.tiltDepth = fp.tiltDepth;
     out.tiltRouteB = (uint8_t)fp.tiltRouteB;
     out.tiltDepthB = fp.tiltDepthB;
+    out.name[0] = '\0';
+}
 
+// The LEGACY read: a pre-v2.8 slot blob still in the shared NVS partition
+// (tagged or the frozen fixed-struct format). Kept as loadPatchData's fallback
+// for un-migrated units, and used directly by the one-shot migration/reclaim
+// passes in begin(). Assumes `out` is already factory-seeded.
+bool loadPatchDataNvsBlob(int slot, PatchData& out) {
     char key[3];
     patchKey(slot, key);
     const size_t len = gPrefs.getBytesLength(key);
-    if (len == 0) {  // no user override
-        if (slot >= dsp::kFirstGenSlot) {  // o,p: regenerate this unit's sound from
-                                           // the seed, with the generator version
-                                           // the seed was rolled under (gGenVer) —
-                                           // names re-derive too, so gate them alike
-            const uint32_t sv = slotSeed(gSeed, slot);
-            const bool legacy = gGenVer < 2;
-            const dsp::GenPatch rolled = legacy       ? dsp::generateSoundLegacy(sv)
-                                         : gGenVer < 3 ? dsp::generateSound(sv)    // frozen v2 pool
-                                         : gGenVer < 4 ? dsp::generateSoundV3(sv)  // expanded pool
-                                                       : dsp::generateSoundV4(sv); // + rolled drift
-            genToPatchData(rolled, out, legacy);
-        }
-        return false;  // q..i keep their curated factory patch (already seeded above)
-    }
-
+    if (len == 0) return false;
     uint8_t buf[512];
     if (len >= 3 && len <= sizeof buf) {
         const size_t got = gPrefs.getBytes(key, buf, len);
@@ -289,6 +289,36 @@ bool loadPatchData(int slot, PatchData& out) {
         return true;
     }
     return false;
+}
+
+bool loadPatchData(int slot, PatchData& out) {
+    seedFactory(slot, out);
+
+    // v2.8: saved slots live on the CARD. SD wins; a legacy NVS blob (an
+    // un-migrated unit, or saves from before the card era) still reads; else
+    // the curated factory / generative fallback. SILENT on every path —
+    // unattended loads (the demo, the boot name-cache fill) must never
+    // surface a HUD, and a missing card simply plays the factory bank.
+    if (sdstore::slotExists(slot)) {
+        if (sdstore::slotLoad(slot, out)) return true;
+        seedFactory(slot, out);  // corrupt file: never play a half-decoded seed
+    }
+    if (loadPatchDataNvsBlob(slot, out)) return true;
+    seedFactory(slot, out);
+
+    if (slot >= dsp::kFirstGenSlot) {  // o,p: regenerate this unit's sound from
+                                       // the seed, with the generator version
+                                       // the seed was rolled under (gGenVer) —
+                                       // names re-derive too, so gate them alike
+        const uint32_t sv = slotSeed(gSeed, slot);
+        const bool legacy = gGenVer < 2;
+        const dsp::GenPatch rolled = legacy       ? dsp::generateSoundLegacy(sv)
+                                     : gGenVer < 3 ? dsp::generateSound(sv)    // frozen v2 pool
+                                     : gGenVer < 4 ? dsp::generateSoundV3(sv)  // expanded pool
+                                                   : dsp::generateSoundV4(sv); // + rolled drift
+        genToPatchData(rolled, out, legacy);
+    }
+    return false;  // q..i keep their curated factory patch (already seeded above)
 }
 
 // Copy a C-string into gLiveName (bounded; no <cstring> dependency here).
@@ -327,11 +357,19 @@ bool gMorphSrcDirty = false;  // the partner differs from what's in NVS -> re-pe
 uint32_t gMorphRetryAtMs = 0;  // flushMorphPartner failure holdoff (0 = none)
 
 constexpr const char* kMorphKey = "msrc";  // the persisted morph partner
-// The live sound's IDENTITY. The sound itself rides the flat keys; its name and
-// its saved-or-not state can't be recovered from those (see the restore in
-// begin()), so they get keys of their own — ~3 NVS entries, name included.
+// The live sound's IDENTITY. The sound itself rides ONE tagged blob since
+// v2.8 ("lvpat" — ~16 NVS entries where ~53 flat keys used to live, and one
+// write per change instead of dozens); its name and its saved-or-not state
+// can't be recovered from the sound, so they keep keys of their own.
 constexpr const char* kLiveNameKey = "lvnm";
 constexpr const char* kLiveCleanKey = "lvclean";
+constexpr const char* kLivePatchKey = "lvpat";
+uint32_t gLiveStamp = 0;        // content stamp of the last blob landed/loaded
+bool gLiveStampValid = false;   // false = write on the next quiet flush
+bool gLiveBlobLanded = false;   // the blob exists in NVS (gates the legacy
+                                // flat-key writes and their one-shot retirement)
+uint32_t gLiveRetryAtMs = 0;    // failure holdoff, same idea as the morph blob
+bool gLiveMirrorDirty = false;  // the SD live-mirror lags the blob
 
 void setMorphSrcName(const char* s) {
     int i = 0;
@@ -385,20 +423,6 @@ bool putPatchBytes(const char* key, const uint8_t* buf, size_t n) {
 void cacheSlotName(int slot);      // defined below (display-name cache)
 void refreshCurSlotHash();         // defined below (liveDirty reference)
 
-// After a FAILED save: the in-place replace above may legitimately have spent
-// the slot's old blob (new write failed AND the put-back failed). Keep the
-// cached state honest — mask bit, display name, and the liveDirty reference
-// all follow what flash actually holds, so the slot visibly reads factory
-// instead of wearing a stale custom name over a sound that no longer exists.
-void resyncOverrideAfterFailedSave(int slot, const char* key) {
-    if (gPrefs.getBytesLength(key) != 0) return;      // the old copy survived
-    if (!((gOverrideMask >> slot) & 1u)) return;      // never was overridden
-    gOverrideMask &= (uint16_t)~(1u << slot);
-    cacheSlotName(slot);
-    if (slot == gCfg.currentPatch) refreshCurSlotHash();
-    Serial.printf("[store] slot %d override lost in the failed rewrite\n", slot);
-}
-
 void applyPatchData(const PatchData& pd) {
     gMorphSrc = gCfg.synth;  // the outgoing sound becomes the morph source
     setMorphSrcName(gLiveName);
@@ -428,6 +452,9 @@ void applyPatchData(const PatchData& pd) {
     gCfg.synth.cutoffModOct = 0.f;
     gCfg.synth.volMod = 1.f;
     gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
+    gCfg.synth.metroOn = gCfg.metroOn ? 1 : 0;  // the metronome is the player's:
+    gCfg.synth.metroBeats = gCfg.jamChordBeats; // a sound switch must not stop,
+    gCfg.synth.metroLevel = gCfg.metroVol;      // restart or re-level the click
     gCfg.synth.voiceCount =
         (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);  // blob hygiene
     setLiveNameFromPatch(pd);  // the live sound carries its name everywhere
@@ -494,23 +521,18 @@ void refreshCurSlotHash() {
     gCurSlotHash = patchDirtyHash(pd);
 }
 
-// Encode a PatchData and write it as the slot's override blob. Updates the
-// cached mask on success. NVS-full safe: a failed putBytes leaves the slot
-// untouched and the mask bit unchanged.
+// Write a PatchData as the slot's saved sound — a CARD file since v2.8
+// (temp+rename inside sdstore, so a failed save always keeps the old sound;
+// the resync-after-failed-save dance the NVS era needed is gone). On success
+// the mask bit is set and any legacy NVS copy of this slot is retired.
 bool writeOverride(int slot, const PatchData& pd) {
-    uint8_t buf[512];
-    const size_t n = encodePatch(pd, buf, sizeof buf);
-    if (n == 0) {
-        noteSaveFailure(false);
+    if (!sdstore::slotSave(slot, pd)) {
+        noteSaveFailure(startsWith(sdstore::lastError(), "encode") ? false : true);
         return false;
     }
     char key[3];
     patchKey(slot, key);
-    if (!putPatchBytes(key, buf, n)) {  // escalating reclaim (see above)
-        noteSaveFailure(true);
-        resyncOverrideAfterFailedSave(slot, key);
-        return false;
-    }
+    if (gNvsOk && gPrefs.getBytesLength(key) != 0) gPrefs.remove(key);
     gOverrideMask |= (uint16_t)(1u << slot);
     return true;
 }
@@ -531,6 +553,211 @@ void snapshotLive(PatchData& pd) {
     int i = 0;  // carry the live sound's name -> history + slot saves keep it
     for (; gLiveName[i] && i < (int)sizeof pd.name - 1; ++i) pd.name[i] = gLiveName[i];
     pd.name[i] = '\0';
+}
+
+// Content stamp for the lvpat blob's skip-if-unchanged gate: the full sound
+// hash (every persisted field, tilt personality included, volume and live-mods
+// excluded) folded with the live name. Cheap enough to recompute at every
+// quiet-moment flush call.
+uint32_t liveBlobStamp() {
+    uint32_t h = soundHash(gCfg.synth, (uint8_t)gCfg.tiltRoute, gCfg.tiltDepth,
+                           (uint8_t)gCfg.tiltRouteB, gCfg.tiltDepthB);
+    for (const char* c = gLiveName; *c; ++c) h = (h ^ (uint8_t)*c) * 16777619u;
+    return h;
+}
+
+// One-shot: once the live sound rides the lvpat blob, the ~53 flat keys it
+// replaced are pure dead weight on the crowded shared partition — retire them.
+// ("vol" is NOT here: the player's volume stays a 1-entry key that lands even
+// when the partition is too tight for blob writes.)
+void removeLegacyLiveKeys() {
+    static const char* const kLegacy[] = {
+        "wave", "gmode", "atk",  "dec",  "sus",  "rel",   "glide",  "cut",
+        "res",  "fmode", "det",  "voices", "chorus", "dlymix", "dlytime",
+        "dlyfb", "dlysync", "rvbmix", "rvbsize", "fatk", "fdec", "fenv",
+        "sub",  "noise", "drive", "avib", "driftcents", "l1r", "l1sh",
+        "l1sy", "l2r",  "l2sh", "l2sy", "mea", "med"};
+    for (size_t i = 0; i < sizeof kLegacy / sizeof kLegacy[0]; ++i)
+        if (gPrefs.isKey(kLegacy[i])) gPrefs.remove(kLegacy[i]);
+    for (int i = 0; i < dsp::kModSlots; ++i) {
+        char ks[4] = {'m', (char)('0' + i), 's', '\0'};
+        char kd[4] = {'m', (char)('0' + i), 'd', '\0'};
+        char ka[4] = {'m', (char)('0' + i), 'a', '\0'};
+        if (gPrefs.isKey(ks)) gPrefs.remove(ks);
+        if (gPrefs.isKey(kd)) gPrefs.remove(kd);
+        if (gPrefs.isKey(ka)) gPrefs.remove(ka);
+    }
+    Serial.println("[store] legacy live-sound keys retired (lvpat blob owns it now)");
+}
+
+// ---- the rig.cfg mirror -----------------------------------------------------
+// A tiny SD snapshot of the SETTINGS (the sound rides live.gpat) that makes
+// the shared NVS partition expendable: the boot self-heal restores from it
+// when NVS is wiped or unreadable. Layout:
+//   [u8 kRigVer][u8 count][int32 x count][u32 FNV-1a of everything before]
+// rigCollect() and rigApply() MUST walk the same fields in the same order —
+// and any change to that list BUMPS kRigVer, so a stale mirror is ignored
+// (defaults win), never misread.
+constexpr uint8_t kRigVer = 1;
+constexpr int kRigMax = 48;
+uint32_t gRigStamp = 0;    // FNV of the last mirror landed (0 = never)
+bool gHealedAtBoot = false;
+
+uint32_t fnv1a(const uint8_t* p, size_t n) {
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; ++i) h = (h ^ p[i]) * 16777619u;
+    return h;
+}
+
+int rigCollect(int32_t* v) {
+    const auto& c = gCfg;
+    int n = 0;
+    v[n++] = c.layout.rootSemis;
+    v[n++] = c.layout.scaleIdx;
+    v[n++] = c.layout.octave;
+    v[n++] = c.layout.rowIntervalSemis;
+    v[n++] = c.stringMode ? 1 : 0;
+    v[n++] = c.octaveGlide ? 1 : 0;
+    v[n++] = (int32_t)c.tiltRoute;
+    v[n++] = (int32_t)(c.tiltDepth * 100);
+    v[n++] = (int32_t)(c.tiltCenter * 1000);
+    v[n++] = (int32_t)c.tiltRouteB;
+    v[n++] = (int32_t)(c.tiltDepthB * 100);
+    v[n++] = (int32_t)(c.tiltCenterB * 1000);
+    v[n++] = c.tiltOn ? 1 : 0;
+    v[n++] = c.tiltDual ? 1 : 0;
+    v[n++] = c.tiltLock ? 1 : 0;
+    v[n++] = c.tiltMorphA ? 1 : 0;
+    v[n++] = c.tiltMorphB ? 1 : 0;
+    v[n++] = c.currentPatch;
+    v[n++] = c.jamRows;
+    v[n++] = c.droneVoicing;
+    v[n++] = c.jamMotion;
+    v[n++] = c.jamBpm;
+    v[n++] = c.jamChordBeats;
+    v[n++] = c.loopSnap;
+    v[n++] = c.bendMs;
+    v[n++] = c.bendRange;
+    v[n++] = c.scopeMode;
+    v[n++] = c.themeId;
+    v[n++] = c.idleMode;
+    v[n++] = c.bootSound ? 1 : 0;
+    v[n++] = c.seenIntro ? 1 : 0;
+    v[n++] = c.tutStep;
+    v[n++] = c.tutDone ? 1 : 0;
+    v[n++] = c.tutOffered ? 1 : 0;
+    v[n++] = (int32_t)c.taughtMask;
+    v[n++] = c.triggerAction;
+    v[n++] = (int32_t)(c.triggerDepth * 100);
+    v[n++] = c.triggerLatch ? 1 : 0;
+    v[n++] = c.morphMs;
+    v[n++] = (int32_t)(c.synth.masterVol * 100);  // the player's volume
+    v[n++] = c.metroVol;
+    return n;  // <= kRigMax; kRigVer bumps if this list ever changes
+}
+
+void rigApply(const int32_t* v, int n) {
+    auto& c = gCfg;
+    int i = 0;
+    if (n < 41) return;  // count mismatch is caught by the caller; belt+braces
+    c.layout.rootSemis = (uint8_t)clampT<int>(v[i++], 0, 11);
+    c.layout.scaleIdx = (uint8_t)clampT<int>(v[i++], 0, dsp::kScaleCount - 1);
+    c.layout.octave = (int8_t)clampT<int>(v[i++], 1, 7);
+    c.layout.rowIntervalSemis = (uint8_t)clampT<int>(v[i++], 1, 12);
+    c.stringMode = v[i++] != 0;
+    c.octaveGlide = v[i++] != 0;
+    c.tiltRoute = (TiltRoute)clampT<int>(v[i++], 0, (int)TiltRoute::Count - 1);
+    c.tiltDepth = clampT<int>(v[i++], 0, 100) / 100.f;
+    c.tiltCenter = clampT<int>(v[i++], -1000, 1000) / 1000.f;
+    c.tiltRouteB = (TiltRoute)clampT<int>(v[i++], 0, (int)TiltRoute::Count - 1);
+    c.tiltDepthB = clampT<int>(v[i++], 0, 100) / 100.f;
+    c.tiltCenterB = clampT<int>(v[i++], -1000, 1000) / 1000.f;
+    c.tiltOn = v[i++] != 0;
+    c.tiltDual = v[i++] != 0;
+    c.tiltLock = v[i++] != 0;
+    c.tiltMorphA = v[i++] != 0;
+    c.tiltMorphB = v[i++] != 0;
+    c.currentPatch = (uint8_t)clampT<int>(v[i++], 0, dsp::kPatchCount - 1);
+    c.jamRows = (uint8_t)clampT<int>(v[i++], 0, 2);
+    c.droneVoicing = (uint8_t)clampT<int>(v[i++], 0, 2);
+    c.jamMotion = (uint8_t)clampT<int>(v[i++], 0, 3);
+    c.jamBpm = (uint16_t)clampT<int>(v[i++], 40, 240);
+    c.jamChordBeats = (uint8_t)clampT<int>(v[i++], 1, 8);
+    c.loopSnap = (uint8_t)clampT<int>(v[i++], 0, 2);
+    c.bendMs = (uint16_t)clampT<int>(v[i++], 50, 2000);
+    c.bendRange = (uint8_t)clampT<int>(v[i++], 1, 12);
+    c.scopeMode = (uint8_t)clampT<int>(v[i++], 0, 7);
+    c.themeId = (uint8_t)clampT<int>(v[i++], 0, 9);
+    c.idleMode = (uint8_t)clampT<int>(v[i++], 0, 2);
+    c.bootSound = v[i++] != 0;
+    c.seenIntro = v[i++] != 0;
+    c.tutStep = (uint8_t)clampT<int>(v[i++], 0, 7);
+    c.tutDone = v[i++] != 0;
+    c.tutOffered = v[i++] != 0;
+    c.taughtMask = (uint32_t)v[i++];
+    c.triggerAction = (uint8_t)clampT<int>(v[i++], 0, (int)TriggerAction::Count - 1);
+    c.triggerDepth = clampT<int>(v[i++], 0, 100) / 100.f;
+    c.triggerLatch = v[i++] != 0;
+    c.morphMs = (uint16_t)clampT<int>(v[i++], 0, 2000);
+    c.synth.masterVol = clampT<int>(v[i++], 0, 100) / 100.f;
+    c.metroVol = (uint8_t)clampT<int>(v[i++], 0, 100);
+}
+
+// Serialize the rig into buf; returns total length (0 if buf too small).
+size_t rigSerialize(uint8_t* buf, size_t cap) {
+    int32_t v[kRigMax];
+    const int n = rigCollect(v);
+    const size_t need = 2 + (size_t)n * 4 + 4;
+    if (need > cap || n > kRigMax) return 0;
+    buf[0] = kRigVer;
+    buf[1] = (uint8_t)n;
+    for (int i = 0; i < n; ++i) {
+        const uint32_t u = (uint32_t)v[i];
+        buf[2 + i * 4 + 0] = (uint8_t)(u & 0xFF);
+        buf[2 + i * 4 + 1] = (uint8_t)((u >> 8) & 0xFF);
+        buf[2 + i * 4 + 2] = (uint8_t)((u >> 16) & 0xFF);
+        buf[2 + i * 4 + 3] = (uint8_t)((u >> 24) & 0xFF);
+    }
+    const uint32_t h = fnv1a(buf, 2 + (size_t)n * 4);
+    buf[need - 4] = (uint8_t)(h & 0xFF);
+    buf[need - 3] = (uint8_t)((h >> 8) & 0xFF);
+    buf[need - 2] = (uint8_t)((h >> 16) & 0xFF);
+    buf[need - 1] = (uint8_t)((h >> 24) & 0xFF);
+    return need;
+}
+
+// Validate + apply a rig mirror. Version/count/CRC gate — anything off means
+// "ignore the mirror", never garbage settings.
+bool rigDeserializeApply(const uint8_t* buf, size_t len) {
+    if (len < 7 || buf[0] != kRigVer) return false;
+    const int n = buf[1];
+    int32_t probe[kRigMax];
+    if (n < 41 || n > kRigMax || len != 2 + (size_t)n * 4 + 4) return false;
+    const uint32_t want = fnv1a(buf, len - 4);
+    const uint32_t got = (uint32_t)buf[len - 4] | ((uint32_t)buf[len - 3] << 8) |
+                         ((uint32_t)buf[len - 2] << 16) | ((uint32_t)buf[len - 1] << 24);
+    if (want != got) return false;
+    if (rigCollect(probe) != n) return false;  // field-count drift = ignore
+    int32_t v[kRigMax];
+    for (int i = 0; i < n; ++i)
+        v[i] = (int32_t)((uint32_t)buf[2 + i * 4] | ((uint32_t)buf[2 + i * 4 + 1] << 8) |
+                         ((uint32_t)buf[2 + i * 4 + 2] << 16) |
+                         ((uint32_t)buf[2 + i * 4 + 3] << 24));
+    rigApply(v, n);
+    return true;
+}
+
+// Quiet-moment rig mirror flush: serialize, compare the FNV to the last
+// landed, write only on change. Steady state = one small hash per idle frame,
+// zero card writes.
+void flushRigMirror() {
+    if (gDemoLoan || !sdstore::available()) return;
+    uint8_t buf[224];
+    const size_t n = rigSerialize(buf, sizeof buf);
+    if (n == 0) return;
+    const uint32_t h = fnv1a(buf, n);
+    if (h == gRigStamp) return;
+    if (sdstore::rigMirrorWrite(buf, n)) gRigStamp = h;
 }
 
 // Recompute a slot's cached display name. Custom slots are named from their own
@@ -743,53 +970,27 @@ void begin() {
 
     GlideConfig d;  // defaults
 
-    // scan override slots once; afterwards patchHasOverride is a bit test.
-    // loadPatchData counts tagged saves AND legacy v1/v2/v4 blobs as overrides.
-    gOverrideMask = 0;
-    for (int i = 0; i < dsp::kPatchCount; ++i) {
-        PatchData pd;
-        if (loadPatchData(i, pd)) gOverrideMask |= (uint16_t)(1u << i);
-    }
-
-    // one-time: re-encode any legacy binary blobs into the tagged format, so
-    // future sound-param additions stop size-mismatching them. Opportunistic —
-    // loadPatchData still reads legacy blobs, so correctness doesn't depend on
-    // this. NVS-full safe: a failed putBytes leaves the legacy blob untouched
-    // and we DON'T set the sentinel, so it retries next boot once space frees up.
-    if (gNvsOk && !gPrefs.getBool("tlv1", false)) {
-        bool allOk = true;
-        for (int i = 0; i < dsp::kPatchCount; ++i) {
-            if (!((gOverrideMask >> i) & 1u)) continue;  // no override here
-            PatchData pd;
-            loadPatchData(i, pd);  // reads legacy or tagged, seeded from factory
-            uint8_t buf[512];
-            const size_t n = encodePatch(pd, buf, sizeof buf);
-            char key[3];
-            patchKey(i, key);
-            if (n == 0 || gPrefs.putBytes(key, buf, n) != n) allOk = false;
-        }
-        if (allOk) gPrefs.putBool("tlv1", true);
-    }
-
-    // The bank is CURATED now: q..i are fixed factory sounds (GLIDE, ACID, and
-    // the player's baked SD presets), and only the two generative slots (o,p)
-    // are REGENERATED from the seed on demand (see loadPatchData). Nothing is
-    // stored at boot — the curated slots are compiled in, the generative two are
-    // deterministic from the seed — so the tiny shared NVS partition stays free
-    // for real saves. A slot only holds an NVS blob once the player overrides it.
+    // The bank is CURATED: q..i are fixed factory sounds, o/p regenerate from
+    // the seed on demand, and a slot only holds a stored sound once the player
+    // overrides it. Since v2.8 those stored sounds live on the CARD
+    // (/glide/slots/N.gpat); the passes below reclaim/migrate any blobs still
+    // in the shared NVS partition. Order matters: regen1 first (junk blobs
+    // get reclaimed, not copied to the card), then the migration, then tlv1
+    // for whatever remains in NVS (card-less units).
     //
-    // Self-heal: older builds stored the (then fully random) bank as blobs.
-    // Reclaim that space —
-    // drop any stored slot blob whose sound still EXACTLY matches its regenerated
-    // default (a sound you actually saved has a different hash and is left
-    // untouched). Runs once (the "regen1" sentinel). The bank itself no longer
-    // depends on first-boot; freshDevice is used at the end of begin() to seed
-    // the live sound from slot q.
+    // regen1 self-heal (once): older builds stored the then-random bank as
+    // NVS blobs. Drop any whose sound still EXACTLY matches its regenerated
+    // default (a sound the player actually saved hashes differently and is
+    // left untouched). Direct NVS-presence test — never the mask, which after
+    // the migration would include card-resident slots.
     if (gNvsOk && !gPrefs.getBool("regen1", false)) {
         for (int i = 1; i < dsp::kPatchCount; ++i) {
-            if (!((gOverrideMask >> i) & 1u)) continue;  // no stored blob here
+            char key[3];
+            patchKey(i, key);
+            if (gPrefs.getBytesLength(key) == 0) continue;  // nothing stored here
             PatchData pd;
-            loadPatchData(i, pd);
+            seedFactory(i, pd);
+            if (!loadPatchDataNvsBlob(i, pd)) continue;
             dsp::GenPatch stored;
             stored.synth = pd.synth;
             stored.tiltRoute = pd.tiltRoute;
@@ -800,16 +1001,68 @@ void begin() {
             // generator (the archetype engine postdates the blob-writing builds)
             const dsp::GenPatch rolled = dsp::generateSoundLegacy(slotSeed(gSeed, i));
             if (dsp::patchHash(stored) == dsp::patchHash(rolled)) {
-                clearOverride(i);  // identical to the regenerated default -> reclaim it
+                gPrefs.remove(key);  // identical to the regenerated default
                 Serial.printf("[glide] reclaimed slot %d (matches seed)\n", i);
             }
         }
         gPrefs.putBool("regen1", true);
     }
 
-    // Display names: generated/saved slots read as their evocative content name,
-    // factory slots as their instrument name. Done once the override mask is
-    // final (after any first-boot generation above).
+    // v2.8 one-shot migration: saved slots move from the shared NVS partition
+    // to the card. SD wins on conflict; each blob is removed the moment its
+    // copy is safe; the sentinel lands only when every remaining blob made it
+    // (NVS-full-safe retry, the tlv1 pattern). No card: nothing happens —
+    // un-migrated slots keep reading from NVS and the pass retries the boot a
+    // card finally shows up.
+    if (gNvsOk && sdstore::available() && !gPrefs.getBool("sdslots1", false)) {
+        bool allOk = true;
+        for (int i = 0; i < dsp::kPatchCount; ++i) {
+            char key[3];
+            patchKey(i, key);
+            if (gPrefs.getBytesLength(key) == 0) continue;
+            if (sdstore::slotExists(i)) {  // the card already has this slot
+                gPrefs.remove(key);
+                continue;
+            }
+            PatchData pd;
+            seedFactory(i, pd);
+            if (loadPatchDataNvsBlob(i, pd) && sdstore::slotSave(i, pd)) {
+                gPrefs.remove(key);
+                Serial.printf("[glide] slot %d moved to the card\n", i);
+            } else {
+                allOk = false;  // unreadable or the card write failed — retry
+            }
+        }
+        if (allOk) gPrefs.putBool("sdslots1", true);
+    }
+
+    // one-time: re-encode any legacy binary NVS blobs into the tagged format
+    // (only matters for card-less units that still carry NVS slots). Direct
+    // NVS-presence test, same reasoning as regen1.
+    if (gNvsOk && !gPrefs.getBool("tlv1", false)) {
+        bool allOk = true;
+        for (int i = 0; i < dsp::kPatchCount; ++i) {
+            char key[3];
+            patchKey(i, key);
+            if (gPrefs.getBytesLength(key) == 0) continue;
+            PatchData pd;
+            seedFactory(i, pd);
+            loadPatchDataNvsBlob(i, pd);
+            uint8_t buf[512];
+            const size_t n = encodePatch(pd, buf, sizeof buf);
+            if (n == 0 || gPrefs.putBytes(key, buf, n) != n) allOk = false;
+        }
+        if (allOk) gPrefs.putBool("tlv1", true);
+    }
+
+    // scan the slots once (SD first, NVS fallback — see loadPatchData);
+    // afterwards patchHasOverride is a bit test, and the display names are
+    // cached — the per-frame UI never touches storage.
+    gOverrideMask = 0;
+    for (int i = 0; i < dsp::kPatchCount; ++i) {
+        PatchData pd;
+        if (loadPatchData(i, pd)) gOverrideMask |= (uint16_t)(1u << i);
+    }
     cacheAllSlotNames();
 
     auto& s = gCfg.synth;
@@ -875,6 +1128,37 @@ void begin() {
         s.slots[i].src  = (uint8_t)clampT<int>(gPrefs.getUChar(ks, 0), 0, (int)dsp::ModSource::Count - 1);
         s.slots[i].dest = (uint8_t)clampT<int>(gPrefs.getUChar(kd, 0), 0, (int)dsp::ModDest::Count - 1);
         s.slots[i].depth = clampT<int>(gPrefs.getInt(ka, 0), -100, 100) / 100.f;
+    }
+
+    // v2.8: the live sound rides ONE tagged blob. The flat reads above stay as
+    // the migration seed — a pre-blob device boots off its old keys, the next
+    // quiet flush writes the blob and retires them, and the blob stores exact
+    // floats (the old "detune settles by <1 cent on first reboot" quantisation
+    // quirk is gone). Absent tags keep whatever the flat/default load set.
+    {
+        const size_t bl = gPrefs.getBytesLength(kLivePatchKey);
+        uint8_t bbuf[512];
+        if (bl >= 3 && bl <= sizeof bbuf && gPrefs.getBytes(kLivePatchKey, bbuf, bl) == bl) {
+            PatchData pd;
+            pd.synth = gCfg.synth;  // seed = the flat/default load
+            pd.tiltRoute = (uint8_t)gCfg.tiltRoute;   // (tilt reads land later —
+            pd.tiltDepth = gCfg.tiltDepth;            //  the blob's copies are
+            pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB; //  informational only)
+            pd.tiltDepthB = gCfg.tiltDepthB;
+            if (decodePatch(bbuf, bl, pd)) {
+                const float keepVol = gCfg.synth.masterVol;  // player's, rides "vol"
+                gCfg.synth = pd.synth;
+                gCfg.synth.masterVol = keepVol;
+                gCfg.synth.bendCents = 0.f;  // live-mods never come from storage
+                gCfg.synth.vibratoCents = 0.f;
+                gCfg.synth.cutoffModOct = 0.f;
+                gCfg.synth.volMod = 1.f;
+                gCfg.synth.voiceCount =
+                    (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);
+                gLiveBlobLanded = true;  // the flat keys are already retired (or
+                                         // will be skipped by persistNow anyway)
+            }
+        }
     }
 
     auto& l = gCfg.layout;
@@ -997,6 +1281,7 @@ void begin() {
     }
     gCfg.jamBpm = clampT<int>(gPrefs.getUShort("jambpm", d.jamBpm), 40, 240);
     gCfg.jamChordBeats = clampT<int>(gPrefs.getUChar("jamcbt", d.jamChordBeats), 1, 8);
+    gCfg.metroVol = clampT<int>(gPrefs.getUChar("mtrvol", d.metroVol), 0, 100);
     gCfg.loopSnap = clampT<int>(gPrefs.getUChar("loopsnap", d.loopSnap), 0, 2);
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
@@ -1096,37 +1381,125 @@ void begin() {
     // prevBoot != 0. A factory reset wipes NVS, so its next boot does — which is
     // what keeps the first sound, the factory-reset sound and fn+q one sound.
     if (freshDevice) {
-        PatchData qp;
-        loadPatchData(gCfg.currentPatch, qp);
-        const float keepVol = gCfg.synth.masterVol;  // volume is the player's
-        gCfg.synth = qp.synth;
-        gCfg.synth.masterVol = keepVol;
-        gCfg.synth.bendCents = 0.f;   // live-mod fields never come from a patch
-        gCfg.synth.vibratoCents = 0.f;
-        gCfg.synth.cutoffModOct = 0.f;
-        gCfg.synth.volMod = 1.f;
-        gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
-        // Tilt is deliberately NOT taken from the patch: the stock rig is global
-        // (tiltLock on), exactly as applyPatchData leaves it on a locked device.
-        setLiveName(patchName(gCfg.currentPatch));
-        gCurSlotHash = liveHash();    // it IS the slot's sound, unedited
-        // Persist, or boot #2 reads the still-absent flat keys and falls all the
-        // way back to the bare defaults — the instrument would change sound
-        // between its first and second power-on.
-        if (gNvsOk) persistNow();
+        // A fresh-LOOKING device with SD mirrors is not fresh — it's a unit
+        // whose shared partition got wiped or corrupted out from under it (a
+        // neighbor app, a bad flash, a dying sector). Restore the rig from
+        // the card and say so; the player loses nothing and does nothing.
+        // A BKSP factory reset removes the mirrors first, so a reset the
+        // player asked for is never "un-reset" here. Truly fresh units have
+        // no mirrors and fall through to the slot-q seeding below.
+        bool restored = false;
+        if (sdstore::available()) {
+            uint8_t rbuf[224];
+            const int rn = sdstore::rigMirrorRead(rbuf, sizeof rbuf);
+            if (rn > 0 && rigDeserializeApply(rbuf, (size_t)rn)) {
+                restored = true;
+                PatchData lp;
+                seedFactory(gCfg.currentPatch, lp);
+                if (sdstore::liveMirrorLoad(lp)) {
+                    const float keepVol = gCfg.synth.masterVol;
+                    gCfg.synth = lp.synth;
+                    gCfg.synth.masterVol = keepVol;
+                    gCfg.synth.bendCents = 0.f;
+                    gCfg.synth.vibratoCents = 0.f;
+                    gCfg.synth.cutoffModOct = 0.f;
+                    gCfg.synth.volMod = 1.f;
+                    gCfg.synth.tempoBpm = (float)gCfg.jamBpm;
+                    gCfg.synth.voiceCount =
+                        (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);
+                    if (lp.name[0]) setLiveName(lp.name);
+                }
+                if (!gLiveName[0]) setLiveName(patchName(gCfg.currentPatch));
+                refreshCurSlotHash();
+                gCurSlotHash = liveHash();  // treat the restored sound as its own
+                gHealedAtBoot = true;
+                Serial.println("[glide] settings restored from the SD mirror");
+                // (the adopt-once migrations already ran on defaults and set
+                // their sentinels this boot — no re-adoption next boot)
+            }
+        }
+        if (!restored) {
+            PatchData qp;
+            loadPatchData(gCfg.currentPatch, qp);
+            const float keepVol = gCfg.synth.masterVol;  // volume is the player's
+            gCfg.synth = qp.synth;
+            gCfg.synth.masterVol = keepVol;
+            gCfg.synth.bendCents = 0.f;   // live-mod fields never come from a patch
+            gCfg.synth.vibratoCents = 0.f;
+            gCfg.synth.cutoffModOct = 0.f;
+            gCfg.synth.volMod = 1.f;
+            gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
+            // Tilt is deliberately NOT taken from the patch: the stock rig is
+            // global (tiltLock on), as applyPatchData leaves it when locked.
+            setLiveName(patchName(gCfg.currentPatch));
+            gCurSlotHash = liveHash();    // it IS the slot's sound, unedited
+        }
+        // Persist, or boot #2 falls all the way back to the bare defaults —
+        // the instrument would change sound between its first two power-ons.
+        // Boot is a quiet moment: the blob lands FIRST so persistNow never
+        // writes the legacy flat keys at all on a fresh unit.
+        if (gNvsOk) {
+            flushLiveSound();
+            persistNow();
+        }
     }
 
-    // Can a slot save still land? The 4-byte write probe above passes long
-    // after the ~400 B blob writes start failing (measured: probe ok at
-    // used 365/504 while every fn+shift save died), so probe with a real
-    // patch-size write when the stats look tight. main.cpp turns a true
-    // result into the boot STORAGE FULL warning that names the BKSP fix.
+    // The lvpat skip-gate baseline: what's in RAM now IS what storage holds
+    // (blob loaded, or freshDevice just wrote it) — don't rewrite it at the
+    // first quiet moment for nothing. A legacy flat-key device leaves the
+    // stamp invalid, so its first quiet flush writes the first blob and
+    // retires the keys.
+    if (gLiveBlobLanded) {
+        gLiveStamp = liveBlobStamp();
+        gLiveStampValid = true;
+    }
+
+    // Can the lvpat/msrc blob writes still land? The 4-byte probe above passes
+    // long after ~400 B blob writes start failing, so probe with a real
+    // patch-size write when the stats look tight. Since v2.8 this feeds the
+    // boot SELF-HEAL below, not a scary screen — slot saves live on the card
+    // and never touch this partition.
     probeSavePinched();
+
+    // ---- Tier-2 SELF-HEAL -------------------------------------------------
+    // The shared partition is everyone's junk drawer (Launcher + every app);
+    // when REAL writes fail — the bootn probe, or the patch-size probe — the
+    // neighbors have filled it, and no message a buyer could act on exists.
+    // But reads still work in both states, so RAM holds the player's true
+    // rig: erase the partition (identity rides across from RAM), re-land
+    // everything, rewrite the adopt-once sentinels (else next boot's one-time
+    // migrations would clobber the very settings this just saved — tiltv2
+    // would corrupt the tilt centers, oct3 the octave), and tell the player
+    // in one friendly line that nothing is wrong. Once per boot; if even the
+    // erase can't cure it, main.cpp's demoted warning owns it.
+    if (gNvsOk && (!gWriteProbeOk || gSavePinched)) {
+        Serial.println("[glide] SELF-HEAL: real writes failed - erasing the shared partition");
+        eraseAllStorage();
+        if (gNvsOk) {
+            flushLiveSound();  // lvpat back first (skips the flat keys forever)
+            persistNow();      // the full rig, from RAM
+            static const char* const kSentinels[] = {"oct3", "tiltv2", "tilton2",
+                                                     "jamrows2", "jammot2", "dispv2",
+                                                     "trigv2", "schar", "tlv1",
+                                                     "regen1", "sdslots1"};
+            for (size_t i = 0; i < sizeof kSentinels / sizeof kSentinels[0]; ++i)
+                gPrefs.putBool(kSentinels[i], true);
+            gHealedAtBoot = true;
+            Serial.println("[glide] SELF-HEAL: partition rebuilt, nothing lost");
+        }
+    }
 }
 
 void persistNow() {
     if (gDemoLoan) return;  // demo state is a loan — it never reaches flash
     const auto& s = gCfg.synth;
+    // The live SOUND rides the lvpat blob (flushLiveSound, quiet moments) since
+    // v2.8. The flat keys below keep persisting ONLY until that blob first
+    // lands (a device mid-upgrade must never regress), then they're retired
+    // for good. "vol" stays flat forever — the player's volume is a 1-entry
+    // write that must land even when the partition is too tight for blobs.
+    gPrefs.putInt("vol", (int)(s.masterVol * 100));
+    if (!gLiveBlobLanded) {
     gPrefs.putUChar("wave", (uint8_t)s.wave);
     gPrefs.putUChar("gmode", (uint8_t)s.glideMode);
     gPrefs.putInt("atk", (int)(s.attackS * 1000));
@@ -1137,7 +1510,6 @@ void persistNow() {
     gPrefs.putInt("cut", (int)s.cutoffHz);
     gPrefs.putInt("res", (int)(s.resonance * 100));
     gPrefs.putUChar("fmode", s.filterMode);
-    gPrefs.putInt("vol", (int)(s.masterVol * 100));
     gPrefs.putInt("det", (int)s.detuneCents);
     gPrefs.putUChar("voices", s.voiceCount);
     gPrefs.putInt("chorus", (int)(s.chorusDepth * 100));
@@ -1171,6 +1543,7 @@ void persistNow() {
         gPrefs.putUChar(kd, s.slots[i].dest);
         gPrefs.putInt(ka, (int)(s.slots[i].depth * 100));
     }
+    }  // (!gLiveBlobLanded — the legacy flat sound keys)
 
     const auto& l = gCfg.layout;
     gPrefs.putUChar("root", l.rootSemis);
@@ -1198,6 +1571,7 @@ void persistNow() {
     gPrefs.putUChar("jammot", gCfg.jamMotion);
     gPrefs.putUShort("jambpm", gCfg.jamBpm);
     gPrefs.putUChar("jamcbt", gCfg.jamChordBeats);
+    gPrefs.putUChar("mtrvol", gCfg.metroVol);
     gPrefs.putUChar("loopsnap", gCfg.loopSnap);
     gPrefs.putUShort("bendms", gCfg.bendMs);
     gPrefs.putUChar("bendrg", gCfg.bendRange);
@@ -1231,6 +1605,48 @@ void persistNow() {
     // accepted: a power cut in the seconds after a sound switch restores the
     // previous partner — one switch stale, never the sessions-old fossil.
     gDirty = false;
+}
+
+void flushLiveSound() {
+    if (gDemoLoan) return;  // borrowed state never reaches flash or the card
+    // The rig mirror first: it needs only the card, so it keeps landing even
+    // while the NVS side is failing/holding off (exactly when the mirror
+    // matters most).
+    flushRigMirror();
+    if (!gNvsOk) return;
+    const uint32_t now = millis();
+    if (gLiveRetryAtMs != 0 && (int32_t)(now - gLiveRetryAtMs) < 0) return;
+    const uint32_t stamp = liveBlobStamp();
+    if (gLiveStampValid && stamp == gLiveStamp && !gLiveMirrorDirty) return;
+    PatchData pd;
+    snapshotLive(pd);
+    if (!gLiveStampValid || stamp != gLiveStamp) {
+        uint8_t buf[512];
+        const size_t n = encodePatch(pd, buf, sizeof buf);
+        if (n == 0) return;  // can't happen for a sane sound; never crash-loop
+        if (putPatchBytes(kLivePatchKey, buf, n)) {  // same reclaim ladder as slots had
+            gLiveStamp = stamp;
+            gLiveStampValid = true;
+            gLiveRetryAtMs = 0;
+            gLiveMirrorDirty = true;
+            if (!gLiveBlobLanded) {
+                gLiveBlobLanded = true;
+                if (gPrefs.isKey("wave")) removeLegacyLiveKeys();  // ~50 entries back, once
+            }
+        } else {
+            // Partition too tight even for the ladder: the PREVIOUS blob (or
+            // the legacy flat keys) still holds the last good sound — nothing
+            // regresses. Hold off so a full partition isn't hammered per frame.
+            gLiveRetryAtMs = now + 30000u;
+            Serial.println("[store] live-sound blob write failed - retrying later");
+            return;
+        }
+    }
+    // SD live-mirror: with rig.cfg above, what makes the shared partition
+    // expendable (the boot self-heal restores from them when NVS reads are
+    // already gone).
+    if (gLiveMirrorDirty && sdstore::available() && sdstore::liveMirrorSave(pd))
+        gLiveMirrorDirty = false;
 }
 
 void flushMorphPartner() {
@@ -1324,6 +1740,10 @@ void eraseAllStorage() {
     gOdoWrittenSecs = gOdoSecs;
     const size_t wrote = gPrefs.putUInt("bootn", gBootCount);
     gWriteProbeOk = (wrote == sizeof(uint32_t)) && (gPrefs.getUInt("bootn", 0) == gBootCount);
+    // the lvpat blob went with the partition — force the next flush to rewrite
+    gLiveStampValid = false;
+    gLiveBlobLanded = false;
+    gLiveRetryAtMs = 0;
     probeSavePinched();  // a rebuilt partition should read healthy immediately
     Serial.printf("[glide] NVS erased + rebuilt: probe=%s\n", gWriteProbeOk ? "ok" : "FAIL");
 }
@@ -1355,6 +1775,9 @@ void resetDefaults() {
     setLiveName(dsp::factoryPatches()[gCfg.currentPatch].name);
     refreshCurSlotHash();
     persistNow();
+    flushLiveSound();  // a reset is a deliberate quiet moment: the default
+                       // sound's blob lands now, so a power cut right after
+                       // still boots into the reset the player asked for
 }
 
 // Toggle the global/per-sound tilt map. The unsaved-* rule counts tilt only in
@@ -1406,35 +1829,22 @@ bool savePatch(int slot) {
     for (; gLiveName[ni] && ni < (int)sizeof pd.name - 1; ++ni) pd.name[ni] = gLiveName[ni];
     pd.name[ni] = '\0';
 
-    uint8_t buf[512];
-    const size_t n = encodePatch(pd, buf, sizeof buf);
-    if (n == 0) {
-        noteSaveFailure(false);
-        return false;
-    }
-    char key[3];
-    patchKey(slot, key);
-    const bool ok = putPatchBytes(key, buf, n);  // escalating reclaim (see above)
+    const bool ok = writeOverride(slot, pd);  // card write, temp+rename safe
     if (ok) {
-        gOverrideMask |= (uint16_t)(1u << slot);
         gCfg.currentPatch = (uint8_t)slot;
         cacheSlotName(slot);  // the slot now reads as its own sound's name
         gCurSlotHash = liveHash();  // live IS what we just saved -> no longer dirty
         markDirty();
-    } else {
-        noteSaveFailure(true);
-        resyncOverrideAfterFailedSave(slot, key);
     }
     return ok;
 }
 
 const char* lastSaveError() {
-    if (!gNvsOk) return "storage not open";
+    // v2.8: slot saves ride the card, so NVS health is irrelevant here.
     return gSaveErr[0] ? gSaveErr : "save failed";
 }
 
 const char* lastSaveHint() {
-    if (!gNvsOk) return "";
     return gSaveHint;  // "" unless the failure has a named way out
 }
 
@@ -1442,11 +1852,13 @@ bool storagePinched() { return gSavePinched; }
 
 void storageReprobe() { probeSavePinched(); }
 
-int storageSavesRoom() {
-    nvs_stats_t st;
-    if (!gNvsOk || nvs_get_stats(nullptr, &st) != ESP_OK) return -1;
-    const int eff = (int)st.free_entries - kNvsReservedEntries;
-    return eff <= 0 ? 0 : eff / kPatchBlobEntries;
+bool healedAtBoot() { return gHealedAtBoot; }
+
+void clearSdMirrors() {
+    sdstore::liveMirrorRemove();
+    sdstore::rigMirrorRemove();
+    gRigStamp = 0;
+    gLiveMirrorDirty = false;
 }
 
 // Write an arbitrary patch (not the live sound) onto a slot — used to promote a
@@ -1467,7 +1879,10 @@ void clearOverride(int slot) {
     if (slot < 0 || slot >= dsp::kPatchCount) return;
     char key[3];
     patchKey(slot, key);
-    gPrefs.remove(key);
+    gPrefs.remove(key);            // legacy NVS copy, if any
+    sdstore::slotRemove(slot);     // the card copy (reRollBank and the boot
+                                   // factory reset inherit this — a cleared
+                                   // slot is cleared everywhere)
     gOverrideMask &= (uint16_t)~(1u << slot);
     cacheSlotName(slot);  // back to the factory instrument name
     if (slot == gCfg.currentPatch) refreshCurSlotHash();  // reference reverted

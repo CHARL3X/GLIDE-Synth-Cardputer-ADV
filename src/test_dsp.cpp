@@ -207,6 +207,55 @@ int main() {
         CHECK(chordPitches(l, 0, 0, false, two, 0) == 0, "maxOut 0 writes nothing");
     }
 
+    // ---- Roman numerals: the label shares chordDegree with the triad, so the
+    // name can never disagree with what the backing actually plays ------------
+    {
+        char rn[8];
+        // Major: the seven diatonic qualities, textbook order.
+        Layout lM = l; lM.scaleIdx = SC_MAJOR;
+        const char sevenDim[5] = {'v', 'i', 'i', kDegreeGlyph, '\0'};
+        const char* expMaj[7] = {"I", "ii", "iii", "IV", "V", "vi", sevenDim};
+        for (int co = 0; co < 7; ++co) {
+            CHECK(chordRomanNumeral(lM, 0, co, false, rn, sizeof rn) &&
+                      strcmp(rn, expMaj[co]) == 0,
+                  "major reads I ii iii IV V vi vii(dim)");
+        }
+        // Harmonic minor: the parent with the famous odd qualities — the
+        // augmented III and BOTH diminished chords must come out right.
+        Layout lH = l; lH.scaleIdx = SC_HARM_MIN;
+        const char twoDim[4] = {'i', 'i', kDegreeGlyph, '\0'};
+        CHECK(chordRomanNumeral(lH, 0, 1, false, rn, sizeof rn) && strcmp(rn, twoDim) == 0,
+              "harmonic minor degree 2 = ii(dim)");
+        CHECK(chordRomanNumeral(lH, 0, 2, false, rn, sizeof rn) && strcmp(rn, "III+") == 0,
+              "harmonic minor degree 3 = III+ (augmented)");
+        CHECK(chordRomanNumeral(lH, 0, 6, false, rn, sizeof rn) && strcmp(rn, sevenDim) == 0,
+              "harmonic minor degree 7 = vii(dim)");
+        // Every scale, every cell: a numeral exists and its degree matches the
+        // pitch class chordPitches actually roots the triad on.
+        for (int si = 0; si < kScaleCount; ++si) {
+            Layout ls = l; ls.scaleIdx = (uint8_t)si;
+            const Scale& hsc = kScales[kScales[si].harm];
+            for (int st = 0; st < kGridStrings; ++st)
+                for (int co = 0; co < kGridCols; ++co) {
+                    CHECK(chordRomanNumeral(ls, st, co, false, rn, sizeof rn),
+                          "every locked cell has a numeral");
+                    float ch3[3];
+                    chordPitches(ls, st, co, false, ch3, 3);
+                    const int rootPc =
+                        (((int)(ch3[0] + 0.5f) - ls.rootSemis) % 12 + 12) % 12;
+                    CHECK(rootPc == hsc.steps[chordDegree(ls, st, co)] % 12,
+                          "numeral degree = the triad's actual root");
+                }
+        }
+        // No diatonic degree to name: chromatic strikes and lock-off.
+        CHECK(!chordRomanNumeral(l, 0, 0, true, rn, sizeof rn),
+              "chromatic (power voicing) has no numeral");
+        Layout lu = l; lu.scaleLock = false;
+        CHECK(!chordRomanNumeral(lu, 0, 0, false, rn, sizeof rn),
+              "lock off has no numeral");
+        CHECK(!chordRomanNumeral(l, 0, 0, false, rn, 4), "tiny caps refuse safely");
+    }
+
     // ---- scale tables are well-formed (incl. the v0.5 additions) ---------
     for (int si = 0; si < kScaleCount; ++si) {
         const Scale& sc = kScales[si];
@@ -1423,6 +1472,72 @@ int main() {
         SynthParams a2 = a;
         a2.bendCents = 123.f;
         CHECK(morphParams(a2, b, 1.f).bendCents == 123.f, "live-mod fields stay the caller's");
+        a2.metroOn = 1;
+        a2.metroBeats = 3;
+        a2.metroLevel = 42;
+        const SynthParams am = morphParams(a2, b, 1.f);
+        CHECK(am.metroOn == 1 && am.metroBeats == 3 && am.metroLevel == 42,
+              "metronome is the player's: a full-depth morph can't silence the click");
+    }
+
+    // ---- metronome: patch-independent click, sample-accurate, off = silent --
+    {
+        float buf[kBlock];
+        auto blockPeak = [&](Synth& s) {
+            s.render(buf, kBlock);
+            float pk = 0.f;
+            for (int i = 0; i < kBlock; ++i) {
+                CHECK(std::isfinite(buf[i]), "metronome render stays finite");
+                const float a = fabsf(buf[i]);
+                if (a > pk) pk = a;
+            }
+            return pk;
+        };
+        Synth s;
+        s.init(kSr);
+        SynthParams p;  // defaults: metroOn = 0, tempo 120, beats 4
+        s.setParams(p);
+        CHECK(peakOf(s, 20) == 0.f, "metronome off (the default) renders exact silence");
+
+        p.metroOn = 1;
+        s.setParams(p);
+        const float pkAccent = blockPeak(s);
+        CHECK(pkAccent > 0.01f, "toggle-on clicks immediately (audible confirmation)");
+        // fully decayed well before the next beat (120 bpm = 500 ms)...
+        (void)peakOf(s, 24);  // ride out the click (~100 ms)
+        CHECK(peakOf(s, 25) < 1e-3f, "click decays to silence between beats");
+        // ...and the next free-run beat arrives on schedule (~block 125)
+        CHECK(peakOf(s, 90) > 0.01f, "free-running beat fires at tempo, no UI clock");
+
+        // flam guard: a sync landing right on a click's heels is swallowed —
+        // the free-runner already fired, a double-hit would flam
+        Synth s2;
+        s2.init(kSr);
+        s2.setParams(p);
+        const float pk0 = blockPeak(s2);  // rising-edge click (the downbeat)
+        for (int b2 = 0; b2 < 4; ++b2) (void)blockPeak(s2);  // ~20 ms in
+        s2.handleEvent(NoteEvent::make(NoteEvent::MetroSync, 1));
+        CHECK(peakOf(s2, 4) < pk0 * 0.25f, "near-coincident sync is flam-guarded");
+        // a due sync clicks — and beat 2 sits under the accented downbeat
+        (void)peakOf(s2, 70);  // past the half-period refractory, click long gone
+        s2.handleEvent(NoteEvent::make(NoteEvent::MetroSync, 1));
+        const float pkPlain = peakOf(s2, 8);
+        CHECK(pkPlain > 0.01f, "a due sync fires the click");
+        CHECK(pkPlain < pk0 * 0.95f && pkPlain > pk0 * 0.5f,
+              "beat 2 is audibly softer than the downbeat, not gone");
+
+        // level zero = silent even while running; and the off edge disarms
+        Synth s3;
+        s3.init(kSr);
+        SynthParams pz;
+        pz.metroOn = 1;
+        pz.metroLevel = 0;
+        s3.setParams(pz);
+        CHECK(peakOf(s3, 130) == 0.f, "metroLevel 0 is exact silence");
+        pz.metroLevel = 60;
+        pz.metroOn = 0;
+        s3.setParams(pz);
+        CHECK(peakOf(s3, 130) == 0.f, "toggled off mid-run: silent again");
     }
 
     // ---- demo melody generator: phrases, not a random walk ------------------

@@ -60,24 +60,25 @@ constexpr Palette kPalettes[] = {
 };
 constexpr int kCount = (int)(sizeof(kPalettes) / sizeof(kPalettes[0]));
 
-uint8_t gCurrent = 0;
+uint8_t gCurrent = 1;  // cassette — must match the boot globals below
 bool gDark = true;
 
 }  // namespace
 
-// Boot in PHOSPHOR so the splash and any pre-config failure screen are styled
-// before store::begin() applies the saved palette.
-uint16_t kBg       = kPalettes[0].bg;
-uint16_t kPanel    = kPalettes[0].panel;
-uint16_t kLine     = kPalettes[0].line;
-uint16_t kAmber    = kPalettes[0].amber;
-uint16_t kAmberDim = kPalettes[0].amberDim;
-uint16_t kGreen    = kPalettes[0].green;
-uint16_t kGreenDim = kPalettes[0].greenDim;
-uint16_t kIdle     = kPalettes[0].idle;
-uint16_t kDim      = kPalettes[0].dim;
-uint16_t kRed      = kPalettes[0].red;
-uint16_t kSteel    = kPalettes[0].steel;
+// Boot in CASSETTE (the fresh-unit default since v2.8) so the splash and any
+// pre-config screen match a new device with no palette flash; a unit with a
+// saved theme restyles the moment store::begin() applies it.
+uint16_t kBg       = kPalettes[1].bg;
+uint16_t kPanel    = kPalettes[1].panel;
+uint16_t kLine     = kPalettes[1].line;
+uint16_t kAmber    = kPalettes[1].amber;
+uint16_t kAmberDim = kPalettes[1].amberDim;
+uint16_t kGreen    = kPalettes[1].green;
+uint16_t kGreenDim = kPalettes[1].greenDim;
+uint16_t kIdle     = kPalettes[1].idle;
+uint16_t kDim      = kPalettes[1].dim;
+uint16_t kRed      = kPalettes[1].red;
+uint16_t kSteel    = kPalettes[1].steel;
 
 int count() { return kCount; }
 

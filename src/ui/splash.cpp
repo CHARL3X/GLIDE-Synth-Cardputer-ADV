@@ -9,6 +9,7 @@
 #include "../io/audio_engine.h"
 #include "../storage/glide_config.h"
 #include "glide_logo.h"
+#include "perform_screen.h"  // the splash borrows the claimed frame buffer
 #include "theme.h"
 
 namespace splash {
@@ -33,15 +34,30 @@ bool run() {
     d.drawString(cfg::kVersion, cfg::kScreenW - 2, 1);
     d.setTextDatum(top_left);
 
-    // The synthwave wordmark, centered, animated. Each frame is decoded into a
-    // reused sprite (drawPng) then blitted — one 230x115 sprite, not four, so
-    // the RAM cost is fixed regardless of frame count. White line-art on black
-    // composites straight onto the black splash — no color-keying needed.
+    // The synthwave wordmark, centered, animated. Each frame is decoded into
+    // the perform screen's ALREADY-CLAIMED 65 KB frame buffer (preallocUi in
+    // main.cpp owns the boot's first big allocation — there is no headroom
+    // for a second full-screen sprite, and exactly one screen draws at a
+    // time, so borrowing it is free). White line-art on black composites
+    // straight onto the black splash — no color-keying needed.
     const int lw = ui::kGlideLogoW, lh = ui::kGlideLogoH;
     const int lx = (cfg::kScreenW - lw) / 2;
     const int ly = (cfg::kScreenH - lh) / 2;
-    M5Canvas logo(&d);
-    const bool haveSpr = logo.createSprite(lw, lh);
+    M5Canvas* logo = perform::uiCanvas();
+    if (logo) {
+        // The full canvas blits every frame, so the credit/version drawn on
+        // the bare display above would be painted over — draw them into the
+        // canvas instead (once; the PNG frames only cover their own rect).
+        logo->fillSprite(theme::kBg);
+        logo->setTextDatum(bottom_center);
+        logo->setFont(&fonts::Font0);
+        logo->setTextColor(theme::kDim, theme::kBg);
+        logo->drawString("by CHARL3X  -  github.com/CHARL3X", cfg::kScreenW / 2,
+                         cfg::kScreenH - 1);
+        logo->setTextDatum(top_right);
+        logo->drawString(cfg::kVersion, cfg::kScreenW - 2, 1);
+        logo->setTextDatum(top_left);
+    }
 
     // boot chime: one note sliding up an octave — the soul, in one second
     const bool chime = store::get().bootSound;
@@ -64,11 +80,11 @@ bool run() {
         int f = kSeq[step % kSeqLen];
         if (f >= ui::kGlideFrameCount) f = ui::kGlideFrameCount - 1;  // fewer frames? clamp
         const auto& fr = ui::kGlideFrames[f];
-        if (haveSpr) {
-            logo.drawPng(fr.data, fr.len, 0, 0);  // frames are opaque -> no clear needed
-            logo.pushSprite(lx, ly);
+        if (logo) {
+            logo->drawPng(fr.data, fr.len, lx, ly);  // frames are opaque -> no clear needed
+            logo->pushSprite(0, 0);
         } else {
-            d.drawPng(fr.data, fr.len, lx, ly);   // no sprite RAM: decode to screen
+            d.drawPng(fr.data, fr.len, lx, ly);   // no frame buffer: decode to screen
         }
         // The chime is a short ~0.8s gesture — it does NOT run the length of
         // the animation (which is much longer now). Glide up early, release

@@ -74,6 +74,9 @@ int progLen();
 int progIndex();
 bool progAppendStep(int string, int col, bool chrom);  // demo mode spells a bed
 void progStepName(int i, char* out, int cap);
+// Roman numeral of step i (uppercase major, lowercase minor, ° dim, + aug),
+// against the progression's frozen layout. False = no diatonic degree.
+bool progRomanNumeral(int i, char* out, int cap);
 bool progCurrentCell(int& string, int& col);
 // The sounding chord's pitch classes (0..11), deduped. Returns 0..cap; 0 when
 // nothing is walking. Drives the grid map's guide-tone marks.

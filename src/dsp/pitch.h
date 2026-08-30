@@ -70,6 +70,24 @@ inline bool chromaticInScale(const Layout& l, int string, int col) {
 // back to a power voicing (root, fifth, octave). Voiced one octave under the
 // grid pitch, like the drones — a low pad to solo over. Writes up to maxOut
 // fractional MIDI notes (root first) and returns the count.
+// The 0-based degree in the HARMONY PARENT scale that the chord at (string,
+// col) is rooted on — the Roman-numeral index (0 = I). Assumes scale lock and
+// no chromatic override; this is the tapped tone snapped onto the nearest
+// harmony-scale degree (the same snap chordPitches voices, factored out so the
+// triad and its label can never disagree).
+inline int chordDegree(const Layout& l, int string, int col) {
+    const Scale& sc = kScales[l.scaleIdx];
+    const Scale& hsc = kScales[sc.harm];      // 7-note triad source
+    const int deg0 = string * rowDegrees(l) + col;
+    const int pc = sc.steps[deg0 % sc.len];   // tapped tone, semitones over tonic
+    int hd = 0, bestDiff = 99;
+    for (int i = 0; i < hsc.len; ++i) {
+        const int diff = pc > hsc.steps[i] ? pc - hsc.steps[i] : hsc.steps[i] - pc;
+        if (diff < bestDiff) { bestDiff = diff; hd = i; }
+    }
+    return hd;
+}
+
 inline int chordPitches(const Layout& l, int string, int col, bool chromatic,
                         float* out, int maxOut) {
     if (maxOut <= 0) return 0;
@@ -80,14 +98,7 @@ inline int chordPitches(const Layout& l, int string, int col, bool chromatic,
         const Scale& hsc = kScales[sc.harm];      // 7-note triad source
         const int deg0 = string * rowDegrees(l) + col;
         const float octBase = base + 12.f * (deg0 / sc.len);  // tonic at this octave
-        const int pc = sc.steps[deg0 % sc.len];   // tapped tone, semitones over tonic
-        // Snap that tapped pitch class onto the nearest harmony-scale degree, so
-        // non-parent tones (the blue note) become a consonant chord root.
-        int hd = 0, bestDiff = 99;
-        for (int i = 0; i < hsc.len; ++i) {
-            const int diff = pc > hsc.steps[i] ? pc - hsc.steps[i] : hsc.steps[i] - pc;
-            if (diff < bestDiff) { bestDiff = diff; hd = i; }
-        }
+        const int hd = chordDegree(l, string, col);
         const int thirds[3] = {0, 2, 4};  // stacked diatonic thirds = a triad
         for (int k = 0; k < 3 && n < maxOut; ++k) {
             const int deg = hd + thirds[k];
@@ -99,6 +110,37 @@ inline int chordPitches(const Layout& l, int string, int col, bool chromatic,
         for (int k = 0; k < 3 && n < maxOut; ++k) out[n++] = root + voicing[k];
     }
     return n;
+}
+
+// The diminished-fifth marker appended to a lowercase numeral (vii°). Font0 is
+// the classic 5x7 glyph set where 0xF8 is the degree sign; if hardware shows a
+// blank box instead, swap this one constant to 'o'.
+constexpr char kDegreeGlyph = '\xF8';
+
+// Roman numeral of the diatonic triad at a grid cell: uppercase = major,
+// lowercase = minor, ° = diminished, + = augmented (harmonic-minor parents
+// really produce III+). False when there is no diatonic degree to name —
+// scale lock off, or the step was struck chromatic (power voicing). Pure and
+// allocation-free; needs cap >= 5 ("vii°" + NUL).
+inline bool chordRomanNumeral(const Layout& l, int string, int col,
+                              bool chromatic, char* out, int cap) {
+    if (cap < 5 || !l.scaleLock || chromatic) return false;
+    const Scale& hsc = kScales[kScales[l.scaleIdx].harm];
+    const int hd = chordDegree(l, string, col);
+    // Interval of the stacked third/fifth over the root, octave-unwrapped.
+    const int s0 = hsc.steps[hd];
+    const int iv2 = 12 * ((hd + 2) / hsc.len) + hsc.steps[(hd + 2) % hsc.len] - s0;
+    const int iv4 = 12 * ((hd + 4) / hsc.len) + hsc.steps[(hd + 4) % hsc.len] - s0;
+    static const char* const kNumerals[7] = {"I", "II", "III", "IV", "V", "VI", "VII"};
+    const char* rn = kNumerals[hd % 7];
+    const bool minor = iv2 == 3;  // minor third -> lowercase
+    int n = 0;
+    for (const char* c = rn; *c && n < cap - 2; ++c)
+        out[n++] = minor ? (char)(*c + 32) : *c;
+    if (iv4 == 6) out[n++] = kDegreeGlyph;  // diminished fifth
+    else if (iv4 == 8) out[n++] = '+';      // augmented fifth
+    out[n] = '\0';
+    return true;
 }
 
 // Pitch-class name (no octave) of a fractional MIDI note — the progression

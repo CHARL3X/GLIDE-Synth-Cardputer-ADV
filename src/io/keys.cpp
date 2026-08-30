@@ -519,6 +519,19 @@ void adjustVolume(int dir) {
     hud::show(g.backingLocked ? "SOLO VOL" : "VOLUME", v, g.synth.masterVol);
 }
 
+// fn+ctrl / fn+opt: the metronome's own level, on the same thumb keys as the
+// master volume — the fn layer turns "volume" into "click volume". 5% taps
+// with no hold-to-ramp (0..100 is 20 taps; the ramp stays master-volume-only).
+void adjustMetroVol(int dir) {
+    auto& g = store::get();
+    int v = (int)g.metroVol + dir * 5;
+    g.metroVol = (uint8_t)(v < 0 ? 0 : (v > 100 ? 100 : v));
+    store::markDirty();
+    char t[12];
+    snprintf(t, sizeof t, "%d%%", (int)g.metroVol);
+    hud::show("METRO VOL", t, g.metroVol / 100.f);
+}
+
 // fn+K: walk the root key up a semitone, wrapping B->C. Built for the audition
 // loop — step the key, play a phrase against a song, clash, step again — with no
 // trip to settings. Held notes keep their pitch; new notes play in the new key.
@@ -623,6 +636,10 @@ void strikeProgChord(int idx) {
             audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
         }
     }
+    // a chord change is the bar's downbeat: phase-lock the metronome to it so
+    // the click and the backing land in the same render block
+    if (store::get().metroOn)
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::MetroSync, 0));
     gProgSounding = true;
 }
 
@@ -738,6 +755,9 @@ void jamTick(uint32_t nowMs) {
         gArpIdx = (gArpIdx + 1) % nd;
     }
     gBeatFlashAt = nowMs;  // the grid map blinks the struck key(s)
+    // keep the click herded onto the pulse/arp beat it plays under
+    if (cfgr.metroOn)
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::MetroSync, 1));
 }
 
 // ---- quick-edit layer (hold fn, top row selects, [ ] adjusts) ---------------
@@ -1035,11 +1055,13 @@ Actions poll(uint32_t nowMs) {
                 else octaveShift(+1);
                 break;
             case kKeyCtrl:
+                if (gQuickEdit) { adjustMetroVol(-1); break; }  // fn layer: click level
                 adjustVolume(-1);  // left-thumb volume (octave stays on -/=)
                 gVolRepeatDir = -1;
                 gVolRepeatStart = gVolRepeatLast = nowMs;  // arm hold-to-ramp
                 break;
             case kKeyOpt:
+                if (gQuickEdit) { adjustMetroVol(+1); break; }
                 adjustVolume(+1);
                 gVolRepeatDir = +1;
                 gVolRepeatStart = gVolRepeatLast = nowMs;
@@ -1061,6 +1083,18 @@ Actions poll(uint32_t nowMs) {
                 }
                 break;
             case kKeyTapTempo: {
+                if (gQuickEdit) {
+                    // fn+\ = metronome on/off: the click lives on the tempo key.
+                    // The synth edge-detects metroOn and clicks the instant the
+                    // params land — no event race, instant confirmation.
+                    auto& g = store::get();
+                    g.metroOn = !g.metroOn;
+                    char v[20];
+                    if (g.metroOn) snprintf(v, sizeof v, "on  %u bpm", (unsigned)g.jamBpm);
+                    else           snprintf(v, sizeof v, "off");
+                    hud::show("METRO", v, -1.f);
+                    break;
+                }
                 // Tap the tempo in, live, without leaving the instrument. The
                 // first tap of a series only reads the tempo back, so a stray
                 // press can't change anything — there is nothing here to undo.
@@ -1328,6 +1362,10 @@ uint16_t tapTempo(uint32_t nowMs) {
         avgInt = 0.f;  // first tap of a fresh series: read, don't write
     }
     lastTap = nowMs;
+    // every tap phase-locks the click, so the metronome lands ON your finger —
+    // tap-tap-tap and the beat is already yours
+    if (cfgr.metroOn)
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::MetroSync, 1));
     return cfgr.jamBpm;
 }
 bool tiltLatched() { return gTiltLatched; }
@@ -1349,6 +1387,15 @@ void progStepName(int i, char* out, int cap) {
     float pp[kProgVoices];
     dsp::chordPitches(gProgLayout, gProg[i].string, gProg[i].col, gProg[i].chrom, pp, kProgVoices);
     snprintf(out, cap, "%s", dsp::pitchClassName(pp[0]));
+}
+
+// The step's Roman numeral (I..vii°), computed against the SAME frozen layout
+// the triad voices from, so the label can never disagree with the sound. False
+// when there is no diatonic degree to name (chromatic strike / lock off).
+bool progRomanNumeral(int i, char* out, int cap) {
+    if (i < 0 || i >= gProgLen) return false;
+    return dsp::chordRomanNumeral(gProgLayout, gProg[i].string, gProg[i].col,
+                                  gProg[i].chrom, out, cap);
 }
 
 bool progCurrentCell(int& string, int& col) {

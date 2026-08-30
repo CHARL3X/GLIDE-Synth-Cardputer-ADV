@@ -10,6 +10,22 @@ namespace dsp {
 namespace {
 constexpr float kTwoPi = 6.28318530718f;
 constexpr float kVibratoHz = 5.5f;
+
+// ---- metronome click voicing — the whole timbre, grouped for ear-tuning ----
+// A soft wood block: a pure sine ping with a fast exponential decay. The short
+// attack ramp keeps the waveform continuous (no digital tick), and the peak
+// sits under a synth voice (kVoiceGain = 0.22) so it reads as a pulse behind
+// the music, never a hit on top of it.
+constexpr float kClickHz        = 850.f;    // the block's pitch
+constexpr float kClickAccentHz  = 1150.f;   // beat 1 lifts in pitch...
+constexpr float kClickAccentMul = 1.3f;     // ...and steps up ~30% in level
+constexpr float kClickPeak      = 0.12f;    // pre-level/masterVol peak
+constexpr float kClickDecayS    = 0.030f;   // ring time (to ~1%)
+constexpr float kClickAtkS      = 0.0015f;  // attack ramp — non-abrasive edge
+
+inline float clampBpm(float bpm) {
+    return bpm < 20.f ? 20.f : (bpm > 300.f ? 300.f : bpm);
+}
 }  // namespace
 
 void Synth::init(float sampleRate) {
@@ -225,6 +241,86 @@ void Synth::handleEvent(const NoteEvent& ev) {
             for (auto& v : voices_)
                 if (v.active() && !v.isDrone() && !v.isBacking()) v.kill();
             break;
+        case NoteEvent::MetroSync:
+            // Phase-lock the free-running click to the UI's beat (a tap-tempo
+            // tap, a progression bar, an arp beat). The phase resets even when
+            // the click itself is suppressed, so the free-runner stays herded.
+            metroCount_ = 0.f;
+            if (p_.metroOn) {
+                const float period = sr_ * 60.f / clampBpm(p_.tempoBpm);
+                if ((float)clickAge_ > period * 0.5f) {
+                    // id 0 = bar downbeat; id 1 = plain beat, which advances
+                    // the bar count exactly like a free-run beat would (an
+                    // every-beat sync source must still walk the accent).
+                    const int beats = p_.metroBeats < 1 ? 1 : p_.metroBeats;
+                    metroBeat_ = ev.id == 0 ? 0 : (uint8_t)((metroBeat_ + 1) % beats);
+                    triggerClick(metroBeat_ == 0);
+                } else if (ev.id == 0) {
+                    metroBeat_ = 0;  // flam-guarded, but the bar still restarts
+                }
+            }
+            break;
+    }
+}
+
+void Synth::triggerClick(bool accent) {
+    clickEnv_ = 1.f;
+    clickRamp_ = 0.f;
+    clickPhase_ = 0.f;
+    clickAccent_ = accent;
+    clickAge_ = 0;
+}
+
+// The metronome: free-run the beat on the render thread (sample-accurate; the
+// 30 fps UI clock would wobble ±33 ms), synthesize the click, and sum it into
+// the mix AFTER the FX room — the click never picks up the patch's envelope,
+// filter, drive, or reverb. It scales with metroLevel and the player's
+// masterVol (turn the instrument down, the click ducks with it) but ignores
+// tilt/volMod (a morph dive must not silence the conductor).
+void Synth::renderClick(float* out, int n) {
+    if (!p_.metroOn) {
+        if (metroWasOn_) {  // off edge: silence and disarm
+            clickEnv_ = 0.f;
+            metroCount_ = 0.f;
+            metroBeat_ = 0;
+            metroWasOn_ = false;
+        }
+        return;
+    }
+    const float period = sr_ * 60.f / clampBpm(p_.tempoBpm);
+    if (!metroWasOn_) {
+        // rising edge: click NOW (accented) — the toggle confirms itself.
+        // Edge-detecting here instead of pushing an event from the UI avoids
+        // the race where a sync event outruns the params publish by a frame.
+        metroWasOn_ = true;
+        metroCount_ = 0.f;
+        metroBeat_ = 0;
+        triggerClick(true);
+    } else {
+        metroCount_ += (float)n;
+        if (metroCount_ >= period) {
+            metroCount_ -= period;
+            if (metroCount_ >= period) metroCount_ = 0.f;  // stalled: resync
+            const int beats = p_.metroBeats < 1 ? 1 : p_.metroBeats;
+            metroBeat_ = (uint8_t)((metroBeat_ + 1) % beats);
+            triggerClick(metroBeat_ == 0);
+        }
+    }
+    if (clickAge_ < 0xF0000000u) clickAge_ += (uint32_t)n;
+    if (clickEnv_ <= 1e-4f) return;  // between clicks: zero per-sample work
+    const float hz = clickAccent_ ? kClickAccentHz : kClickHz;
+    const float dPh = kTwoPi * hz / sr_;
+    const float decay = expf(-4.6f / (kClickDecayS * sr_));  // to ~1% in kClickDecayS
+    const float dRamp = 1.f / (kClickAtkS * sr_);
+    const float lvl = kClickPeak * (clickAccent_ ? kClickAccentMul : 1.f) *
+                      (p_.metroLevel * 0.01f) * p_.masterVol;
+    for (int i = 0; i < n && clickEnv_ > 1e-4f; ++i) {
+        out[i] += sinf(clickPhase_) * clickEnv_ * clickRamp_ * lvl;
+        clickPhase_ += dPh;
+        if (clickPhase_ > kTwoPi) clickPhase_ -= kTwoPi;
+        clickEnv_ *= decay;
+        clickRamp_ += dRamp;
+        if (clickRamp_ > 1.f) clickRamp_ = 1.f;
     }
 }
 
@@ -425,6 +521,10 @@ void Synth::render(float* out, int n) {
     } else {
         fx_.process(out, n, p_);
     }
+
+    // the metronome joins after the room — dry, patch-independent, and still
+    // inside the NaN guard below
+    renderClick(out, n);
 
     // once-per-block NaN/denormal guard: a poisoned filter or a runaway
     // reverb tail would otherwise stay broken forever — reset loudly visible

@@ -103,6 +103,8 @@ struct GlideConfig {
                               // gliding between changes; you solo on top)
     uint16_t jamBpm = 100;    // jam-motion / progression tempo
     uint8_t jamChordBeats = 4;// progression: beats each chord holds (1 bar)
+    uint8_t metroVol = 60;    // metronome click level, percent (NVS "mtrvol").
+                              // The on/off itself is session state — see below.
     uint8_t loopSnap = 2;     // loop-close length snap to the jam clock:
                               // 0=off (raw human length), 1=beat, 2=bar
                               // (default — loop and progression lock out of
@@ -115,7 +117,8 @@ struct GlideConfig {
                               // 2=tape, 3=cymatic, 4=string, 5=comb,
                               // 6=harmonograph, 7=interference (the generative
                               // scope modes — append-only, persists in NVS)
-    uint8_t themeId = 0;      // ui/theme.cpp palette index (0 = phosphor).
+    uint8_t themeId = 1;      // ui/theme.cpp palette index (1 = cassette, the
+                              // fresh-unit default since v2.8; 0 = phosphor).
                               // Append-only for the same reason as scopeMode.
     uint8_t idleMode = 2;     // hands-off screen behaviour: 0=off (always full
                               // brightness), 1=dim only, 2=dim then a phosphor
@@ -156,6 +159,8 @@ struct GlideConfig {
     // layers share one reverb/delay "room" (the live patch's FX).
     dsp::SynthParams backingSynth;   // the frozen backing sound (when locked)
     bool backingLocked = false;      // true once the backing is held apart
+    bool metroOn = false;            // metronome click running (fn+\) — session
+                                     // state, every boot starts quiet
 };
 
 GlideConfig& get();
@@ -179,8 +184,12 @@ bool writeProbeOk();          // DIAGNOSTIC: did this boot's write+readback succ
 bool storagePinched();
 void storageReprobe();        // re-run the patch-size probe (the boot rescue path,
                               // after GLIDE's own cleanup, to decide escalation)
-int storageSavesRoom();       // ~how many slot saves still fit (player units for
-                              // the SYSTEM row); 0 = none, -1 = stats unavailable
+bool healedAtBoot();          // this boot ran the Tier-2 self-heal (partition
+                              // erased + rebuilt from RAM/mirrors) or restored
+                              // the rig from the SD mirrors — main.cpp shows
+                              // the friendly one-liner, settings row says so
+void clearSdMirrors();        // BKSP factory reset: a reset the player asked
+                              // for must never be resurrected from the card
 void markDirty();             // schedule a debounced persist
 
 // ---- demo loan ------------------------------------------------------------
@@ -211,6 +220,11 @@ uint32_t odoSeconds();
 // gate here — flush only with idle hands and no backing being scheduled.
 void tick(uint32_t nowMs, bool allowFlush = true);
 void persistNow();
+void flushLiveSound();        // write the live sound's lvpat blob (and its SD
+                              // mirror) if the sound changed since the last
+                              // landing. Quiet moments only, same reasoning
+                              // as flushMorphPartner below; stamp-gated so an
+                              // unchanged sound costs one hash, zero writes.
 void flushMorphPartner();     // write the morph-partner blob if stale. NOT part
                               // of persistNow(): on a crowded shared partition
                               // the blob's erase-and-rewrite forces flash GC

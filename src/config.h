@@ -11,7 +11,7 @@ namespace cfg {
 // Shown top-right on the boot splash so a player can answer "which build am
 // I on?" without a computer (a real support question, twice). Bump this with
 // every release tag — it is the only place the version lives.
-constexpr const char* kVersion = "v2.7";
+constexpr const char* kVersion = "v2.8";
 
 // ---- audio path -------------------------------------------------------
 // 32 kHz / 128-sample blocks = 4 ms per block. With dma_buf_count=3 the
@@ -117,6 +117,15 @@ constexpr int      kSdCsPin   = 12;   // SD chip-sel
 constexpr uint32_t kSdFreqHz  = 25000000;
 constexpr const char* kSdDir  = "/glide";        // patch-library folder on the card
 constexpr const char* kSdExt  = ".gpat";         // one patch per file (tagged codec)
+constexpr const char* kSdSlotDir = "/glide/slots";  // the ten performance slots
+                                    // (position-addressed 0.gpat..9.gpat) plus
+                                    // the boot-heal mirrors — saved sounds live
+                                    // on the card since v2.8, NOT in the shared
+                                    // NVS partition
+constexpr uint32_t kSdRetryMs = 2000;  // failed-mount retry backoff: a card-less
+                                    // unit must not pay a full SPI+SD init per
+                                    // slot keypress (raise if the retry attempt
+                                    // is ever audible in play)
 
 // ---- onboard RGB LED (WS2812 / SK6812) --------------------------------
 // A second display: the lead voice's pitch picks the hue (chromatic color

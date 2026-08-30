@@ -28,6 +28,13 @@ constexpr int kMaxList    = 96;  // browser listing cap (bounds RAM use)
 // Mount the card. Safe to call more than once. Returns available(). On failure
 // lastError() explains why (no card, wrong pins, fs error) — never fatal.
 bool begin();
+// Unmount and release the SD driver's heap. RAM-ceiling choreography (rule 7):
+// the driver's ~4 KB must NOT be resident when the 65 KB frame-buffer sprite
+// allocates (measured "UI ALLOC FAILED"), so main.cpp mounts for the boot
+// migration/heal, end()s before handing over to the UI, and perform::run()
+// remounts immediately after the sprite exists — the historically proven
+// order (sprite first, card second).
+void end();
 bool available();
 const char* lastError();
 
@@ -56,5 +63,27 @@ void sanitize(const char* name, char* out, int cap);
 
 // True if a patch file with this (sanitised) name already exists on the card.
 bool exists(const char* name);
+
+// ---- the ten performance slots (v2.8: saved sounds live on the card) --------
+// Position-addressed files <kSdSlotDir>/<i>.gpat, same tagged codec as the
+// library — a slot IS a .gpat. Writes go temp-file-then-rename so a failed or
+// interrupted save can never destroy the slot's previous sound. slotLoad's
+// `out` must be pre-seeded by the caller (the NVS-slot contract).
+bool slotSave(int slot, const store::PatchData& pd);
+bool slotLoad(int slot, store::PatchData& out);
+bool slotExists(int slot);
+bool slotRemove(int slot);
+
+// ---- boot-heal mirrors ------------------------------------------------------
+// Tiny backups that make the shared NVS partition expendable: the live sound
+// (<kSdSlotDir>/live.gpat, tagged codec) and the rig settings
+// (<kSdDir>/rig.cfg — glide_config owns that format; this layer just moves
+// bytes). Written at quiet moments; read only by the boot self-heal.
+bool liveMirrorSave(const store::PatchData& pd);
+bool liveMirrorLoad(store::PatchData& out);  // out pre-seeded by the caller
+bool liveMirrorRemove();                     // BKSP factory reset: no resurrection
+bool rigMirrorWrite(const uint8_t* buf, size_t n);
+int  rigMirrorRead(uint8_t* buf, size_t cap);  // bytes read, or -1
+bool rigMirrorRemove();
 
 }  // namespace sdstore

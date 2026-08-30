@@ -149,6 +149,24 @@ void aJamBpm(int d) {
     g.jamBpm = (uint16_t)clampT((int)g.jamBpm + d * 4, 40, 240);
 }
 
+// Metronome level (the toggle is the live fn+\ gesture — one source of truth;
+// fn+ctrl/opt steps this same value mid-performance).
+void fMetroVol(char* o, int c) {
+    const auto& g = store::get();
+    snprintf(o, c, "%d%%%s", g.metroVol, g.metroOn ? "" : " (off)");
+}
+void aMetroVol(int d) {
+    auto& g = store::get();
+    g.metroVol = (uint8_t)clampT((int)g.metroVol + d * 5, 0, 100);
+    // Audible under the finger: the perform loop's per-frame publish isn't
+    // running inside settings, so push the level ourselves (params only — the
+    // settings-close flush persists it).
+    g.synth.metroLevel = g.metroVol;
+    audio::setParams(g.synth, g.backingLocked ? g.backingSynth : g.synth);
+    store::markDirty();
+}
+float gMetroVolF() { return store::get().metroVol / 100.f; }
+
 void fJamChord(char* o, int c) { snprintf(o, c, "%d beats", store::get().jamChordBeats); }
 void aJamChord(int d) {
     auto& g = store::get();
@@ -437,20 +455,17 @@ void fOdo(char* o, int c) {
 void aOdo(int) {}  // an odometer only counts forward
 
 // Shared-flash health, in player units (one "save" = one fn+shift slot write).
-// The 16K partition is shared with the Launcher and every app, so it can fill
-// from outside GLIDE; when it does, slot saves are the first write to fail
-// while everything else still works — this row says so BEFORE that surprise,
-// and names the fix once it's full (the boot warning names it too). Read-only,
-// like the odometer.
+// Storage is self-managing since v2.8: saved sounds live on the SD card, the
+// system's own sliver of the shared partition heals itself at boot, and this
+// row just says which world the player is in — in words that don't need a
+// degree. Read-only, like the odometer.
 void fStorage(char* o, int c) {
     if (!store::nvsHealthy()) { snprintf(o, c, "unavailable"); return; }
-    if (store::storagePinched()) { snprintf(o, c, "FULL - BKSP at boot"); return; }
-    const int room = store::storageSavesRoom();
-    if (room < 0) snprintf(o, c, "ok");
-    else if (room == 0) snprintf(o, c, "nearly full");
-    else snprintf(o, c, "ok, ~%d saves left", room);
+    if (store::healedAtBoot()) { snprintf(o, c, "self-cleaned - OK"); return; }
+    if (sdstore::available()) snprintf(o, c, "OK - sounds on SD");
+    else snprintf(o, c, "OK - insert SD to save");
 }
-void aStorage(int) {}  // nothing to adjust — the fix lives at the boot splash
+void aStorage(int) {}  // nothing to adjust — it manages itself
 
 void fReset(char* o, int c) { snprintf(o, c, "press , or /"); }
 void aReset(int) { store::resetDefaults(); }
@@ -873,6 +888,7 @@ const Item kItems[] = {
     {"Jam motion", fJamMotion, aJamMotion},
     {"Jam tempo", fJamBpm, aJamBpm, true, gJamBpmF},
     {"Tap tempo", fTapTempo, aTapTempo},
+    {"Metronome vol", fMetroVol, aMetroVol, true, gMetroVolF},
     {"Chord length", fJamChord, aJamChord},
     {"Loop snap", fLoopSnap, aLoopSnap},
     {"TILT", nullptr, nullptr},
@@ -1396,6 +1412,7 @@ void run(M5Canvas& canvas) {
     }
     audition::stop();  // never leave an audition note ringing if exiting mid-preview
     store::persistNow();
+    store::flushLiveSound();     // a rolled/tweaked sound lands here too
     store::flushMorphPartner();  // a Randomize/Mutate/SD-load partner lands here,
                                  // at the menu-close boundary — never mid-phrase
 }

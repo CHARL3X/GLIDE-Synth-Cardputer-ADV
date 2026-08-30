@@ -54,6 +54,8 @@ private:
     Voice* nearestHeld(float pitch);
     Voice* alloc();
     void noteOn(const NoteEvent& ev);
+    void triggerClick(bool accent);
+    void renderClick(float* out, int n);
 
     // paraphonic filter envelope: retriggered by fresh attacks only —
     // legato hand-offs and slides never re-snap the filter
@@ -95,6 +97,18 @@ private:
     float fenv_ = 0.f;
     FEnv fenvBackStage_ = FEnv::Idle;   // backing filter env — fixes the old quirk
     float fenvBack_ = 0.f;              // where a chord re-strike pumped the solo
+
+    // metronome: a patch-independent click summed after the FX room. The beat
+    // free-runs on the render thread (period from p_.tempoBpm) so it is sample-
+    // accurate; MetroSync events phase-lock it to the UI's taps and backing.
+    float metroCount_ = 0.f;        // samples since the last beat
+    float clickPhase_ = 0.f;        // click sine phase (radians)
+    float clickEnv_ = 0.f;          // exponential decay envelope (0 = silent)
+    float clickRamp_ = 0.f;         // short attack ramp — no waveform step
+    uint32_t clickAge_ = 0xFFFFFFu; // samples since the last click (flam guard)
+    uint8_t metroBeat_ = 0;         // beat-in-bar, 0 = the accented downbeat
+    bool clickAccent_ = false;      // the ringing click is a downbeat
+    bool metroWasOn_ = false;       // rising-edge detect: toggle-on clicks NOW
 };
 
 }  // namespace dsp

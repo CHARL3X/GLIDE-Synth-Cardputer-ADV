@@ -227,6 +227,14 @@ struct SynthParams {
                                // synced delay locks to it
     float tiltAVal     = 0.f;  // raw calibrated fwd/back axis (-1..1) — the mod
     float tiltBVal     = 0.f;  // raw calibrated roll axis — matrix source inputs
+    // Metronome — performance state like tempoBpm, published each frame, never
+    // a patch field (no codec tag; default off = bit-identical render, so the
+    // frozen-generator goldens can't see it). Bytes, not floats: SynthParams
+    // rides inside PatchData and the 32-deep RAM undo/redo history, so every
+    // byte here is ~41 bytes of .bss (rule 7).
+    uint8_t metroOn    = 0;   // session click on/off
+    uint8_t metroBeats = 4;   // beats per bar (accent lands on beat 1)
+    uint8_t metroLevel = 60;  // click level percent (rides masterVol, not patch)
 };
 
 struct NoteEvent {
@@ -235,7 +243,10 @@ struct NoteEvent {
         Off,       // release by id
         Retarget,  // re-aim a sounding note's pitch with an explicit glide
         AllOff,    // panic: everything dies, drones included
-        LeadsOff   // clear the solo layer; latched drones keep ringing
+        LeadsOff,  // clear the solo layer; latched drones keep ringing
+        MetroSync  // phase-lock the metronome to the UI's beat: id 0 = bar
+                   // downbeat (reset beat counter, accent), id 1 = plain beat.
+                   // Append-only (events are never persisted).
     };
     Type    type   = On;
     uint8_t id     = 0;     // physical key code — identity for Off/Retarget

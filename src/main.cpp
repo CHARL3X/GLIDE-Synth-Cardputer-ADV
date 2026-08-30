@@ -12,6 +12,7 @@
 #include "io/audio_engine.h"
 #include "io/keys.h"
 #include "io/led.h"
+#include "io/sd_store.h"
 #include "io/tilt.h"
 #include "storage/glide_config.h"
 #include "ui/coach.h"
@@ -69,6 +70,15 @@ void setup() {
     Serial.begin(115200);
     Serial.println("[glide] boot");
 
+    // RAM-ceiling choreography, load-bearing order (rule 7 — the other order
+    // was MEASURED as an "UI ALLOC FAILED" boot, twice): the UI's 65 KB frame
+    // buffer is claimed FIRST, on a virgin heap, where no driver residue or
+    // fragmentation can ever starve it. Only then the SD card (its driver
+    // keeps ~4 KB resident) — store::begin() wants it up for the slot
+    // migration and the boot self-heal. Card-less is fine: everything falls
+    // back to factory/generative and a failed mount is remembered (backoff).
+    perform::preallocUi();
+    sdstore::begin();
     store::begin();
     theme::setTheme(store::get().themeId);  // saved palette styles everything
                                             // from the splash on
@@ -76,47 +86,45 @@ void setup() {
     if (!audio::begin()) fatalAudio(audio::lastError());
     audio::setParams(store::get().synth);
 
-    // Storage trouble — say so out loud rather than letting saves silently
-    // fail (Hard Rule #3). Three distinct states, worst first: the namespace
-    // wouldn't open at all; it opened but even a 4-byte write+readback probe
-    // failed (the shared 16K NVS partition — Launcher + every app — is hard
-    // full); or the probes pass but a patch-size write doesn't (storagePinched:
-    // NVS keeps a whole page back for GC, so the ~400 B slot saves are the
-    // FIRST thing to die, long before small settings writes — measured at
-    // "used 365/504", which looks like 139 free and is really ~13). That third
-    // state used to be invisible here, so fn+shift just failed with no boot
-    // warning ever naming the fix. All non-fatal.
-    if (!store::nvsHealthy() || !store::writeProbeOk() || store::storagePinched()) {
-        const bool open = store::nvsHealthy();
-        const bool pinched = open && store::writeProbeOk();  // saves fail; settings still land
+    // Storage messaging, v2.8. Saved sounds live on the SD card and the
+    // system's own sliver of the shared partition SELF-HEALS in store::begin()
+    // (erase + rebuild from RAM/mirrors when real writes fail). So there are
+    // only two things a player can ever see here, and neither asks them to
+    // understand NVS:
+    //  - the friendly note that a heal/restore happened (nothing lost, no
+    //    action) — informational, 2 s;
+    //  - the demoted warning for the pathological remainder (the namespace
+    //    won't open at all, or even the heal couldn't bring writes back).
+    if (store::healedAtBoot() && store::nvsHealthy() && store::writeProbeOk()) {
+        auto& d = M5Cardputer.Display;
+        d.fillScreen(theme::kBg);
+        d.setTextDatum(top_left);
+        d.setFont(&fonts::Font2);
+        d.setTextColor(theme::kGreen, theme::kBg);
+        d.drawString("STORAGE FIXED", 12, 16);
+        d.setFont(&fonts::Font0);
+        d.setTextColor(theme::kIdle, theme::kBg);
+        d.drawString("The shared storage filled up.", 12, 44);
+        d.drawString("GLIDE cleaned it out for you.", 12, 56);
+        d.drawString("Your sounds and settings are safe.", 12, 68);
+        d.setTextColor(theme::kDim, theme::kBg);
+        d.drawString("Nothing to do - play on.", 12, 88);
+        delay(2000);
+    } else if (!store::nvsHealthy() || !store::writeProbeOk()) {
         auto& d = M5Cardputer.Display;
         d.fillScreen(theme::kBg);
         d.setTextDatum(top_left);
         d.setFont(&fonts::Font2);
         d.setTextColor(theme::kRed, theme::kBg);
-        d.drawString(open ? "STORAGE FULL" : "STORAGE UNAVAILABLE", 12, 16);
+        d.drawString("STORAGE UNAVAILABLE", 12, 16);
         d.setFont(&fonts::Font0);
         d.setTextColor(theme::kIdle, theme::kBg);
-        if (pinched) {
-            d.drawString("Saving sounds to slots will fail.", 12, 44);
-            d.drawString("(Settings still persist, for now.)", 12, 56);
-        } else {
-            d.drawString("Settings and saved sounds will NOT", 12, 44);
-            d.drawString("persist across reboots.", 12, 56);
-        }
+        d.drawString("Settings can't be remembered right", 12, 44);
+        d.drawString("now. Playing works normally, and", 12, 56);
+        d.drawString("sounds on the SD card are safe.", 12, 68);
         d.setTextColor(theme::kDim, theme::kBg);
-        if (open) {
-            // Name the way out ON the screen — "clear device storage" left
-            // people stranded (the Launcher has no user-visible NVS tool).
-            // The gesture it points at is the boot factory reset below, which
-            // escalates to a full partition erase when saves can't land.
-            // Font0 is 6 px/char from x=12: keep each line <= 37 chars.
-            d.drawString("Fix: hold BKSP during the boot logo", 12, 76);
-            d.drawString("= factory reset. Sounds not saved", 12, 88);
-            d.drawString("to the SD card will be lost.", 12, 100);
-        } else {
-            d.drawString("NVS would not open. (Check NVS partition.)", 12, 76);
-        }
+        d.drawString("If this keeps happening: hold BKSP", 12, 88);
+        d.drawString("during the boot logo (reset).", 12, 100);
         delay(2500);
     }
 
@@ -134,13 +142,13 @@ void setup() {
         // and the unit's seed identity is rewritten inside.
         if (!store::writeProbeOk()) store::eraseAllStorage();
         store::resetDefaults();
+        // Clear the ten slots (card files + any legacy NVS copies) and the SD
+        // mirrors — a reset the player asked for must never be resurrected
+        // from the card at the next boot. The /glide library is NEVER touched.
         for (int i = 0; i < dsp::kPatchCount; ++i) store::clearOverride(i);
-        // The 4-byte probe passes long after slot saves start failing (NVS
-        // reserves a GC page the stats count as free). If GLIDE's own cleanup
-        // above didn't make room for patch-size writes again, the space is
-        // other namespaces' — escalate to the same partition erase. Re-probed
-        // with a real patch-size write, so a reset on a merely-crowded (but
-        // working) partition never nukes the neighbours by mistake.
+        store::clearSdMirrors();
+        // If even the lvpat-size probe still fails after GLIDE's own cleanup,
+        // the space is other namespaces' — escalate to the partition erase.
         store::storageReprobe();
         if (store::storagePinched()) {
             store::eraseAllStorage();
@@ -155,7 +163,8 @@ void setup() {
         d.drawString("FACTORY RESET", cfg::kScreenW / 2, 58);
         d.setFont(&fonts::Font0);
         d.setTextColor(theme::kDim, theme::kBg);
-        d.drawString("settings + saved sounds cleared", cfg::kScreenW / 2, 78);
+        d.drawString("settings + the 10 slots cleared", cfg::kScreenW / 2, 78);
+        d.drawString("(your SD library /glide is kept)", cfg::kScreenW / 2, 90);
         d.setTextDatum(top_left);
         delay(1600);
     }
