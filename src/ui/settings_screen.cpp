@@ -436,6 +436,22 @@ void fOdo(char* o, int c) {
 }
 void aOdo(int) {}  // an odometer only counts forward
 
+// Shared-flash health, in player units (one "save" = one fn+shift slot write).
+// The 16K partition is shared with the Launcher and every app, so it can fill
+// from outside GLIDE; when it does, slot saves are the first write to fail
+// while everything else still works — this row says so BEFORE that surprise,
+// and names the fix once it's full (the boot warning names it too). Read-only,
+// like the odometer.
+void fStorage(char* o, int c) {
+    if (!store::nvsHealthy()) { snprintf(o, c, "unavailable"); return; }
+    if (store::storagePinched()) { snprintf(o, c, "FULL - BKSP at boot"); return; }
+    const int room = store::storageSavesRoom();
+    if (room < 0) snprintf(o, c, "ok");
+    else if (room == 0) snprintf(o, c, "nearly full");
+    else snprintf(o, c, "ok, ~%d saves left", room);
+}
+void aStorage(int) {}  // nothing to adjust — the fix lives at the boot splash
+
 void fReset(char* o, int c) { snprintf(o, c, "press , or /"); }
 void aReset(int) { store::resetDefaults(); }
 
@@ -879,6 +895,7 @@ const Item kItems[] = {
     {"Intro card", fIntro, aIntro},
     {"Tutorial", fTut, aTut},
     {"Odometer", fOdo, aOdo},
+    {"Storage", fStorage, aStorage},
     {"Reset defaults", fReset, aReset},
 };
 constexpr int kItemCount = (int)(sizeof(kItems) / sizeof(kItems[0]));
