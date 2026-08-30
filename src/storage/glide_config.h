@@ -158,6 +158,17 @@ void begin();                 // load from NVS (or defaults on first boot)
 bool nvsHealthy();            // false if NVS failed to open -> nothing persists
 uint32_t bootCount();         // DIAGNOSTIC: boots persisted in NVS (climbs => persist works)
 bool writeProbeOk();          // DIAGNOSTIC: did this boot's write+readback succeed?
+// The shared partition can no longer take a ~400 B slot-save blob, even though
+// small settings writes (and the 4-byte probe above) still land — the EARLIER,
+// likelier failure. NVS holds a whole 126-entry page back for garbage
+// collection, so this bites while the raw stats still show ">100 free".
+// Established by a real patch-size write probe at boot (skipped while the
+// stats are clearly healthy) and by any failed save; cleared by any landed one.
+bool storagePinched();
+void storageReprobe();        // re-run the patch-size probe (the boot rescue path,
+                              // after GLIDE's own cleanup, to decide escalation)
+int storageSavesRoom();       // ~how many slot saves still fit (player units for
+                              // the SYSTEM row); 0 = none, -1 = stats unavailable
 void markDirty();             // schedule a debounced persist
 
 // ---- demo loan ------------------------------------------------------------
@@ -214,8 +225,10 @@ void applyPatch(int slot);             // load slot -> working sound + tilt
 bool savePatch(int slot);              // working sound -> slot override
 const char* lastSaveError();           // WHY the last save failed, for the HUD —
                                        // "save failed" with no reason is the same
-                                       // sin as a silently dead instrument. Names
-                                       // the shared-NVS-full case with real numbers.
+                                       // sin as a silently dead instrument.
+const char* lastSaveHint();            // ...and the way OUT ("save to SD, then
+                                       // BKSP at boot"), for the HUD's detail
+                                       // line; "" when there is nothing to name
 
 // ---- solo/backing split -------------------------------------------------
 // Freeze the current sound as the backing (called when the player switches

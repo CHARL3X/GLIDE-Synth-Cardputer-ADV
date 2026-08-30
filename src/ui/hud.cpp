@@ -12,6 +12,7 @@ namespace hud {
 namespace {
 char gLabel[20] = "";
 char gValue[20] = "";
+char gDetail[32] = "";
 float gFill = -1.f;
 bool gError = false;
 uint32_t gUntil = 0;
@@ -22,16 +23,25 @@ void show(const char* label, const char* value, float fill01) {
     strncpy(gLabel, label, sizeof gLabel - 1);
     strncpy(gValue, value, sizeof gValue - 1);
     gLabel[sizeof gLabel - 1] = gValue[sizeof gValue - 1] = '\0';
+    gDetail[0] = '\0';
     gFill = fill01;
     gError = false;
     gShownAt = millis();
     gUntil = gShownAt + cfg::kHudMs;
 }
 
-void showError(const char* label, const char* value) {
+void showError(const char* label, const char* value, const char* detail) {
     show(label, value, -1.f);
     gError = true;
-    gUntil = gShownAt + cfg::kHudErrMs;
+    if (detail && detail[0]) {
+        strncpy(gDetail, detail, sizeof gDetail - 1);
+        gDetail[sizeof gDetail - 1] = '\0';
+        // an error with a named fix must stay up long enough to READ the fix —
+        // the 400 ms rejected-change flash would blink it away
+        gUntil = gShownAt + cfg::kHudFixMs;
+    } else {
+        gUntil = gShownAt + cfg::kHudErrMs;
+    }
 }
 
 bool active(uint32_t nowMs) {
@@ -49,7 +59,10 @@ void draw(M5Canvas& c, uint32_t nowMs) {
     const uint16_t text = theme::blend(gError ? theme::kRed : theme::kIdle, theme::kBg, fade);
     const uint16_t labelCol = theme::blend(gError ? theme::kRed : theme::kAmberDim, theme::kBg, fade);
 
-    const int w = 150, h = (gFill >= 0.f) ? 44 : 36;
+    // the fix line is the longest text on the card — give it the width it needs
+    const bool detail = gDetail[0] != '\0';
+    const int w = detail ? 200 : 150;
+    const int h = detail ? 48 : (gFill >= 0.f) ? 44 : 36;
     const int x = (cfg::kScreenW - w) / 2, y = 36;
 
     c.fillRoundRect(x, y, w, h, 4, theme::kPanel);
@@ -64,6 +77,12 @@ void draw(M5Canvas& c, uint32_t nowMs) {
     c.setFont(&fonts::Font2);
     c.setTextColor(text, theme::kPanel);
     c.drawString(gValue, x + 8, y + 16);
+
+    if (detail) {
+        c.setFont(&fonts::Font0);
+        c.setTextColor(theme::blend(theme::kIdle, theme::kBg, fade), theme::kPanel);
+        c.drawString(gDetail, x + 8, y + 35);
+    }
 
     if (gFill >= 0.f) {
         const int bx = x + 8, by = y + h - 10, bw = w - 16, bh = 4;

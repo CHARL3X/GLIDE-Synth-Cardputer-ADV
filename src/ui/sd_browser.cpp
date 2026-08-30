@@ -67,7 +67,9 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
     bool previewed = false;   // changed the live sound to audition something
     bool committed = false;   // chose Load (use it) — keep the change
     bool weLocked = false;    // we froze the backing for the split this session
-    char flash[28] = {};      // transient confirmation ("-> slot r")
+    char flash[40] = {};      // transient confirmation ("-> slot r") — sized for
+                              // the failure+fix line ("storage full - ...")
+    bool flashErr = false;    // failures draw red, not confirmation green
     uint32_t flashUntil = 0;
     uint64_t prev = ~0ULL;
 
@@ -181,6 +183,7 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                                 snprintf(flash, sizeof flash, "%s",
                                          ok ? "renamed"
                                             : (lost ? "RENAME LOST FILE" : "rename failed"));
+                                flashErr = !ok;
                                 flashUntil = now + 1300;
                             }
                         }
@@ -209,13 +212,27 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
                     if (!hit(cd)) continue;
                     const int slot = cd - kSlotQ;
                     store::PatchData pd;
-                    if (!loadFile(gNames[sel], pd))
+                    uint32_t flashMs = 1800;
+                    flashErr = true;  // the two failure branches; success resets
+                    if (!loadFile(gNames[sel], pd)) {
                         snprintf(flash, sizeof flash, "load: %s", sdstore::lastError());
-                    else if (!store::saveToSlot(slot, pd))
-                        snprintf(flash, sizeof flash, "slot write failed (nvs?)");
-                    else
+                    } else if (!store::saveToSlot(slot, pd)) {
+                        // The sound is SAFE — it lives on the card; only the slot
+                        // copy failed. Name the real cause (usually the shared
+                        // partition, full) and the way out, not a shrug —
+                        // "(nvs?)" read as "bricked" to anyone who isn't us.
+                        if (store::lastSaveHint()[0])  // full -> the fix exists
+                            snprintf(flash, sizeof flash, "%s - hold BKSP at boot",
+                                     store::lastSaveError());
+                        else
+                            snprintf(flash, sizeof flash, "slot: %s",
+                                     store::lastSaveError());
+                        flashMs = 3600;  // a fix line needs reading time
+                    } else {
                         snprintf(flash, sizeof flash, "put on slot %c", kSlotLetters[slot]);
-                    flashUntil = now + 1800;
+                        flashErr = false;
+                    }
+                    flashUntil = now + flashMs;
                     mode = Mode::List;
                     break;
                 }
@@ -306,7 +323,7 @@ bool run(M5Canvas& canvas, char* loadedName, int cap) {
             // transient flash (slot-assign / rename confirmation or failure)
             if (flash[0] && now < flashUntil) {
                 canvas.setFont(&fonts::Font0);
-                canvas.setTextColor(theme::kGreen, theme::kBg);
+                canvas.setTextColor(flashErr ? theme::kRed : theme::kGreen, theme::kBg);
                 canvas.drawString(flash, 8, 122);
             }
 

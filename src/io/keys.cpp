@@ -961,7 +961,10 @@ Actions poll(uint32_t nowMs) {
                             snprintf(v, sizeof v, "saved -> %s", store::patchName(slot));
                             hud::show("SOUND", v, -1.f);
                         } else {
-                            hud::showError("SOUND", store::lastSaveError());
+                            // the detail line names the way out (storage full ->
+                            // "save to SD, then BKSP at boot") — see lastSaveHint
+                            hud::showError("SOUND", store::lastSaveError(),
+                                           store::lastSaveHint());
                         }
                     } else {
                         // switching sound over a running jam keeps the backing

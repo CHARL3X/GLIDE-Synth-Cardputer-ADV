@@ -37,6 +37,8 @@ constexpr int      kScreenH   = 135;
 constexpr uint32_t kFrameMs   = 33;    // ~30 fps
 constexpr uint32_t kHudMs     = 1000;  // transient parameter HUD lifetime
 constexpr uint32_t kHudErrMs  = 400;   // rejected-change red flash
+constexpr uint32_t kHudFixMs  = 3200;  // error WITH a fix line — long enough to
+                                       // read "save to SD, then BKSP at boot"
 constexpr uint32_t kIntroMs   = 6000;  // first-run gesture card auto-dismiss
 constexpr uint32_t kRepeatDelayMs = 220;  // key auto-repeat (DAS)
 constexpr uint32_t kRepeatRateMs  = 60;   // key auto-repeat (ARR)

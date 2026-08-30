@@ -43,33 +43,71 @@ uint32_t gOdoWrittenNotes = 0;  // shadow of what NVS holds, to skip idle writes
 uint32_t gOdoWrittenSecs = 0;
 constexpr uint32_t kOdoEngagedMs = 30000;
 constexpr uint32_t kOdoPersistMs = 5 * 60 * 1000;
-char gSaveErr[20] = "";  // why the last save failed (HUD value width)
+char gSaveErr[20] = "";   // why the last save failed (HUD value width)
+char gSaveHint[30] = "";  // the way OUT, when there is one (HUD detail line)
 
 // A patch blob is ~400 B and NVS stores blobs in 32 B entries — a nearly-full
 // shared partition (Launcher + every app on the card write to the SAME 16 K)
 // fails THIS write first while one-entry key updates still squeak through.
-// Name the real cause with real numbers instead of shrugging "save failed".
+// Worse, the raw stats overstate the room: NVS holds one whole 4 KB page
+// (126 entries) back for its garbage-collection shuffle, so "used 365 of 504"
+// — measured on the unit that hit this — is really ~13 writable entries, not
+// 139. That's why fn+shift saves die while every settings write (and the boot
+// write probe) still lands. Name the real cause instead of shrugging.
+constexpr int kNvsReservedEntries = 126;  // the GC page nvs_get_stats counts as free
+constexpr int kPatchBlobEntries = 16;     // worst-case entries one slot blob occupies
+bool gSavePinched = false;  // patch-size writes fail (boot probe / a failed save);
+                            // small key writes may still land — the earlier failure
+
 void noteSaveFailure(bool nvsWrite) {
     if (!nvsWrite) {
         snprintf(gSaveErr, sizeof gSaveErr, "patch too big");
+        gSaveHint[0] = '\0';
         Serial.println("[store] save failed: encodePatch overflow");
         return;
     }
+    gSavePinched = true;  // a real save just failed — that IS the probe's answer
+    // Layman-honest on screen ("NVS full 365/504" read as gibberish — and as
+    // 139 free); the fix on the detail line; real numbers on serial.
+    snprintf(gSaveErr, sizeof gSaveErr, "storage full");
+    snprintf(gSaveHint, sizeof gSaveHint, "save to SD, then BKSP at boot");
     nvs_stats_t st;
     if (nvs_get_stats(nullptr, &st) == ESP_OK) {
-        snprintf(gSaveErr, sizeof gSaveErr, "NVS full %u/%u",
-                 (unsigned)st.used_entries, (unsigned)st.total_entries);
+        const int eff = (int)st.free_entries - kNvsReservedEntries;
         Serial.printf(
             "[store] save failed: NVS write. used %u free %u total %u "
-            "(namespaces %u) — the 16K partition is shared with the Launcher "
-            "and every app\n",
+            "(namespaces %u) — minus the %d-entry GC-reserve page that is ~%d "
+            "writable; a slot blob needs ~%d. The 16K partition is shared with "
+            "the Launcher and every app\n",
             (unsigned)st.used_entries, (unsigned)st.free_entries,
-            (unsigned)st.total_entries, (unsigned)st.namespace_count);
+            (unsigned)st.total_entries, (unsigned)st.namespace_count,
+            kNvsReservedEntries, eff < 0 ? 0 : eff, kPatchBlobEntries);
     } else {
-        snprintf(gSaveErr, sizeof gSaveErr, "NVS write failed");
         Serial.println("[store] save failed: NVS write (stats unavailable)");
     }
 }
+
+// Ground truth for "can a slot save land?". The stats alone can't say: the
+// GC-reserve page inflates "free", while erased-but-not-yet-collected entries
+// deflate it. So when the stats put the partition anywhere near the line,
+// write (and remove) a real patch-size scratch blob — exactly the write that
+// fn+shift does, GC and all. Skipped while clearly healthy, so the common
+// case costs no flash. Result cached in gSavePinched (storagePinched()).
+void probeSavePinched() {
+    gSavePinched = false;
+    if (!gNvsOk) return;
+    nvs_stats_t st;
+    if (nvs_get_stats(nullptr, &st) != ESP_OK) return;
+    if ((int)st.free_entries - kNvsReservedEntries >= 4 * kPatchBlobEntries) return;
+    uint8_t junk[400];
+    for (size_t i = 0; i < sizeof junk; ++i) junk[i] = (uint8_t)i;
+    const bool ok = gPrefs.putBytes("blobprobe", junk, sizeof junk) == sizeof junk;
+    gPrefs.remove("blobprobe");  // also mops up a leftover from a cut power mid-probe
+    gSavePinched = !ok;
+    if (!ok)
+        Serial.println("[store] patch-size write probe FAILED — slot saves will not land");
+}
+
 uint16_t gOverrideMask = 0;  // cached per-slot override flags — the UI asks
                              // every frame; NVS must not be in that path
 uint32_t gSeed = 0;          // this unit's stable unique seed (persisted)
@@ -304,14 +342,58 @@ void setMorphSrcName(const char* s) {
 // Write a patch blob, and NEVER let it lose to the morph-partner blob. The
 // partner is a convenience (the blend comes back paired after a reboot); a saved
 // sound is the player's work. On a nearly-full shared partition the ~350 B patch
-// write is the first thing to fail — so reclaim the partner's 12 entries and try
-// once more before reporting failure.
+// write is the first thing to fail — so reclaim, escalating, before reporting:
+//   1. drop the morph partner (12 entries, expendable by design) and retry;
+//   2. drop the slot's OWN old blob and retry. An NVS rewrite lands the NEW
+//      copy before erasing the OLD, and it is that double occupancy the
+//      pinched partition can't hold — but the player asked to overwrite this
+//      slot, so trading the old copy for the new one is exactly their intent.
+//      The old bytes are held in RAM and put back if even the retry fails; if
+//      THAT fails too the slot falls back to factory, which the callers make
+//      visible (mask + name re-sync) — never a silent half-state.
 bool putPatchBytes(const char* key, const uint8_t* buf, size_t n) {
-    if (gPrefs.putBytes(key, buf, n) == n) return true;
-    if (!gPrefs.remove(kMorphKey)) return false;  // nothing to reclaim: genuinely full
-    gMorphSrcDirty = true;                        // re-persist once there is room again
-    Serial.println("[store] patch write retried after reclaiming the morph partner");
-    return gPrefs.putBytes(key, buf, n) == n;
+    if (gPrefs.putBytes(key, buf, n) == n) {
+        gSavePinched = false;  // a landed save is proof to the contrary
+        return true;
+    }
+    if (gPrefs.remove(kMorphKey)) {
+        gMorphSrcDirty = true;  // re-persist once there is room again
+        Serial.println("[store] patch write retried after reclaiming the morph partner");
+        if (gPrefs.putBytes(key, buf, n) == n) {
+            gSavePinched = false;
+            return true;
+        }
+    }
+    uint8_t old[512];
+    const size_t oldLen = gPrefs.getBytesLength(key);
+    if (oldLen == 0 || oldLen > sizeof old) return false;  // nothing left to reclaim
+    if (gPrefs.getBytes(key, old, oldLen) != oldLen) return false;
+    gPrefs.remove(key);
+    if (gPrefs.putBytes(key, buf, n) == n) {
+        gSavePinched = false;
+        Serial.println("[store] patch write landed by replacing the old copy in place");
+        return true;
+    }
+    if (gPrefs.putBytes(key, old, oldLen) != oldLen)
+        Serial.println("[store] failed rewrite also lost the old copy — slot reverts to factory");
+    return false;
+}
+
+void cacheSlotName(int slot);      // defined below (display-name cache)
+void refreshCurSlotHash();         // defined below (liveDirty reference)
+
+// After a FAILED save: the in-place replace above may legitimately have spent
+// the slot's old blob (new write failed AND the put-back failed). Keep the
+// cached state honest — mask bit, display name, and the liveDirty reference
+// all follow what flash actually holds, so the slot visibly reads factory
+// instead of wearing a stale custom name over a sound that no longer exists.
+void resyncOverrideAfterFailedSave(int slot, const char* key) {
+    if (gPrefs.getBytesLength(key) != 0) return;      // the old copy survived
+    if (!((gOverrideMask >> slot) & 1u)) return;      // never was overridden
+    gOverrideMask &= (uint16_t)~(1u << slot);
+    cacheSlotName(slot);
+    if (slot == gCfg.currentPatch) refreshCurSlotHash();
+    Serial.printf("[store] slot %d override lost in the failed rewrite\n", slot);
 }
 
 void applyPatchData(const PatchData& pd) {
@@ -421,8 +503,9 @@ bool writeOverride(int slot, const PatchData& pd) {
     }
     char key[3];
     patchKey(slot, key);
-    if (!putPatchBytes(key, buf, n)) {  // reclaims the morph partner and retries
+    if (!putPatchBytes(key, buf, n)) {  // escalating reclaim (see above)
         noteSaveFailure(true);
+        resyncOverrideAfterFailedSave(slot, key);
         return false;
     }
     gOverrideMask |= (uint16_t)(1u << slot);
@@ -620,10 +703,14 @@ void begin() {
     // blobs (save-over-slot) FIRST while one-entry writes still pass the probe
     // above. Seeing "free 12" here explains a "save failed" before it happens.
     nvs_stats_t st;
-    if (nvs_get_stats(nullptr, &st) == ESP_OK)
-        Serial.printf("[glide] NVS shared partition: used %u free %u total %u (%u namespaces)\n",
-                      (unsigned)st.used_entries, (unsigned)st.free_entries,
-                      (unsigned)st.total_entries, (unsigned)st.namespace_count);
+    if (nvs_get_stats(nullptr, &st) == ESP_OK) {
+        const int eff = (int)st.free_entries - kNvsReservedEntries;
+        Serial.printf(
+            "[glide] NVS shared partition: used %u free %u total %u (%u namespaces) "
+            "— ~%d actually writable after the GC-reserve page\n",
+            (unsigned)st.used_entries, (unsigned)st.free_entries,
+            (unsigned)st.total_entries, (unsigned)st.namespace_count, eff < 0 ? 0 : eff);
+    }
 
     // Odometer: lifetime counters, read once; absent keys = a fresh instrument.
     gOdoNotes = gOdoWrittenNotes = gPrefs.getUInt("odonotes", 0);
@@ -1019,6 +1106,13 @@ void begin() {
         // between its first and second power-on.
         if (gNvsOk) persistNow();
     }
+
+    // Can a slot save still land? The 4-byte write probe above passes long
+    // after the ~400 B blob writes start failing (measured: probe ok at
+    // used 365/504 while every fn+shift save died), so probe with a real
+    // patch-size write when the stats look tight. main.cpp turns a true
+    // result into the boot STORAGE FULL warning that names the BKSP fix.
+    probeSavePinched();
 }
 
 void persistNow() {
@@ -1217,6 +1311,7 @@ void eraseAllStorage() {
     gOdoWrittenSecs = gOdoSecs;
     const size_t wrote = gPrefs.putUInt("bootn", gBootCount);
     gWriteProbeOk = (wrote == sizeof(uint32_t)) && (gPrefs.getUInt("bootn", 0) == gBootCount);
+    probeSavePinched();  // a rebuilt partition should read healthy immediately
     Serial.printf("[glide] NVS erased + rebuilt: probe=%s\n", gWriteProbeOk ? "ok" : "FAIL");
 }
 
@@ -1296,7 +1391,7 @@ bool savePatch(int slot) {
     }
     char key[3];
     patchKey(slot, key);
-    const bool ok = putPatchBytes(key, buf, n);  // reclaims the morph partner and retries
+    const bool ok = putPatchBytes(key, buf, n);  // escalating reclaim (see above)
     if (ok) {
         gOverrideMask |= (uint16_t)(1u << slot);
         gCfg.currentPatch = (uint8_t)slot;
@@ -1305,6 +1400,7 @@ bool savePatch(int slot) {
         markDirty();
     } else {
         noteSaveFailure(true);
+        resyncOverrideAfterFailedSave(slot, key);
     }
     return ok;
 }
@@ -1312,6 +1408,22 @@ bool savePatch(int slot) {
 const char* lastSaveError() {
     if (!gNvsOk) return "storage not open";
     return gSaveErr[0] ? gSaveErr : "save failed";
+}
+
+const char* lastSaveHint() {
+    if (!gNvsOk) return "";
+    return gSaveHint;  // "" unless the failure has a named way out
+}
+
+bool storagePinched() { return gSavePinched; }
+
+void storageReprobe() { probeSavePinched(); }
+
+int storageSavesRoom() {
+    nvs_stats_t st;
+    if (!gNvsOk || nvs_get_stats(nullptr, &st) != ESP_OK) return -1;
+    const int eff = (int)st.free_entries - kNvsReservedEntries;
+    return eff <= 0 ? 0 : eff / kPatchBlobEntries;
 }
 
 // Write an arbitrary patch (not the live sound) onto a slot — used to promote a
