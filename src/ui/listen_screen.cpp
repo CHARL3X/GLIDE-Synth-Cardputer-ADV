@@ -659,6 +659,14 @@ void run(M5Canvas& canvas) {
     // and cut a note the player is still holding as the card closes. Paths
     // that never reached the card (cancelled, no mic, no signal) report false
     // and are resynced on the way out, exactly as before.
+    // NEVER park/remount the SD mount around this modal, however tempting the
+    // ~14 KB looks: measured (v2.8.x bench), every end()+begin() cycle
+    // re-seats the mount's allocations inside the largest free region and
+    // splits it — three LISTEN cycles walked the largest block from 25.6 KB
+    // to 15.9 KB and killed fn+k for the session, while freeing the mount
+    // never grew the largest block even once (its pieces are never adjacent).
+    // A mount claimed once at boot and left alone keeps the heap layout — and
+    // LISTEN's record rounds — identical for the life of the session.
     if (!runModal(canvas)) keys::resync();
 }
 #endif  // GLIDE_HOST_BUILD

@@ -70,21 +70,35 @@ void setup() {
     Serial.begin(115200);
     Serial.println("[glide] boot");
 
+    // Boot heap map, serial-only: one line per stage so the next resident-heap
+    // regression is a diff of two boot logs, not a day of bisection. This is
+    // how the v2.8 "no memory" on fn+k was found (the SD mount's true cost).
+    auto heapLine = [](const char* stage) {
+        Serial.printf("[heap] %-16s free=%u largest=%u\n", stage,
+                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+    };
+    heapLine("post M5.begin");
+
     // RAM-ceiling choreography, load-bearing order (rule 7 — the other order
     // was MEASURED as an "UI ALLOC FAILED" boot, twice): the UI's 65 KB frame
     // buffer is claimed FIRST, on a virgin heap, where no driver residue or
-    // fragmentation can ever starve it. Only then the SD card (its driver
-    // keeps ~4 KB resident) — store::begin() wants it up for the slot
+    // fragmentation can ever starve it. Only then the SD card (its mount
+    // keeps ~13.9 KB resident — FATFS sector buffers, measured; see
+    // sdstore::begin) — store::begin() wants it up for the slot
     // migration and the boot self-heal. Card-less is fine: everything falls
     // back to factory/generative and a failed mount is remembered (backoff).
     perform::preallocUi();
+    heapLine("post preallocUi");
     sdstore::begin();
+    heapLine("post sd mount");
     store::begin();
+    heapLine("post store");
     theme::setTheme(store::get().themeId);  // saved palette styles everything
                                             // from the splash on
 
     if (!audio::begin()) fatalAudio(audio::lastError());
     audio::setParams(store::get().synth);
+    heapLine("post audio");
 
     // Storage messaging, v2.8. Saved sounds live on the SD card and the
     // system's own sliver of the shared partition SELF-HEALS in store::begin()

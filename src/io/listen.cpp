@@ -27,16 +27,29 @@ Result capture(bool (*progress)(void* user, float frac), void* user,
     // block and take what fits, down to half-second rounds. Alloc before
     // touching the audio path — a failure must leave the instrument
     // completely undisturbed, and must say its numbers out loud.
+    //
+    // Only the ROUND BUFFER needs contiguity. The mic driver's headroom is
+    // many small allocations (I2S DMA buffers, its task) that live happily in
+    // scattered holes, so it reserves against TOTAL free heap, not against
+    // the largest block — demanding both from one block was measured (v2.8)
+    // to refuse a heap with 57 KB free because no single block held 32 KB.
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    int total = largest > kHeapHeadroom
-                    ? (int)((largest - kHeapHeadroom) / sizeof(int16_t))
-                    : 0;
+    const size_t freeTotal = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    constexpr size_t kContigMargin = 2048;  // never take a block to the byte
+    size_t bufCap = largest > kContigMargin ? largest - kContigMargin : 0;
+    if (freeTotal > kHeapHeadroom && freeTotal - kHeapHeadroom < bufCap)
+        bufCap = freeTotal - kHeapHeadroom;  // headroom still comes first
+    else if (freeTotal <= kHeapHeadroom)
+        bufCap = 0;
+    int total = (int)(bufCap / sizeof(int16_t));
     if (total > kMaxRound) total = kMaxRound;
     total -= total % kChunk;
     if (total < kMinRound) {
-        Serial.printf("[listen] ALLOC FAILED: largest block %u B, need %u B\n",
-                      (unsigned)largest,
-                      (unsigned)(kMinRound * sizeof(int16_t) + kHeapHeadroom));
+        Serial.printf(
+            "[listen] ALLOC FAILED: largest block %u B (need %u), free heap %u B (need %u)\n",
+            (unsigned)largest,
+            (unsigned)(kMinRound * sizeof(int16_t) + kContigMargin), (unsigned)freeTotal,
+            (unsigned)(kMinRound * sizeof(int16_t) + kHeapHeadroom));
         return Result::AllocFailed;
     }
     int16_t* buf =
