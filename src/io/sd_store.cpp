@@ -129,7 +129,15 @@ bool begin() {
     // Drive the SD's SPI lines explicitly (the bus is shared with the display;
     // these pins are the hardware-unverified part — see config.h).
     SPI.begin(cfg::kSdSckPin, cfg::kSdMisoPin, cfg::kSdMosiPin, cfg::kSdCsPin);
-    if (!SD.begin(cfg::kSdCsPin, SPI, cfg::kSdFreqHz)) {
+    // max_files=2, not the default 5: FATFS keeps a 4 KB sector buffer per
+    // potential open file plus one for the drive, so the default mount holds
+    // 27,612 B of heap FOR THE WHOLE SESSION (measured on hardware, v2.8) —
+    // which starved LISTEN's capture buffer ("no memory" on fn+k). GLIDE
+    // never has more than one file genuinely open (writeAtomic, load, and the
+    // dir sweeps all open one at a time; directory handles live outside this
+    // pool), so 2 is one real slot plus margin: a ~13.9 KB mount, and cheap
+    // enough that mid-session remounts can't fail for want of contiguous heap.
+    if (!SD.begin(cfg::kSdCsPin, SPI, cfg::kSdFreqHz, "/sd", 2)) {
         setErr("no card / SD init failed");
         gAvail = false;
         gRetryAtMs = millis() + cfg::kSdRetryMs;
