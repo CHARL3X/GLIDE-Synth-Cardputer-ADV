@@ -13,7 +13,6 @@
 #include "../io/keys.h"
 #include "../io/listen.h"
 #include "../io/looper.h"
-#include "../io/sd_store.h"
 #include "../storage/glide_config.h"
 #include "hud.h"
 #include "morph.h"
@@ -660,22 +659,15 @@ void run(M5Canvas& canvas) {
     // and cut a note the player is still holding as the card closes. Paths
     // that never reached the card (cancelled, no mic, no signal) report false
     // and are resynced on the way out, exactly as before.
-    // Park the SD mount for the modal's life: the mount holds ~13.9 KB of
-    // heap (FATFS 4 KB sector buffers — measured; see sdstore::begin), and
-    // capture() wants every contiguous byte it can get for its record rounds.
-    // No SD op can happen while listening, and every sdstore op remounts on
-    // demand anyway — the re-begin on the way out only restores the steady
-    // state the perform loop's quiet-moment mirror flushes expect.
-    const bool sdWasUp = sdstore::available();
-    Serial.printf("[listen] pre-park  free=%u largest=%u sd=%d\n",
-                  (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
-                  (int)sdWasUp);
-    if (sdWasUp) sdstore::end();
-    Serial.printf("[listen] post-park free=%u largest=%u\n",
-                  (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
-    const bool resynced = runModal(canvas);
-    if (sdWasUp) sdstore::begin();
-    if (!resynced) keys::resync();
+    // NEVER park/remount the SD mount around this modal, however tempting the
+    // ~14 KB looks: measured (v2.8.x bench), every end()+begin() cycle
+    // re-seats the mount's allocations inside the largest free region and
+    // splits it — three LISTEN cycles walked the largest block from 25.6 KB
+    // to 15.9 KB and killed fn+k for the session, while freeing the mount
+    // never grew the largest block even once (its pieces are never adjacent).
+    // A mount claimed once at boot and left alone keeps the heap layout — and
+    // LISTEN's record rounds — identical for the life of the session.
+    if (!runModal(canvas)) keys::resync();
 }
 #endif  // GLIDE_HOST_BUILD
 
