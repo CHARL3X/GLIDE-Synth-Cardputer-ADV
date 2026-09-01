@@ -223,6 +223,10 @@ struct SynthParams {
     float vibratoCents = 0.f;  // tilt->vibrato depth (0 = off)
     float cutoffModOct = 0.f;  // tilt->cutoff offset in octaves (-2..+2)
     float volMod       = 1.f;  // tilt->volume multiplier (0.25..1)
+    float fxFreeze     = 0.f;  // 0..1, G0 -> reverb freeze. Live-mod, NEVER
+                               // persisted: it must not reach the patch codec
+                               // or NVS, or a saved sound would come back with
+                               // the room already held.
     float tempoBpm     = 120.f;// the jam tempo, published each frame so a
                                // synced delay locks to it
     float tiltAVal     = 0.f;  // raw calibrated fwd/back axis (-1..1) — the mod

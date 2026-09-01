@@ -68,7 +68,8 @@ const Line kLines[] = {
     {kSub, nullptr, "hold locks"},
     {kKey, "bksp", "panic: all notes off"},
     {kKey, "tab", "settings (all the rest)"},
-    {kKey, "` hold", "exit GLIDE"},
+    {kKey, "` hold", "save + restart"},
+    {kSub, nullptr, "(Launcher: BTN RST)"},
 
     {kGap, nullptr, nullptr},
     {kHd, nullptr, "KEY & SCALE"},

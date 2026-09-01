@@ -192,6 +192,13 @@ void applyTrigger(dsp::SynthParams& lead, dsp::SynthParams& back, uint8_t action
         case store::TriggerAction::Drive:       // shove the lead into the soft clipper
             lead.drive = clampf(lead.drive + depth * 6.f, 1.f, 8.f);
             break;
+        case store::TriggerAction::Freeze:
+            // The room is SHARED and mixed once, after both layers — so this
+            // rides the lead copy, which is what Fx reads (synth.cpp). Setting
+            // it on `back` too would be harmless and misleading; leave it here.
+            // Depth < 1 is a partial freeze: a long-but-decaying tail.
+            lead.fxFreeze = depth;
+            break;
         default: break;
     }
 }
@@ -1709,7 +1716,11 @@ void drawHint(M5Canvas& c, uint32_t now) {
         // a session always sees both faces.
         c.drawString("fn+k key  fn+s scale  fn+q..p sounds", 2, kHintY);  // 36ch
     else
-        c.drawString("fn edit  tab setup  shift chrom  ` exit", 2, kHintY);  // 40ch=240px @x2
+        // "restart", not "exit": ` reboots into the SAME partition, so the
+        // player lands back in GLIDE (Launcher needs BTN RST). The honest word
+        // is 3 chars longer, so the separators go single — 39ch at 6px from
+        // x=2 is 236px, exactly the width the "` exit" line already used.
+        c.drawString("fn edit tab setup shift chrom ` restart", 2, kHintY);  // 39ch=236px
 }
 
 // The morph strip, top-center of the scope: current sound on the left (green,

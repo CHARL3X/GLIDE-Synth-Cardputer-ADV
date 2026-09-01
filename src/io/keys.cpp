@@ -152,7 +152,9 @@ uint32_t gLoopPressMs = 0;
 bool gLoopHoldFired = false;
 constexpr uint32_t kLoopHoldMs = 700;
 
-// exit (`): reboots the device, and it sits top-left where it gets brushed
+// restart (`): reboots the device — and the ADV boots straight back into
+// GLIDE, so this is a restart, not an exit (Launcher needs BTN RST). It sits
+// top-left where it gets brushed
 // constantly — accidental reboots (and, via the boot splash, wiped sessions).
 // Require a deliberate hold; a tap just shows a hint.
 uint32_t gExitDownMs = 0;
@@ -1038,7 +1040,7 @@ Actions poll(uint32_t nowMs) {
                 // while the tour banner is up, a ` tap skips the tour instead
                 // of hinting (the deliberate hold still exits as always)
                 if (coach::tutorialActive()) coach::skip();
-                else hud::show("EXIT", "hold ` to exit", -1.f);
+                else hud::show("RESTART", "hold ` to restart", -1.f);
                 break;
             case kKeyTab:
                 act.openSettings = true;

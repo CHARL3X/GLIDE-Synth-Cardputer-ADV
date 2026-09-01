@@ -453,6 +453,7 @@ void applyPatchData(const PatchData& pd) {
     gCfg.synth.vibratoCents = 0.f;
     gCfg.synth.cutoffModOct = 0.f;
     gCfg.synth.volMod = 1.f;
+    gCfg.synth.fxFreeze = 0.f;
     gCfg.synth.tempoBpm = (float)gCfg.jamBpm;  // driven live, not baked
     gCfg.synth.metroOn = gCfg.metroOn ? 1 : 0;  // the metronome is the player's:
     gCfg.synth.metroBeats = gCfg.jamChordBeats; // a sound switch must not stop,
@@ -548,6 +549,7 @@ void snapshotLive(PatchData& pd) {
     pd.synth.vibratoCents = 0.f;
     pd.synth.cutoffModOct = 0.f;
     pd.synth.volMod = 1.f;
+    pd.synth.fxFreeze = 0.f;
     pd.tiltRoute = (uint8_t)gCfg.tiltRoute;
     pd.tiltDepth = gCfg.tiltDepth;
     pd.tiltRouteB = (uint8_t)gCfg.tiltRouteB;
@@ -803,6 +805,7 @@ void persistMorphSource() {
     pd.synth = gMorphSrc;
     pd.synth.bendCents = 0.f;  // store a sound, never a frozen bend/tilt frame
     pd.synth.vibratoCents = 0.f;
+    pd.synth.fxFreeze = 0.f;   // ...nor a held room
     pd.synth.cutoffModOct = 0.f;
     pd.synth.volMod = 1.f;
     int i = 0;
