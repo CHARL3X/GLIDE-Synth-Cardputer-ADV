@@ -456,8 +456,31 @@ void Synth::render(float* out, int n) {
     advanceFenv(fenvStage_, fenv_, p_, blockDur);             // lead filter env
     advanceFenv(fenvBackStage_, fenvBack_, pBack_, blockDur);  // backing filter env
 
+    // ---- the G0 performance modulator ---------------------------------
+    // Tempo-locked to the instrument's own bpm, so a wah breathes with the jam
+    // and a gate lands on the grid. Smoothed over ~4 blocks: instant to the
+    // hand, but never a step in the filter or a click in the gain.
+    trigAmtSm_ += (trigAmt_ - trigAmtSm_) * 0.25f;
+    const float trigBpm = p_.tempoBpm < 20.f ? 20.f : (p_.tempoBpm > 300.f ? 300.f : p_.tempoBpm);
+    const bool trigLive = trigAmtSm_ > 0.001f;
+    float wahHz = 0.f, wahAmt = 0.f;
+    if (trigLive && trigKind_ == (uint8_t)TrigMod::Wah) {
+        trigPhase_ += blockDur * (trigBpm / 60.f) * 0.5f;  // one sweep / two beats
+        trigPhase_ -= floorf(trigPhase_);
+        // A wah OWNS the filter — it does not nudge the patch's cutoff by a few
+        // octaves. A pedal sweeps the same vocal band whatever your amp's tone
+        // knob is set to, and that is exactly why it reads as a wah rather than
+        // as a wobble. Measured: the relative-offset version moved the envelope
+        // 1.20x, which is the same "technically working, barely perceivable"
+        // trap that killed the reverb freeze.
+        const float t = 0.5f - 0.5f * cosf(kTwoPi * trigPhase_);   // 0..1, dwells at the ends
+        wahHz = 350.f * exp2f(t * 2.778f);                          // 350 Hz .. 2.4 kHz
+        wahAmt = trigAmtSm_;
+    }
+
     // lead filter: base * (tilt + matrix) octaves * (env + matrix) env octaves
     float cutL = p_.cutoffHz * exp2f(p_.cutoffModOct + modCutOct + (p_.fenvOct + modFenvOct) * fenv_);
+    if (wahAmt > 0.f) cutL += (wahHz - cutL) * wahAmt;   // depth blends toward the pedal
     if (cutL < 60.f) cutL = 60.f;
     if (cutL > 14000.f) cutL = 14000.f;
     cutoffSm_ += (cutL - cutoffSm_) * 0.2f;
@@ -468,16 +491,25 @@ void Synth::render(float* out, int n) {
         leadBright_ = b < 0.f ? 0.f : (b > 1.f ? 1.f : b);
     }
     float resL = p_.resonance + modRes;  // matrix can push resonance
+    // ...and the wah takes the Q all the way up: the peak IS the effect.
+    if (wahAmt > 0.f) resL += (0.95f - resL) * wahAmt;
     if (resL < 0.f) resL = 0.f;
     if (resL > 0.95f) resL = 0.95f;
     svf_.set(cutoffSm_, resL, p_.filterMode);
 
     // backing filter: its own env, NO tilt (the bed stays put under the solo)
+    // The backing sweeps WITH the lead here. Tilt deliberately leaves the bed
+    // alone ("the bed stays put under the solo"), but the trigger macro is a
+    // whole-instrument gesture — muffle already moves both layers, and a wah
+    // that left the drone flat would only half-happen.
     float cutB = pBack_.cutoffHz * exp2f(pBack_.fenvOct * fenvBack_);
+    if (wahAmt > 0.f) cutB += (wahHz - cutB) * wahAmt;
     if (cutB < 60.f) cutB = 60.f;
     if (cutB > 14000.f) cutB = 14000.f;
     cutoffSmBack_ += (cutB - cutoffSmBack_) * 0.2f;
-    svfBack_.set(cutoffSmBack_, pBack_.resonance, pBack_.filterMode);
+    float resB = pBack_.resonance;
+    if (wahAmt > 0.f) resB += (0.95f - resB) * wahAmt;
+    svfBack_.set(cutoffSmBack_, resB, pBack_.filterMode);
 
     // per-bus volume ramps (no zipper). Tilt swell only touches the lead.
     auto rampVol = [n](float target, float& sm, float& step) {
@@ -520,6 +552,27 @@ void Synth::render(float* out, int n) {
         fx_.process(out, n, fxp);
     } else {
         fx_.process(out, n, p_);
+    }
+
+    // Gate: chop the whole instrument on the tempo grid. It sits AFTER the room
+    // (so the reverb tail chops too — that is the sound) and BEFORE the click,
+    // because a metronome that stutters is a broken metronome.
+    if (trigLive && trigKind_ == (uint8_t)TrigMod::Gate) {
+        const float inc = (trigBpm / 60.f) * 4.f / sr_;   // sixteenths
+        const float amt = trigAmtSm_;
+        const float r = 0.06f;   // edge ramp in phase units — no clicks
+        float ph = trigPhase_;
+        for (int i = 0; i < n; ++i) {
+            float e;
+            if (ph < r)             e = ph / r;
+            else if (ph < 0.5f - r) e = 1.f;
+            else if (ph < 0.5f)     e = (0.5f - ph) / r;
+            else                    e = 0.f;
+            out[i] *= 1.f - amt * (1.f - e);
+            ph += inc;
+            if (ph >= 1.f) ph -= 1.f;
+        }
+        trigPhase_ = ph;
     }
 
     // the metronome joins after the room — dry, patch-independent, and still

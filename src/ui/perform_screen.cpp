@@ -1915,6 +1915,15 @@ void run() {
         const bool trigEngaged = cf.triggerLatch ? trigLatched : trigRaw;
         const bool trigMorph =
             (store::TriggerAction)cf.triggerAction == store::TriggerAction::Morph;
+        // Wah and Gate are MOTION — they run in the DSP (a gate quantised to
+        // this 30 fps loop would be audibly sloppy), so publish them rather
+        // than folding them into the param copies.
+        const dsp::TrigMod trigMod =
+            (store::TriggerAction)cf.triggerAction == store::TriggerAction::Wah  ? dsp::TrigMod::Wah
+          : (store::TriggerAction)cf.triggerAction == store::TriggerAction::Gate ? dsp::TrigMod::Gate
+          : dsp::TrigMod::None;
+        audio::setTrigger((uint8_t)trigMod,
+                          (trigMod != dsp::TrigMod::None && trigEngaged) ? cf.triggerDepth : 0.f);
 
         // synth morph: G0-Morph leans toward the previous sound by the trigger
         // depth; a sound switch kicked pos to 1 and it glides home from here
@@ -1928,7 +1937,7 @@ void run() {
         dsp::SynthParams backParams = cf.backingLocked ? cf.backingSynth : cf.synth;
         if (morph::pos() > 0.001f)  // blend the LEAD only; the bed stays steady
             leadParams = dsp::morphParams(leadParams, store::morphSource(), morph::pos());
-        if (trigEngaged && !trigMorph)
+        if (trigEngaged && !trigMorph && trigMod == dsp::TrigMod::None)
             applyTrigger(leadParams, backParams, cf.triggerAction, cf.triggerDepth);
         audio::setParams(leadParams, backParams);
         // NVS flushes happen only at a quiet moment: hands off for a few

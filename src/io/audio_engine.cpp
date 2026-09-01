@@ -35,6 +35,7 @@ std::atomic<uint16_t> gGen{0};
 dsp::SynthParams gParams[2];
 dsp::SynthParams gParamsBack[2];
 std::atomic<uint8_t> gParamIdx{0};
+std::atomic<uint32_t> gTrig{0};   // G0 motion macro: kind<<16 | amount*1000
 
 // 3 rotating output buffers vs M5Unified's per-channel queue depth of 2:
 // playRaw stores our POINTER (no copy), so the buffer being refilled must
@@ -116,6 +117,10 @@ void renderTask(void*) {
         {
             const uint8_t pi = gParamIdx.load(std::memory_order_acquire);
             gSynth.setParams(gParams[pi], gParamsBack[pi]);
+        }
+        {   // the G0 motion macro, refreshed every block
+            const uint32_t t = gTrig.load(std::memory_order_relaxed);
+            gSynth.setTrigger((uint8_t)(t >> 16), (float)(t & 0xFFFF) * 0.001f);
         }
 
         // scheduled (loop playback) events that have come due
@@ -256,6 +261,14 @@ void setParams(const dsp::SynthParams& lead, const dsp::SynthParams& back) {
 }
 
 void setParams(const dsp::SynthParams& p) { setParams(p, p); }
+
+// kind in the high byte, amount as thousandths in the low half — one atomic
+// word, so the render task never sees a half-updated pair.
+void setTrigger(uint8_t kind, float amount) {
+    const float a = amount < 0.f ? 0.f : (amount > 1.f ? 1.f : amount);
+    gTrig.store(((uint32_t)kind << 16) | (uint32_t)(a * 1000.f + 0.5f),
+                std::memory_order_relaxed);
+}
 
 Lead lead() {
     Lead l;

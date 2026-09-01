@@ -2350,7 +2350,7 @@ int main() {
 
     // ---- the G0 trigger macro -------------------------------------------
     {
-        CHECK((int)store::TriggerAction::Count == 5,
+        CHECK((int)store::TriggerAction::Count == 7,
               "the trigger action list is what the settings row expects");
         bool named = true, tagged = true;
         for (int a = 0; a < (int)store::TriggerAction::Count; ++a) {
@@ -2359,6 +2359,96 @@ int main() {
         }
         CHECK(named, "every trigger action has a settings label");
         CHECK(tagged, "every trigger tag fits the 6-char scope badge");
+    }
+
+    // ---- wah + gate: the G0 MOTION macros --------------------------------
+    // These run in the DSP because the 30 fps UI frame cannot place a gate edge.
+    // What is pinned here is that they MOVE. The action they replaced was real,
+    // measurable and imperceptible, so "audible" is the property worth a test —
+    // "wired up correctly" was never the thing that went wrong.
+    {
+        // Per-block RMS, smoothed into an ENVELOPE. Raw block RMS is useless
+        // here: a 110 Hz saw fits ~0.44 cycles in a 4 ms block, so it jitters
+        // 7x on its own and buries the modulation being measured.
+        auto envelope = [](uint8_t kind, float amt, float* env, int nb) {
+            Synth sp;
+            sp.init(kSr);
+            SynthParams p;
+            p.masterVol = 0.9f;
+            p.cutoffHz = 1200.f;
+            p.resonance = 0.2f;
+            p.tempoBpm = 120.f;
+            p.attackS = 0.002f;
+            p.sustain = 1.f;
+            sp.setParams(p);
+            sp.setTrigger(kind, amt);
+            sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 45.f));
+            static float raw[640];
+            float rawMin = 1e9f;
+            for (int b = 0; b < nb; ++b) {
+                float buf[kBlock];
+                sp.setTrigger(kind, amt);   // republished per block, as the engine does
+                sp.render(buf, kBlock);
+                double a = 0.0;
+                for (int i = 0; i < kBlock; ++i) a += (double)buf[i] * buf[i];
+                raw[b] = (float)sqrt(a / kBlock);
+                if (b > 140 && raw[b] < rawMin) rawMin = raw[b];
+            }
+            const int W = 16;   // 64 ms: well inside the 1 s sweep and the 125 ms chop
+            for (int b = 0; b < nb; ++b) {
+                float a = 0.f;
+                int c = 0;
+                for (int k = b - W + 1; k <= b; ++k)
+                    if (k >= 0) { a += raw[k]; ++c; }
+                env[b] = a / c;
+            }
+            return rawMin;
+        };
+        auto stats = [](const float* e, int nb, float& mean) {
+            float lo = 1e9f, hi = 0.f;
+            double sum = 0.0;
+            int c = 0;
+            for (int b = 140; b < nb; ++b) {   // past the attack
+                if (e[b] < lo) lo = e[b];
+                if (e[b] > hi) hi = e[b];
+                sum += e[b]; ++c;
+            }
+            mean = (float)(sum / c);
+            return lo > 1e-7f ? hi / lo : 1e9f;
+        };
+
+        const int kNB = 640;   // ~2.5 s
+        static float eOff[640], eWah[640], eGate[640], eZero[640];
+        float mOff, mWah, mGate, mZero;
+        envelope((uint8_t)TrigMod::None, 0.f, eOff, kNB);
+        envelope((uint8_t)TrigMod::Wah, 1.f, eWah, kNB);
+        const float gateMin = envelope((uint8_t)TrigMod::Gate, 1.f, eGate, kNB);
+        envelope((uint8_t)TrigMod::Gate, 0.f, eZero, kNB);
+
+        const float sOff  = stats(eOff, kNB, mOff);
+        const float sWah  = stats(eWah, kNB, mWah);
+        const float sGate = stats(eGate, kNB, mGate);
+        stats(eZero, kNB, mZero);
+
+        CHECK(sOff < 1.2f, "a held note with no macro is a steady envelope");
+        // measured 1.89x once the wah OWNED the filter; it was 1.20x while it
+        // merely offset the patch cutoff, which is not a wah, it is a wobble
+        CHECK(sWah > 1.5f, "wah swings the envelope — it sweeps, it does not nudge");
+        CHECK(mWah > mOff, "the wah's resonant peak adds presence rather than dulling");
+        CHECK(sGate > 50.f, "gate chops, hard");
+        CHECK(gateMin < 0.02f * mOff, "the gate's closed phase really is closed");
+        CHECK(mGate < 0.7f * mOff, "the chop actually removes energy");
+
+        // depth 0 is a true bypass: the action selected, the button not pressed
+        bool same = true;
+        for (int b = 0; b < kNB; ++b)
+            if (fabsf(eZero[b] - eOff[b]) > 1e-6f) same = false;
+        CHECK(same, "an unpressed macro leaves the instrument exactly as it was");
+
+        bool finite = true;
+        for (int b = 0; b < kNB; ++b)
+            if (!std::isfinite(eWah[b]) || !std::isfinite(eGate[b])) finite = false;
+        CHECK(finite, "the motion macros stay finite");
     }
 
     // ---- the custom palette (ui/theme.cpp) -------------------------------

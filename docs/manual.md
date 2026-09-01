@@ -184,6 +184,28 @@ Tilt was the first assignable modulator. Now there's a whole rack of them, which
 
 Every one of these saves with the slot (`fn`+`shift`+letter) and survives a reboot. And because patches use a **tagged format**, adding the next knob, or the one after that, will never wipe the sounds you've already saved. Expansion is the point. The further you get from the default, the more the instrument is *yours*.
 
+### The two motion macros
+
+Most G0 actions are a *throw* — you shove the sound somewhere and it stays there
+while you hold. Two of them **move on their own**, locked to the instrument's
+tempo, so they work with the jam instead of across it.
+
+- **wah** — a resonant peak sweeps 350 Hz to 2.4 kHz, one sweep every two beats.
+  It is a real wah, not a tone control: at full depth the filter belongs to the
+  pedal, whatever the patch's own cutoff was, and the Q goes right up so the
+  peak sings. Both layers sweep, so a held drone breathes with your solo.
+- **gate** — the whole instrument is chopped on sixteenths, reverb tail and all.
+  Depth sets how deep the chop cuts, from a pulse to a hard stutter. The
+  metronome is deliberately not gated; a stuttering click is a broken click.
+
+Put either on **latch** and it keeps running with your hands free — hold a chord,
+tap G0, and play over your own moving texture. Depth is the whole range between
+"a hint" and "the point", and both sit still at 0%, so an unpressed button
+changes nothing.
+
+Tempo comes from the same place the jam and the synced delay read it, so tap
+tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
+
 ## Every parameter
 
 | param | range | default | where |
@@ -203,7 +225,7 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
+| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |

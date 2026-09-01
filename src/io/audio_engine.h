@@ -23,6 +23,10 @@ void pushEvent(const dsp::NoteEvent& ev);
 // solo/backing split.
 void setParams(const dsp::SynthParams& lead, const dsp::SynthParams& back);
 void setParams(const dsp::SynthParams& p);  // convenience: lead == back
+// The G0 motion macros (wah / gate). Deliberately NOT part of SynthParams: it
+// is performance state, it must never reach a saved patch, and the gate needs
+// sample-accurate edges the 30 fps UI frame cannot give it.
+void setTrigger(uint8_t kind, float amount);
 
 // Scheduled delivery: the event fires on the render thread when millis()
 // reaches dueMs (4 ms block precision — far tighter than the ~33 ms UI

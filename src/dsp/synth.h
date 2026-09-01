@@ -27,6 +27,15 @@ public:
         pBack_ = back;
     }
     void setParams(const SynthParams& p) { setParams(p, p); }
+
+    // The G0 macro's motion modulators (wah / gate), pushed every block.
+    // A fresh grab restarts the cycle so the sweep or the chop begins under
+    // your thumb instead of mid-stride.
+    void setTrigger(uint8_t kind, float amount) {
+        if (amount > 0.f && trigAmt_ <= 0.f) trigPhase_ = 0.f;
+        trigKind_ = kind;
+        trigAmt_ = amount < 0.f ? 0.f : (amount > 1.f ? 1.f : amount);
+    }
     void handleEvent(const NoteEvent& ev);
     void render(float* out, int n);
 
@@ -74,6 +83,12 @@ private:
     OutputStage out_;    // lead output stage
     OutputStage outBack_;// backing output stage
     Fx fx_;              // one shared "room" (reverb/delay/chorus), lead-driven
+
+    // G0 performance modulator. Tempo-locked so it sits in the pocket with the
+    // jam; the phase resets on every fresh grab, so the gesture starts where
+    // your thumb lands rather than wherever a free-running LFO happened to be.
+    uint8_t trigKind_ = 0;
+    float   trigAmt_ = 0.f, trigAmtSm_ = 0.f, trigPhase_ = 0.f;
     float backBuf_[kBlockMax] = {0.f};  // backing sub-mix before it joins the lead
     float sr_ = 32000.f;
     float lfoPhase_ = 0.f;       // the dedicated 5.5 Hz auto-vibrato LFO

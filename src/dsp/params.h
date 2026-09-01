@@ -23,6 +23,14 @@ enum class GlideMode : uint8_t {
 // patches). Morph = lean into the synth-morph blend (the UI drives it; note
 // sound_gen's randTiltRoute deliberately never rolls it — a generated patch
 // must not depend on what the player happened to play previously).
+// The G0 performance modulator. It lives in the DSP rather than in the live-mod
+// block for two reasons: a gate whose edges were quantised to the 30 fps UI
+// frame would be audibly sloppy, and it must never be able to reach a saved
+// patch (the reverb-freeze experiment grew a SynthParams field and needed the
+// same hygiene repeated at three separate call sites to stay out of storage).
+// It is pushed straight to Synth::setTrigger instead.
+enum class TrigMod : uint8_t { None, Wah, Gate };
+
 enum class TiltRoute : uint8_t { Off, Cutoff, Vibrato, Volume, Morph, Count };
 
 inline const char* tiltRouteName(TiltRoute r) {
