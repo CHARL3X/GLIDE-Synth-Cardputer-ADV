@@ -192,13 +192,6 @@ void applyTrigger(dsp::SynthParams& lead, dsp::SynthParams& back, uint8_t action
         case store::TriggerAction::Drive:       // shove the lead into the soft clipper
             lead.drive = clampf(lead.drive + depth * 6.f, 1.f, 8.f);
             break;
-        case store::TriggerAction::Freeze:
-            // The room is SHARED and mixed once, after both layers — so this
-            // rides the lead copy, which is what Fx reads (synth.cpp). Setting
-            // it on `back` too would be harmless and misleading; leave it here.
-            // Depth < 1 is a partial freeze: a long-but-decaying tail.
-            lead.fxFreeze = depth;
-            break;
         default: break;
     }
 }

@@ -2318,92 +2318,47 @@ int main() {
         CHECK(!store::patchNameEqualsFold("big", "bag"), "fold: different names differ");
     }
 
-    // ---- reverb freeze (the G0 room hold) --------------------------------
-    // The promise is two-sided: it must HOLD while engaged, and it must be a
-    // bit-exact no-op when it isn't. The golden below was captured from the
-    // reverb BEFORE fxFreeze existed, so the identity test is proof, not faith.
+    // ---- the send-effects block (dsp/fx.cpp) -----------------------------
+    // A golden checksum over the whole fx chain. This arrived as the identity
+    // half of a reverb-freeze experiment that was cut on the hardware verdict;
+    // the guard is worth keeping on its own, because until now nothing pinned
+    // the room's output at all and it is the easiest thing in the engine to
+    // perturb by accident.
     {
-        // The gesture is: let the room ring, THEN grab the trigger. Engaging
-        // freeze before any sound has entered correctly freezes silence — an
-        // earlier version of this test did exactly that and "failed", which is
-        // the feature working, so the freeze point is a parameter here.
-        auto runFx = [](float freeze, int freezeAtBlock, int blocks, float* outRms) {
-            Fx fx;
-            fx.init(kSr);
-            SynthParams p;
-            p.reverbMix = 0.5f;
-            p.delayMix = 0.25f;
-            p.chorusDepth = 0.4f;
-            const int kToneSamples = 8000;  // 0.25 s of 220 Hz, then silence
-            unsigned h = 2166136261u;
-            double tailAcc = 0.0;
-            int tailN = 0;
-            const int tailStart = blocks - 125;  // the last 0.5 s @ 32k/128
-            for (int b = 0; b < blocks; ++b) {
-                p.fxFreeze = b >= freezeAtBlock ? freeze : 0.f;
-                float buf[kBlock];
-                for (int i = 0; i < kBlock; ++i) {
-                    const int n = b * kBlock + i;
-                    buf[i] = n < kToneSamples
-                                 ? 0.5f * sinf(6.2831853f * 220.f * (float)n / kSr)
-                                 : 0.f;
-                }
-                fx.process(buf, kBlock, p);
-                for (int i = 0; i < kBlock; ++i) {
-                    unsigned bits;
-                    memcpy(&bits, &buf[i], 4);
-                    h = (h ^ bits) * 16777619u;
-                    if (b >= tailStart) { tailAcc += (double)buf[i] * buf[i]; ++tailN; }
-                }
+        Fx fx;
+        fx.init(kSr);
+        SynthParams p;
+        p.reverbMix = 0.5f;
+        p.delayMix = 0.25f;
+        p.chorusDepth = 0.4f;
+        unsigned h = 2166136261u;
+        for (int b = 0; b < 400; ++b) {
+            float buf[kBlock];
+            for (int i = 0; i < kBlock; ++i) {
+                const int n = b * kBlock + i;
+                buf[i] = n < 8000 ? 0.5f * sinf(6.2831853f * 220.f * (float)n / kSr) : 0.f;
             }
-            if (outRms) *outRms = tailN ? (float)sqrt(tailAcc / tailN) : 0.f;
-            return h;
-        };
+            fx.process(buf, kBlock, p);
+            for (int i = 0; i < kBlock; ++i) {
+                unsigned bits;
+                memcpy(&bits, &buf[i], 4);
+                h = (h ^ bits) * 16777619u;
+            }
+        }
+        CHECK(h == 2743211789u, "chorus+delay+reverb output is unchanged");
+    }
 
-        // identity: freeze at 0 must not perturb one bit of the existing room
-        CHECK(runFx(0.f, 0, 400, nullptr) == 2743211789u,
-              "fxFreeze=0 leaves the reverb bit-identical to before it existed");
-
-        // hold: ring the room for 0.25 s, grab it at 0.25 s, listen 2.3 s later
-        const int kGrab = 63;  // the block just after the tone stops
-        float heldRms = 0.f, freeRms = 0.f;
-        runFx(1.f, kGrab, 640, &heldRms);
-        runFx(0.f, kGrab, 640, &freeRms);
-        CHECK(heldRms > freeRms * 4.f,
-              "a frozen room still rings long after the unfrozen one has gone");
-        CHECK(heldRms > 0.002f, "the frozen tail is actually audible, not a whisper");
-
-        // stability: the 0.9985 ceiling means minutes of hold can't run away
-        float longRms = 0.f;
-        runFx(1.f, kGrab, 4000, &longRms);   // ~16 s held
-        CHECK(longRms < 1.4f && !std::isnan(longRms) && !std::isinf(longRms),
-              "a long hold decays rather than building past the clipper");
-        CHECK(longRms < heldRms, "the frozen tail still decays — 0.9985, not 1.0");
-
-        // a partial freeze sits between the two, which is what makes depth<1
-        // musically useful rather than a dead zone
-        float halfRms = 0.f;
-        runFx(0.5f, kGrab, 640, &halfRms);
-        CHECK(halfRms > freeRms && halfRms < heldRms,
-              "a partial freeze is a long-but-decaying tail, not on/off");
-
-        // freezing before anything has sounded holds SILENCE — it cannot
-        // conjure a tail that never existed, and must not self-oscillate
-        float emptyRms = 0.f;
-        runFx(1.f, 0, 640, &emptyRms);
-        CHECK(emptyRms < 0.002f, "freezing an empty room yields silence, not a howl");
-
-        // the enum stayed append-only, and every action still names itself
-        CHECK((int)store::TriggerAction::Freeze == 5 &&
-                  (int)store::TriggerAction::Count == 6,
-              "Freeze is APPENDED — no stored trigact changed meaning");
-        CHECK(strcmp(store::triggerActionTag((uint8_t)store::TriggerAction::Freeze),
-                     "FREEZE") == 0,
-              "the frozen room names itself on the scope badge");
-        bool named = true;
-        for (int a = 0; a < (int)store::TriggerAction::Count; ++a)
+    // ---- the G0 trigger macro -------------------------------------------
+    {
+        CHECK((int)store::TriggerAction::Count == 5,
+              "the trigger action list is what the settings row expects");
+        bool named = true, tagged = true;
+        for (int a = 0; a < (int)store::TriggerAction::Count; ++a) {
             if (strcmp(store::triggerActionName((uint8_t)a), "?") == 0) named = false;
+            if (strlen(store::triggerActionTag((uint8_t)a)) > 6) tagged = false;
+        }
         CHECK(named, "every trigger action has a settings label");
+        CHECK(tagged, "every trigger tag fits the 6-char scope badge");
     }
 
     // ---- the custom palette (ui/theme.cpp) -------------------------------

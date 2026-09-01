@@ -12,6 +12,41 @@
 
 **UI-cost budget (the simplicity rule):** zero new gestures, **zero new settings rows** — the existing `Trigger action` row gains one entry. Tied with doc 07 as the cheapest feature here.
 
+## ⛔ Built, tested on hardware, and CUT (2026-09-01)
+
+Implemented exactly as specced below, measured working, and rejected on the
+instrument. Recording why, because the spec still reads persuasively and the
+next person will want to build it again.
+
+**It worked.** Host measurement at `reverbMix` 0.12–0.42, depth 100%: the frozen
+wash sat **−11.5 dB under the dry note** and ran **15–53× the level of the
+unfrozen tail** at the same moment. Not a level bug, not a wiring bug.
+
+**The verdict was musical, and it was about the GESTURE, not the DSP:**
+- *"barely perceivable at 100% depth"* — a background wash 11 dB under your own
+  playing is exactly what the design asked for, and that turns out to be too
+  polite to be worth a button on a 1 W speaker.
+- *"you have to hold the note, then hit freeze"* — the two-step gesture is not
+  discoverable. Every other G0 action does something the instant you grab it;
+  this one does nothing unless you set it up first.
+- *"nothing happens to the other notes"* — correct by design (that IS the
+  feature: solo dry over the wash) and it still read as broken. When the
+  headline behaviour of a feature reads as a fault to the person who
+  commissioned it, the feature is wrong, not the person.
+
+**The transferable lesson:** G0 is a *performance* button. What belongs on it
+acts on **what you are playing now**, audibly, the moment you press it. Freeze
+acts on what you *were* playing, quietly, and only if you planned ahead. An
+effect that shapes the room instead of the voice is not automatically wrong —
+but it has to arrive without a setup ritual.
+
+**What survived:** the fx golden checksum in `test_dsp.cpp` (the identity half
+of this work), which is now the only thing pinning the send-effects output
+against accidental drift. Worth the trip on its own.
+
+The implementation is in commit `c85c014`, reverted in the commit that follows
+it — recoverable if anyone ever wants it behind a different gesture.
+
 ## Why this
 
 The G0 trigger macro is GLIDE's one-finger performance system (muffle, brighten, dive, grit, morph) — all of them *shape the voice*. Freeze is the first one that shapes the *room*, and it's the move continuous-pitch instruments crave: hold a chord, freeze it into a pad, then solo dry over your own frozen harmony — a third backing layer that costs no voices, no events, no memory, because it lives in the comb filters that are already running. Every serious reverb pedal grew a freeze button for this exact reason. On an instrument whose identity is "one hand backs, the other solos," this is the purest expression yet: the backing is *the sound you just made, suspended*.

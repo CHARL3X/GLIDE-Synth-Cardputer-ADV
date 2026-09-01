@@ -67,9 +67,6 @@ private:
     // block / after a reset so a fresh sound has its full FX immediately.
     float  chDepthSm_ = 0.f, dlMixSm_ = 0.f, dlFbSm_ = 0.f, dlSampSm_ = 1.f;
     float  rvMixSm_ = 0.f, combFbSm_ = 0.72f;
-    float  fzSm_ = 0.f;   // G0 reverb freeze, smoothed like every other send so
-                          // grabbing the trigger swells the hold instead of
-                          // stepping it
     bool   fxPrimed_ = false;
 
     float sr_ = 32000.f;

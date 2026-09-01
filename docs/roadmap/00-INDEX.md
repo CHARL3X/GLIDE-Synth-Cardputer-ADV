@@ -16,7 +16,7 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 | 06 | [usb-midi](06-usb-midi.md) | USB MIDI out, MPE-lite: chord slides arrive bent in a DAW | L | high (HW-gated) | 1 row (phase 2) |
 | 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows |
 | 08 | [breed](08-breed.md) | Crossover two sounds — the third generative verb, lineage for patches | S-M | low | 1 row |
-| 09 | [fx-freeze](09-fx-freeze.md) | Reverb freeze as a G0 trigger action — solo dry over your own frozen wash | S | low | 0 rows | ✅ **landed** |
+| 09 | [fx-freeze](09-fx-freeze.md) | Reverb freeze as a G0 trigger action — solo dry over your own frozen wash | S | low | 0 rows | ⛔ **built + cut on hardware** |
 | 10 | [guide-tones](10-guide-tones.md) | Grid marks the current chord's tones while the progression walks | S | very low | 0 rows | ✅ **landed** |
 | 11 | [analog-drift](11-analog-drift.md) | Per-voice pitch wander — vintage-analog life, and a great generative gene | S | very low | 1 row | ✅ **landed** |
 | 12 | [wasm-glide](12-wasm-glide.md) | dsp/ compiled to WASM: GLIDE playable in a browser + CI + patch workbench | L | low (no FW risk) | n/a (off-device) |

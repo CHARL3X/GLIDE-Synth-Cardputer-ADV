@@ -93,7 +93,6 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
         dlSampT = clampf(t * sr_, 1.f, (float)(kDelayMax - 1));
     }
     const float combFbT = 0.72f + 0.26f * clampf(p.reverbSize, 0.f, 1.f);  // .72..98
-    const float fzT = clampf(p.fxFreeze, 0.f, 1.f);
 
     // ---- smooth at block rate: a synth swap MORPHS the room, never slams it.
     // The backing already sitting in the delay/reverb used to get crunched when
@@ -101,7 +100,6 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
     if (!fxPrimed_) {
         chDepthSm_ = chDepthT; dlMixSm_ = dlMixT; dlFbSm_ = dlFbT;
         dlSampSm_ = dlSampT; rvMixSm_ = rvMixT; combFbSm_ = combFbT;
-        fzSm_ = fzT;
         fxPrimed_ = true;
     } else {
         const float g = 0.12f;  // ~80-100 ms toward target
@@ -111,13 +109,12 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
         dlSampSm_  += (dlSampT  - dlSampSm_)  * g;
         rvMixSm_   += (rvMixT   - rvMixSm_)   * g;
         combFbSm_  += (combFbT  - combFbSm_)  * g;
-        fzSm_      += (fzT      - fzSm_)      * g;
     }
 
     // gate on the SMOOTHED sends, so a fade-out keeps processing the tail down
     const bool doChorus = chDepthSm_ > 0.002f;
     const bool doDelay  = dlMixSm_   > 0.002f;
-    const bool doReverb = (rvMixSm_ > 0.002f || fzSm_ > 0.002f) && rvReady_;
+    const bool doReverb = rvMixSm_   > 0.002f && rvReady_;
     if (!doChorus && !doDelay && !doReverb) return;  // fully dry: leave untouched
 
     // ---- chorus: per-block LFO, intra-block interpolated tap offsets -----
@@ -143,20 +140,6 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
     const float dlSamp = dlSampSm_;
     const float dlFb = dlFbSm_;
     const float combFb = combFbSm_;
-    // Freeze: the room stops listening and stops forgetting. Feedback climbs
-    // toward 0.9985 (NOT 1.0 — unconditionally stable, decays over minutes, so
-    // "infinite" is a promise the arithmetic can actually keep), the comb INPUT
-    // shuts so the frozen tail accepts nothing new, and damping disengages so
-    // the wash doesn't dull while it's held. Every term is an exact no-op at
-    // fz = 0; the suite pins that against a golden captured before this existed.
-    const float fz = fzSm_;
-    const float fbEff = combFb + (0.9985f - combFb) * fz;
-    const float inGain = 1.f - fz;
-    const float dampEff = kRvbDamp * (1.f - fz);
-    // ...and the wet return gets a floor, so freeze is audible on a patch whose
-    // reverb send is low. It cannot conjure a tail that was never there: what
-    // hangs is whatever was ringing at the moment you grabbed it.
-    const float rvMixEff = rvMixSm_ > 0.6f * fz ? rvMixSm_ : 0.6f * fz;
 
     float tapA = tapAStart;
     float tapB = tapBStart;
@@ -189,13 +172,13 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
         if (doReverb && rvReady_) {
             // high-pass the send (track lows, feed only the rest into the tail)
             rvHpLp_ += (wet - rvHpLp_) * kRvbHpCoef;
-            const float in = (wet - rvHpLp_) * kRvbInput * inGain;
+            const float in = (wet - rvHpLp_) * kRvbInput;
             float acc = 0.f;
             for (int c = 0; c < kNComb; ++c) {
                 const int ci = combIdx_[c];
                 const float y = combBuf_[c][ci];
-                combLp_[c] = y * (1.f - dampEff) + combLp_[c] * dampEff;
-                combBuf_[c][ci] = in + combLp_[c] * fbEff;
+                combLp_[c] = y * (1.f - kRvbDamp) + combLp_[c] * kRvbDamp;
+                combBuf_[c][ci] = in + combLp_[c] * combFb;
                 if (++combIdx_[c] >= kCombLen[c]) combIdx_[c] = 0;
                 acc += y;
             }
@@ -208,7 +191,7 @@ void Fx::process(float* buf, int n, const SynthParams& p) {
                 if (++apIdx_[ap] >= kApLen[ap]) apIdx_[ap] = 0;
                 acc = out;
             }
-            wet += acc * (0.6f * rvMixEff);
+            wet += acc * (0.6f * rvMixSm_);
         }
 
         // safety clamp: the dry mix already passed the soft clipper near ±1;

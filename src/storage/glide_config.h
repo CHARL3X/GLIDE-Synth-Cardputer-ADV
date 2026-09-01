@@ -22,9 +22,8 @@ using dsp::tiltRouteName;
 // a global gesture, not a per-patch personality, so it lives in GlideConfig.
 // Every action writes only into the per-frame live-mod fields (cutoffModOct,
 // bendCents) or a local param copy (drive), never into the saved sound.
-// Append-only (persisted as "trigact"). Freeze is the first action that shapes
-// the ROOM rather than the voice.
-enum class TriggerAction : uint8_t { Muffle, Brighten, PitchDive, Drive, Morph, Freeze, Count };
+// Append-only (persisted as "trigact").
+enum class TriggerAction : uint8_t { Muffle, Brighten, PitchDive, Drive, Morph, Count };
 
 inline const char* triggerActionName(uint8_t a) {
     switch ((TriggerAction)a) {
@@ -33,7 +32,6 @@ inline const char* triggerActionName(uint8_t a) {
         case TriggerAction::PitchDive: return "pitch dive";
         case TriggerAction::Drive:     return "drive grit";
         case TriggerAction::Morph:     return "synth morph";
-        case TriggerAction::Freeze:    return "freeze (reverb)";
         default:                       return "?";
     }
 }
@@ -46,7 +44,6 @@ inline const char* triggerActionTag(uint8_t a) {
         case TriggerAction::PitchDive: return "DIVE";
         case TriggerAction::Drive:     return "GRIT";
         case TriggerAction::Morph:     return "MORPH";
-        case TriggerAction::Freeze:    return "FREEZE";
         default:                       return "TRIG";
     }
 }
