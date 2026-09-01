@@ -10,7 +10,7 @@ Everything the instrument does and how to play it. For install and the five-minu
  string 1      |  a  s  d  f  g  h  j  k  l  ;  |                   enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
- `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer   [see note below]
+ `     restart (HOLD ~0.7s)  fn (hold)    quick-edit layer   [see note below]
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
  - / =    octave -/+          G0 (RIGHT trigger, top edge) = trigger macro (muffle)
@@ -184,6 +184,27 @@ Tilt was the first assignable modulator. Now there's a whole rack of them, which
 
 Every one of these saves with the slot (`fn`+`shift`+letter) and survives a reboot. And because patches use a **tagged format**, adding the next knob, or the one after that, will never wipe the sounds you've already saved. Expansion is the point. The further you get from the default, the more the instrument is *yours*.
 
+### Freezing the room
+
+Set the trigger action to **freeze** and G0 stops shaping the voice and starts
+shaping the *room*. Let a chord ring, grab the trigger, and the reverb tail
+hangs where it is — an infinite wash — while every new note you play lands
+**dry on top of it**. Let go and it decays away naturally.
+
+It costs no voices and no memory, because the wash is already running in the
+reverb; freeze just tells the room to stop listening and stop forgetting. On an
+instrument built around one hand backing the other, this is the cheapest
+backing layer there is: the sound you just made, suspended.
+
+Latch mode works as it does for every other action, so you can freeze and walk
+away from the button. Trigger depth below 100% gives a *partial* freeze — a
+very long but still-decaying tail. **bksp** (panic) kills a frozen wash
+instantly, along with everything else.
+
+One honest limit: what hangs is whatever was ringing *at the moment you
+grabbed it*. On a sound with no reverb send, that's near-silence — you froze
+an empty room.
+
 ## Every parameter
 
 | param | range | default | where |
@@ -203,7 +224,7 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
+| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, freeze / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |

@@ -95,7 +95,7 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
  string 1      |  a  s  d  f  g  h  j  k  l  ;  |                   enter tilt
  string 0 (lo) |  z  x  c  v  b  n  m  ,  .  /  |  space sustain
 
- `     exit (HOLD ~0.7s)     fn (hold)    quick-edit layer
+ `     restart (HOLD ~0.7s)  fn (hold)    quick-edit layer
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
 
@@ -124,7 +124,7 @@ From there, the first five minutes go like this:
 - **Match whatever's playing.** Hold `fn`+`k` and the mic retunes the instrument to the song's key (ADV): your shapes stay where they are, the notes underneath them move. A single tap of `fn`+`k` changes the key by hand.
 
   <img src="assets/glide-autokey.svg" alt="Autokey: the mic's chromagram finds the song's tonic, and the key rows retune under your unmoved fingers — same keys, now in the song's key" width="100%">
-- Lost? **bksp** is panic (silence everything); hold **`` ` ``** to exit to Launcher.
+- Lost? **bksp** is panic (silence everything); hold **`` ` ``** to save and restart. (That reboots straight back into GLIDE — for Launcher, press **BTN RST** on the top edge and tap a key as it comes up.)
 
 Everything past that (the looper's overdub stack, the auto-progression, the mod matrix, the full tilt routing) is in the **[manual](docs/manual.md)**.
 
