@@ -104,7 +104,9 @@ static void waveBusy(float* w, int n) {
 
 int main(int argc, char** argv) {
     const bool all = argc > 1 && strcmp(argv[1], "all") == 0;
-    int first = 0, last = theme::count() - 1;
+    // presetCount(), not count(): the last slot is the player-editable custom
+    // palette, and an 'all' sweep should not emit a sheet of an unset recipe.
+    int first = 0, last = theme::presetCount() - 1;
     if (!all) {
         first = last = argc > 1 ? atoi(argv[1]) : 0;
         if (first < 0 || first >= theme::count()) first = last = 0;

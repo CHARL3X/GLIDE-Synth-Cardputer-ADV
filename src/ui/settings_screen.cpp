@@ -419,8 +419,113 @@ void aScopeMode(int d) {
 void fTheme(char* o, int c) { snprintf(o, c, "%s", theme::name(theme::current())); }
 void aTheme(int d) {
     auto& g = store::get();
+    const uint8_t was = g.themeId;
     g.themeId = (uint8_t)(((int)g.themeId + d + theme::count()) % theme::count());
+    // Arriving at "custom" from a preset opens it as a tweakable COPY of that
+    // preset. Landing on a fixed default instead would yank the palette out from
+    // under the hand that was cycling through them looking for one it liked.
+    if (g.themeId == theme::customIndex() && was != theme::customIndex()) {
+        theme::setLook(theme::recipeForPreset(was));
+        g.themeLook = theme::packLook(theme::look());
+    }
     theme::setTheme(g.themeId);  // live — the menu restyles under your finger
+}
+
+// ---- the custom palette's five dials --------------------------------------
+// These rows are HIDDEN unless Theme reads "custom" (see isHidden), so the
+// feature costs a player who never wants it exactly one extra word at the end
+// of a cycle they already had. Every dial applies immediately, which makes the
+// menu its own preview: it is drawn in the palette being edited.
+constexpr const char* kHueNames[12] = {"red",  "orange", "yellow", "lime",
+                                       "green", "mint",  "cyan",   "azure",
+                                       "blue", "violet", "magenta", "pink"};
+// The stock, named the way a player would describe it rather than as a percent.
+constexpr const char* kGroundNames[9] = {"black", "near-black", "dusk",  "slate",
+                                         "shadow", "ash",       "stock", "paper",
+                                         "bright"};
+
+const char* groundWord(int g) {
+    static const uint8_t kEdge[9] = {2, 5, 9, 14, 20, 26, 31, 36, 41};
+    for (int i = 0; i < 9; ++i)
+        if (g < (int)kEdge[i]) return kGroundNames[i];
+    return kGroundNames[8];
+}
+
+// The accent dial is an ANGLE from the primary, so name the RELATIONSHIP — that
+// is what the player is actually choosing, and it survives turning Hue.
+const char* accentWord(int deg) {
+    if (deg < 20 || deg > 340) return "same";
+    if (deg < 50 || deg > 310) return "near";
+    if (deg < 100 || deg > 260) return "wide";
+    if (deg < 140 || deg > 220) return "triad";
+    if (deg < 165 || deg > 195) return "split";
+    return "opposite";
+}
+
+void applyLook(const theme::Look& l) {
+    theme::setLook(l);
+    store::get().themeLook = theme::packLook(l);
+    store::markDirty();
+}
+
+void fLookHue(char* o, int c) {
+    const int deg = theme::look().hue * 5;
+    snprintf(o, c, "%s %d", kHueNames[((deg + 15) / 30) % 12], deg);
+}
+void aLookHue(int d) {
+    theme::Look l = theme::look();  // hue is a circle: it wraps, never clamps
+    l.hue = (uint8_t)((l.hue + d + theme::kLookHueMax + 1) % (theme::kLookHueMax + 1));
+    applyLook(l);
+}
+
+void fLookAccent(char* o, int c) {
+    const int deg = theme::look().accent * 5;
+    snprintf(o, c, "%s %d", accentWord(deg), deg);
+}
+void aLookAccent(int d) {
+    theme::Look l = theme::look();
+    l.accent =
+        (uint8_t)((l.accent + d + theme::kLookAccentMax + 1) % (theme::kLookAccentMax + 1));
+    applyLook(l);
+}
+
+void fLookVivid(char* o, int c) {
+    snprintf(o, c, "%d%%", theme::look().vivid * 100 / theme::kLookVividMax);
+}
+void aLookVivid(int d) {
+    theme::Look l = theme::look();
+    l.vivid = (uint8_t)clampT((int)l.vivid + d, 0, (int)theme::kLookVividMax);
+    applyLook(l);
+}
+float gLookVividF() { return (float)theme::look().vivid / (float)theme::kLookVividMax; }
+
+void fLookGround(char* o, int c) {
+    snprintf(o, c, "%s", groundWord(theme::look().ground));
+}
+void aLookGround(int d) {
+    theme::Look l = theme::look();
+    l.ground = (uint8_t)clampT((int)l.ground + d, 0, (int)theme::kLookGroundMax);
+    applyLook(l);
+}
+float gLookGroundF() { return (float)theme::look().ground / (float)theme::kLookGroundMax; }
+
+void fLookContrast(char* o, int c) {
+    snprintf(o, c, "%d%%", theme::look().contrast * 100 / theme::kLookContrastMax);
+}
+void aLookContrast(int d) {
+    theme::Look l = theme::look();
+    l.contrast = (uint8_t)clampT((int)l.contrast + d, 0, (int)theme::kLookContrastMax);
+    applyLook(l);
+}
+float gLookContrastF() {
+    return (float)theme::look().contrast / (float)theme::kLookContrastMax;
+}
+
+// The look roller. Same bargain as the sound randomizer: a player who does not
+// want to design anything still gets to own their instrument's face.
+void fRollLook(char* o, int c) { snprintf(o, c, "surprise me%c", kLRtag); }
+void aRollLook(int) {
+    applyLook(theme::rollLook(esp_random()));
 }
 
 // Hands-off screen behaviour. off = always full brightness; dim = ease the
@@ -906,6 +1011,12 @@ const Item kItems[] = {
     {"Demo mode", fDemo, aDemo},
     {"Display", fScopeMode, aScopeMode},
     {"Theme", fTheme, aTheme},
+    {"  Hue", fLookHue, aLookHue, true},
+    {"  Accent", fLookAccent, aLookAccent, true},
+    {"  Vividness", fLookVivid, aLookVivid, true, gLookVividF},
+    {"  Ground", fLookGround, aLookGround, true, gLookGroundF},
+    {"  Contrast", fLookContrast, aLookContrast, true, gLookContrastF},
+    {"  Roll look", fRollLook, aRollLook},
     {"Screen idle", fIdle, aIdle},
     {"Boot sound", fBoot, aBoot},
     {"Intro card", fIntro, aIntro},
@@ -955,11 +1066,20 @@ int slotOfSub(void (*adj)(int)) {  // slot index if adj is a dest/amount thunk, 
         if (adj == kSlotDstFn[s] || adj == kSlotAmtFn[s]) return s;
     return -1;
 }
+// The five custom-palette dials plus the roller, identified the same way the
+// modulation sub-rows are: by which adjust thunk the row points at.
+bool isLookSub(void (*adj)(int)) {
+    return adj == aLookHue || adj == aLookAccent || adj == aLookVivid ||
+           adj == aLookGround || adj == aLookContrast || adj == aRollLook;
+}
 bool isHidden(int i) {
     if (isHeader(i)) return false;                  // headers always show (they're the map)
     if (i == 0) return false;                       // "How to play" rides above the fold —
                                                     // always visible, in no one's section
     if (!gExpanded[sectionOf(i)]) return true;      // section folded -> all its rows hidden
+    // the custom palette's dials hang off the Theme row and exist only while it
+    // reads "custom" — that is what keeps this feature at ZERO visible new rows
+    if (isLookSub(kItems[i].adjust)) return store::get().themeId != theme::customIndex();
     const int s = slotOfSub(kItems[i].adjust);      // within MODULATION: unused slot sub-rows
     return s >= 0 && store::get().synth.slots[s].src == (uint8_t)dsp::ModSource::None;
 }
@@ -977,7 +1097,7 @@ bool isActionRow(int i) {
     const auto a = kItems[i].adjust;
     return a == aInitSound || a == aRandomize || a == aMutate || a == aUndo ||
            a == aRedo || a == aSaveSd || a == aReRoll || a == aPatchReset ||
-           a == aAllSoundsReset || a == aReset;
+           a == aAllSoundsReset || a == aReset || a == aRollLook;
 }
 
 // Next selectable row in `dir`, skipping only HIDDEN (collapsed) rows, wrapping.
@@ -1049,6 +1169,38 @@ void drawActionButton(M5Canvas& c, int y, const char* label, bool sel, bool flas
     c.setTextColor(txt, fill);      // sits inside the box instead of dropping out
     c.drawString(label, cfg::kScreenW / 2, top + h / 2);
     c.setTextDatum(top_left);
+}
+
+// While a look dial is selected the hint line gives way to a SPECIMEN. The menu
+// already restyles live, but it only ever paints the grounds, the accent and the
+// text roles — it never shows the primary (the live trace) or the backing, which
+// are the two roles a palette actually lives on. So show all eleven, then a
+// scrap of trace in the colour the scope will really draw with.
+void drawSpecimen(M5Canvas& c) {
+    const uint16_t roles[11] = {theme::kBg,    theme::kPanel,    theme::kLine,
+                                theme::kAmber, theme::kAmberDim, theme::kGreen,
+                                theme::kGreenDim, theme::kIdle,  theme::kDim,
+                                theme::kRed,   theme::kSteel};
+    // Occupies exactly the hint line's band (y 125..133) so it can never clip
+    // the descenders of the last visible row.
+    const int y = 125, h = 9;
+    c.fillRect(0, y, cfg::kScreenW, h, theme::kBg);
+    for (int i = 0; i < 11; ++i) c.fillRect(5 + i * 10, y, 9, h, roles[i]);
+    c.drawFastVLine(4, y, h, theme::kLine);
+    c.drawFastVLine(115, y, h, theme::kLine);
+    // Two cycles of the trace, blended primary -> accent exactly as the scope
+    // blends it with timbre. Quarter-wave table; a float sinf here would be the
+    // only one on this path.
+    static const int8_t kQ[9] = {0, 17, 34, 49, 63, 74, 82, 87, 89};
+    const int x0 = 122, w = cfg::kScreenW - x0 - 5, mid = y + h / 2;
+    for (int x = 0; x < w; ++x) {
+        const int phase = (x * 64 / w) & 31;           // 32 steps per cycle, 2 cycles
+        const int p = phase & 15;                      // 0..15 within a half-wave
+        const int amp = kQ[p <= 8 ? p : 16 - p];       // mirror to a quarter table
+        const int yy = mid - (phase < 16 ? 1 : -1) * amp * (h / 2) / 89;
+        c.drawPixel(x0 + x, yy,
+                    theme::blend(theme::kGreen, theme::kAmber, (uint8_t)(x * 255 / w)));
+    }
 }
 
 void draw(M5Canvas& c, int sel, int top) {
@@ -1194,14 +1346,18 @@ void draw(M5Canvas& c, int sel, int top) {
         c.fillRect(cfg::kScreenW - 3, thumbY, 2, thumbH, theme::kDim);
     }
 
-    c.setFont(&fonts::Font0);
-    c.setTextColor(theme::kDim, theme::kBg);
-    // \x1e\x1f = up/down (; .), \x11\x10 = left/right (, /) — the keys' silk-screen
-    // arrows. Font0 (GLCD) carries the CP437 glyphs, so draw them directly here.
-    // Context-aware: a header folds/unfolds, a row changes its value.
-    c.drawString(isHeader(sel) ? "\x1e\x1f move  enter folds  fn jump  ` back"
-                               : "\x1e\x1f move  \x11\x10 change  fn jump  ` back",
-                 4, 125);
+    if (!isHeader(sel) && isLookSub(kItems[sel].adjust)) {
+        drawSpecimen(c);
+    } else {
+        c.setFont(&fonts::Font0);
+        c.setTextColor(theme::kDim, theme::kBg);
+        // \x1e\x1f = up/down (; .), \x11\x10 = left/right (, /) — the keys' silk-screen
+        // arrows. Font0 (GLCD) carries the CP437 glyphs, so draw them directly here.
+        // Context-aware: a header folds/unfolds, a row changes its value.
+        c.drawString(isHeader(sel) ? "\x1e\x1f move  enter folds  fn jump  ` back"
+                                   : "\x1e\x1f move  \x11\x10 change  fn jump  ` back",
+                     4, 125);
+    }
     soundcard::draw(c, millis());  // a fresh roll's face rides over the list
     c.pushSprite(0, 0);
 }

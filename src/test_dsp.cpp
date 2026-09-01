@@ -21,6 +21,7 @@
 #include "dsp/synth.h"
 #include "storage/patch_codec.h"  // host-safe codec (in env:native build_src_filter)
 #include "storage/patch_name.h"   // host-safe SD naming rules (same build filter)
+#include "ui/theme.h"             // host-safe palette derivation (same build filter)
 
 using namespace dsp;
 
@@ -2313,6 +2314,141 @@ int main() {
         CHECK(!store::patchNameEqualsFold("big", "bigg"), "fold: prefix is not equal");
         CHECK(!store::patchNameEqualsFold("bigg", "big"), "fold: longer is not equal");
         CHECK(!store::patchNameEqualsFold("big", "bag"), "fold: different names differ");
+    }
+
+    // ---- the custom palette (ui/theme.cpp) -------------------------------
+    // The player edits five dials; eleven roles are derived. Nothing here is
+    // taste -- it is the guarantee that no combination of dials can render the
+    // instrument unreadable, which is what lets us hand the player the dials
+    // at all. Same role sanitizeSound plays for the generative sounds.
+    {
+        auto sepFromBg = [](uint16_t c) {
+            return abs((int)theme::luma(c) - (int)theme::luma(theme::kBg));
+        };
+        // Applying a look is what publishes the derived roles to the globals.
+        auto apply = [](const theme::Look& l) {
+            theme::setLook(l);
+            theme::setTheme(theme::customIndex());
+        };
+        // Every floor here is <= 100, and the ground always leaves >= 110 of
+        // luminance range on the ink side (>= 145 on a dark ground), so these
+        // are reachable by construction, never merely "usually".
+        auto legible = [&](const char* why) {
+            CHECK(sepFromBg(theme::kGreen) >= 65, why);
+            CHECK(sepFromBg(theme::kAmber) >= 58, why);
+            CHECK(sepFromBg(theme::kSteel) >= 45, why);
+            CHECK(sepFromBg(theme::kIdle) >= 100, why);
+            CHECK(sepFromBg(theme::kDim) >= 38, why);
+            CHECK(sepFromBg(theme::kRed) >= 55, why);
+            // grounds must SEPARATE without shouting: a panel that reads as a
+            // band or a graticule that reads as a box both wreck the calm
+            CHECK(sepFromBg(theme::kPanel) >= 5 && sepFromBg(theme::kPanel) <= 22, why);
+            CHECK(sepFromBg(theme::kLine) >= 12 && sepFromBg(theme::kLine) <= 52, why);
+        };
+
+        // pack/unpack: the whole recipe is one u32, one NVS entry
+        {
+            bool ok = true, clamps = true;
+            for (int h = 0; h <= theme::kLookHueMax; ++h)
+                for (int g = 0; g <= theme::kLookGroundMax; g += 7) {
+                    theme::Look l = {(uint8_t)h, (uint8_t)((h * 3) % 72),
+                                     (uint8_t)(h % 21), (uint8_t)g, (uint8_t)(h % 21)};
+                    const theme::Look r = theme::unpackLook(theme::packLook(l));
+                    if (r.hue != l.hue || r.accent != l.accent || r.vivid != l.vivid ||
+                        r.ground != l.ground || r.contrast != l.contrast)
+                        ok = false;
+                }
+            CHECK(ok, "packLook/unpackLook round-trips every dial position");
+            CHECK(theme::packLook({71, 71, 20, 40, 20}) < (1u << 30),
+                  "the packed recipe fits in 30 bits (one NVS entry)");
+            // any u32 must decode to a PLAYABLE recipe -- a corrupt or foreign
+            // NVS value can never hand derive() an out-of-range dial
+            for (uint32_t v = 0; v < 4096; ++v) {
+                const theme::Look l = theme::unpackLook(v * 1048573u);
+                if (l.hue > theme::kLookHueMax || l.accent > theme::kLookAccentMax ||
+                    l.vivid > theme::kLookVividMax || l.ground > theme::kLookGroundMax ||
+                    l.contrast > theme::kLookContrastMax)
+                    clamps = false;
+            }
+            CHECK(clamps, "unpackLook clamps every dial, so any u32 is a valid recipe");
+        }
+
+        // the guardrail, swept: every rolled look, and the corners no roll picks
+        {
+            int darkRolls = 0, lightRolls = 0, distinct = 0;
+            const int kRolls = 2000;
+            for (int i = 0; i < kRolls; ++i) {
+                const theme::Look l = theme::rollLook((uint32_t)(i * 2654435761u + 12345u));
+                apply(l);
+                legible("a rolled look is always legible");
+                if (theme::darkGround()) ++darkRolls; else ++lightRolls;
+                // a roll never sets accent below 8, so its three colour roles
+                // must read as three colours, not one smeared hue
+                if (theme::kGreen != theme::kAmber && theme::kAmber != theme::kSteel &&
+                    theme::kGreen != theme::kSteel)
+                    ++distinct;
+            }
+            CHECK(darkRolls > kRolls / 10, "rolls produce dark-ground looks");
+            CHECK(lightRolls > kRolls / 10, "rolls produce light-ground looks (print/stock)");
+            CHECK(distinct == kRolls, "a rolled look's three colour roles stay distinct");
+        }
+        {
+            // the adversarial corners: fully grey, both ground rails, no
+            // contrast at all -- the dial positions a player WILL try
+            const theme::Look corners[] = {
+                {0, 0, 0, 0, 0},    {0, 0, 0, 40, 0},   {36, 36, 20, 0, 0},
+                {36, 36, 20, 40, 0}, {48, 0, 20, 20, 20}, {48, 71, 0, 21, 20},
+                {12, 30, 20, 27, 14}, {12, 30, 20, 28, 14},  // straddles dark/light
+            };
+            for (const theme::Look& l : corners) {
+                apply(l);
+                legible("an extreme dial corner is still legible");
+            }
+            // and the whole ground sweep at max vividness, where the ink has
+            // the least luminance room to move in
+            for (int g = 0; g <= theme::kLookGroundMax; ++g)
+                for (int h = 0; h <= theme::kLookHueMax; h += 6) {
+                    apply({(uint8_t)h, 30, 20, (uint8_t)g, 0});
+                    legible("max vividness / min contrast stays legible at every ground");
+                }
+        }
+
+        // "custom" opens as a copy of the preset you were on
+        {
+            bool polarity = true, groundClose = true, legibleFit = true;
+            for (int i = 0; i < theme::presetCount(); ++i) {
+                theme::setTheme((uint8_t)i);
+                const bool wasDark = theme::darkGround();
+                const int wasBgL = theme::luma(theme::kBg);
+                apply(theme::recipeForPreset((uint8_t)i));
+                if (theme::darkGround() != wasDark) polarity = false;
+                if (abs((int)theme::luma(theme::kBg) - wasBgL) > 40) groundClose = false;
+                if (sepFromBg(theme::kGreen) < 65 || sepFromBg(theme::kIdle) < 100)
+                    legibleFit = false;
+            }
+            CHECK(polarity, "recipeForPreset keeps every preset's dark/light polarity");
+            CHECK(groundClose, "recipeForPreset lands near every preset's ground");
+            CHECK(legibleFit, "a recipe fitted from a preset is itself legible");
+        }
+
+        // the ten authored palettes are FROZEN -- none of this touches them
+        {
+            theme::setTheme(0);
+            CHECK(theme::kBg == 0x0000 && theme::kGreen == 0x07E0 &&
+                      theme::kAmber == 0xFD60 && theme::kSteel == 0x42BF,
+                  "phosphor is byte-identical after the custom slot was added");
+            theme::setTheme(9);
+            CHECK(theme::kBg == 0xAD12 && theme::kIdle == 0x0000 && !theme::darkGround(),
+                  "paper is byte-identical and still reads as a light ground");
+            CHECK(theme::count() == theme::presetCount() + 1,
+                  "the cycle is the presets plus exactly one custom slot");
+            CHECK(theme::customIndex() == (uint8_t)theme::presetCount(),
+                  "custom is APPENDED, so no stored themeid changes meaning");
+            CHECK(strcmp(theme::name(theme::customIndex()), "custom") == 0,
+                  "the custom slot names itself");
+            theme::setTheme(200);
+            CHECK(theme::current() == 0, "an out-of-range themeid falls back to phosphor");
+        }
     }
 
     if (failures == 0) {

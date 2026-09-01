@@ -77,7 +77,9 @@ If doc 11 lands before doc 02, it still uses tag 30; 28–29 stay reserved. Upda
 - `TriggerAction` + `Freeze` (glide_config.h) — doc 09
 - `dsp::kScales` + 4 rows (Just major, Just minor, Rast, Bayati) — doc 07
 
-**New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18) · `outtrim` (23, **only** if its remedy 4a wins — and it shares the output row with 15's `lineout`, so whichever lands first owns both) · `batwarn` (22, an explicitly *not recommended* trim; reserved so nobody reuses the name).
+**New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18) · `outtrim` (23, **only** if its remedy 4a wins — and it shares the output row with 15's `lineout`, so whichever lands first owns both) · `batwarn` (22, an explicitly *not recommended* trim; reserved so nobody reuses the name) · `look` (**TAKEN** — the custom palette's five dials packed into one u32; `themeid` gained index 10 = custom, appended, and its load clamp widened to 0..10 at `glide_config.cpp` load and rig-apply. Deliberately ONE primitive entry: debt D1 means blob-sized writes fail first, so a palette is stored as a recipe, never as eleven colours).
+
+**Rig mirror version** (`kRigVer`, `glide_config.cpp`): now **2** — v2 appended `themeLook` after `themeId`. Any doc adding a rig field bumps it again and ignores older mirrors (defaults win), which is the designed behaviour, not a loss: NVS is intact and the mirror rewrites at the next quiet moment.
 
 **Generator versions** (`genver`, NVS): 1 = `generateSoundLegacy`, 2 = frozen
 v2 `generateSound`, 3 = `generateSoundV3` (expanded pool + polish), **4 =

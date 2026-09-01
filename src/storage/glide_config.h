@@ -120,6 +120,12 @@ struct GlideConfig {
     uint8_t themeId = 1;      // ui/theme.cpp palette index (1 = cassette, the
                               // fresh-unit default since v2.8; 0 = phosphor).
                               // Append-only for the same reason as scopeMode.
+    // The custom palette's five dials, packed (ui/theme.h packLook). ONE u32 =
+    // one NVS entry — the cheapest write class there is, which is the whole
+    // reason the palette is a recipe instead of eleven stored colours: the
+    // shared partition is critically full and it is blob-sized writes that fail
+    // there first. 0 is "never set"; begin() fits it to the stored themeId.
+    uint32_t themeLook = 0;
     uint8_t idleMode = 2;     // hands-off screen behaviour: 0=off (always full
                               // brightness), 1=dim only, 2=dim then a phosphor
                               // screensaver (default). Timings + levels in config.h.

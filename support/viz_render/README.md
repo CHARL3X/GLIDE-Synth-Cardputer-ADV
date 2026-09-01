@@ -53,6 +53,31 @@ Theme indices are `theme.cpp`'s `kPalettes` order: 0 phosphor, 1 cassette,
 8 drafting, 9 paper. The last two have **light grounds** — worth checking, since
 a screen tuned on black can invert badly there.
 
+`render_theme.cpp` renders the CUSTOM palette instead of a fixed one — the
+eleventh theme slot, whose eleven roles are derived from five dials. It draws
+the same resting screen plus a strip of the eleven raw roles, since the
+screensaver alone does not exercise all of them.
+
+```
+g++ -std=gnu++14 -O2 -I support/viz_render/shim -I src \
+    support/viz_render/render_theme.cpp src/ui/theme.cpp -o render_theme
+
+./render_theme rolls            # 24 rolled looks        -> theme_rolls.bmp
+./render_theme presets          # preset vs its refit    -> theme_presets.bmp
+./render_theme sweep            # one dial at a time     -> theme_sweep_*.bmp
+./render_theme dials 24 30 14 0 14                       -> theme_dials.bmp
+```
+
+`presets` is the important one: the left column is the authored palette, the
+right is what `recipeForPreset()` makes of it — i.e. what a player sees the
+instant they cycle onto "custom". It has already earned its keep twice. The
+first derivation drove every role to a luminance TARGET, which silently
+desaturated every hue that cannot be bright: phosphor's green refit to
+near-white and ultraviolet's violet to grey, invisible in the source and
+obvious in one sheet. The second bug ranked the two colour roles by saturation
+to find the palette's hue, which let fusion's blood-red data colour outvote its
+teal wireframe and rotated the whole palette to red.
+
 ## The HOW TO PLAY page (`render_help.cpp`)
 
 The manual is a designed screen too, so it gets the same treatment: `help.cpp`

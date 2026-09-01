@@ -27,11 +27,47 @@ extern uint16_t kDim;       // secondary text
 extern uint16_t kRed;       // failures are loud (red-family in every theme)
 extern uint16_t kSteel;     // cool accent (the backing layer's colour)
 
-int count();                     // number of preset palettes
+int count();                     // selectable palettes = presets + the custom slot
 const char* name(uint8_t idx);   // palette name for the settings row
 void setTheme(uint8_t idx);      // clamps; repoints the roles above
 uint8_t current();
 bool darkGround();               // is kBg dark (phosphor) or light (paper)?
+int presetCount();               // just the hand-authored palettes (custom excluded)
+uint8_t customIndex();           // the one player-editable slot, appended last
+
+// Perceptual luminance of an RGB565 colour, 0..254. The same weights
+// setTheme() classifies the ground with — every contrast decision in the
+// theme system is made against this one number.
+uint8_t luma(uint16_t c);
+
+// ---- the custom palette: a recipe you turn, not eleven colours you pick ----
+// A player edits FIVE dials and the eleven roles above are derived from them.
+// That is the intuitive half (turning Hue rotates the whole instrument
+// coherently, because `accent` is an ANGLE from it, not an absolute hue) and
+// the cheap half at once: 30 bits pack into one u32, i.e. ONE NVS entry — the
+// cheapest write class there is, which matters because the shared partition is
+// critically full (roadmap debt D1) and it is ~400 B BLOB writes that fail
+// there first. Storing eleven colours would have been exactly that write.
+struct Look {
+    uint8_t hue;       // 0..71  x5 degrees
+    uint8_t accent;    // 0..71  x5 degrees OFFSET from hue
+    uint8_t vivid;     // 0..20  saturation
+    uint8_t ground;    // 0..40  x2 percent ground level (dark stock -> light)
+    uint8_t contrast;  // 0..20  how far the ink sits from the stock
+};
+constexpr uint8_t kLookHueMax = 71;
+constexpr uint8_t kLookAccentMax = 71;
+constexpr uint8_t kLookVividMax = 20;
+constexpr uint8_t kLookGroundMax = 40;
+constexpr uint8_t kLookContrastMax = 20;
+
+uint32_t packLook(const Look& l);      // -> 30 bits, one NVS entry
+Look unpackLook(uint32_t v);           // clamps every dial; any u32 is valid
+void setLook(const Look& l);           // re-derives; applies live if custom is current
+const Look& look();                    // the recipe currently held
+Look rollLook(uint32_t seed);          // a coherent random look (family-first)
+Look recipeForPreset(uint8_t idx);     // fit a recipe to a preset, so "custom"
+                                       // opens as a copy of what you were on
 
 // Stack two exposure colours with the medium's own algebra: emitted LIGHT
 // sums toward white on a dark ground; INK pools toward black on a light one.

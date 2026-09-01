@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Charles Tobin (CHARL3X)
 #include "glide_config.h"
 
+#include "../ui/theme.h"  // the custom palette is derived from a stored recipe
+
 #include <Preferences.h>
 #include <esp_random.h>
 #include <nvs.h>
@@ -598,7 +600,7 @@ void removeLegacyLiveKeys() {
 // rigCollect() and rigApply() MUST walk the same fields in the same order —
 // and any change to that list BUMPS kRigVer, so a stale mirror is ignored
 // (defaults win), never misread.
-constexpr uint8_t kRigVer = 1;
+constexpr uint8_t kRigVer = 2;  // v2 appended themeLook (the custom palette)
 constexpr int kRigMax = 48;
 uint32_t gRigStamp = 0;    // FNV of the last mirror landed (0 = never)
 bool gHealedAtBoot = false;
@@ -640,6 +642,7 @@ int rigCollect(int32_t* v) {
     v[n++] = c.bendRange;
     v[n++] = c.scopeMode;
     v[n++] = c.themeId;
+    v[n++] = (int32_t)c.themeLook;
     v[n++] = c.idleMode;
     v[n++] = c.bootSound ? 1 : 0;
     v[n++] = c.seenIntro ? 1 : 0;
@@ -659,7 +662,7 @@ int rigCollect(int32_t* v) {
 void rigApply(const int32_t* v, int n) {
     auto& c = gCfg;
     int i = 0;
-    if (n < 41) return;  // count mismatch is caught by the caller; belt+braces
+    if (n < 42) return;  // count mismatch is caught by the caller; belt+braces
     c.layout.rootSemis = (uint8_t)clampT<int>(v[i++], 0, 11);
     c.layout.scaleIdx = (uint8_t)clampT<int>(v[i++], 0, dsp::kScaleCount - 1);
     c.layout.octave = (int8_t)clampT<int>(v[i++], 1, 7);
@@ -687,7 +690,8 @@ void rigApply(const int32_t* v, int n) {
     c.bendMs = (uint16_t)clampT<int>(v[i++], 50, 2000);
     c.bendRange = (uint8_t)clampT<int>(v[i++], 1, 12);
     c.scopeMode = (uint8_t)clampT<int>(v[i++], 0, 7);
-    c.themeId = (uint8_t)clampT<int>(v[i++], 0, 9);
+    c.themeId = (uint8_t)clampT<int>(v[i++], 0, 10);
+    c.themeLook = (uint32_t)v[i++];
     c.idleMode = (uint8_t)clampT<int>(v[i++], 0, 2);
     c.bootSound = v[i++] != 0;
     c.seenIntro = v[i++] != 0;
@@ -732,7 +736,7 @@ bool rigDeserializeApply(const uint8_t* buf, size_t len) {
     if (len < 7 || buf[0] != kRigVer) return false;
     const int n = buf[1];
     int32_t probe[kRigMax];
-    if (n < 41 || n > kRigMax || len != 2 + (size_t)n * 4 + 4) return false;
+    if (n < 42 || n > kRigMax || len != 2 + (size_t)n * 4 + 4) return false;
     const uint32_t want = fnv1a(buf, len - 4);
     const uint32_t got = (uint32_t)buf[len - 4] | ((uint32_t)buf[len - 3] << 8) |
                          ((uint32_t)buf[len - 2] << 16) | ((uint32_t)buf[len - 1] << 24);
@@ -1286,7 +1290,14 @@ void begin() {
     gCfg.bendMs = clampT<int>(gPrefs.getUShort("bendms", d.bendMs), 50, 1000);
     gCfg.bendRange = clampT<int>(gPrefs.getUChar("bendrg", d.bendRange), 1, 12);
     gCfg.scopeMode = clampT<int>(gPrefs.getUChar("scopemd", d.scopeMode), 0, 7);
-    gCfg.themeId = clampT<int>(gPrefs.getUChar("themeid", d.themeId), 0, 9);
+    // 0..9 are the authored palettes; 10 is the player's custom slot, appended
+    // last so no stored themeid changed meaning (ui/theme.cpp customIndex()).
+    gCfg.themeId = clampT<int>(gPrefs.getUChar("themeid", d.themeId), 0, 10);
+    gCfg.themeLook = gPrefs.getUInt("look", d.themeLook);
+    // A device that has never set a look still gets a sane one the moment it
+    // cycles onto custom: fit the recipe to whatever palette it is wearing.
+    theme::setLook(gCfg.themeLook ? theme::unpackLook(gCfg.themeLook)
+                                  : theme::recipeForPreset(gCfg.themeId));
     gCfg.idleMode = clampT<int>(gPrefs.getUChar("idlemd", d.idleMode), 0, 2);
     // one-time: pitch trail became the default — adopt it even on devices that
     // saved the old waveform default before the change (runs once; the player's
@@ -1577,6 +1588,7 @@ void persistNow() {
     gPrefs.putUChar("bendrg", gCfg.bendRange);
     gPrefs.putUChar("scopemd", gCfg.scopeMode);
     gPrefs.putUChar("themeid", gCfg.themeId);
+    gPrefs.putUInt("look", gCfg.themeLook);
     gPrefs.putUChar("idlemd", gCfg.idleMode);
     gPrefs.putBool("boot", gCfg.bootSound);
     gPrefs.putBool("intro", gCfg.seenIntro);
