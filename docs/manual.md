@@ -218,8 +218,42 @@ Every one of these saves with the slot (`fn`+`shift`+letter) and survives a rebo
 | tilt depth | 0-100% | 90% morph f/b, 60% vibrato l/r | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
 | display | waveform scope / pitch trail | pitch trail | settings |
+| theme | 10 palettes + **custom** | cassette | settings |
+| custom: hue / accent / vividness / ground / contrast | full circle / angle from hue / 0-100% / black..bright / 0-100% | fitted to the palette you left | settings (only while theme = custom) |
 | screen idle | off / dim / dim + screensaver | dim + screensaver | settings |
 | solo/backing split | auto when you change sound/octave over a jam | live | live |
+
+### Making the palette yours
+
+Ten palettes ship with the instrument. The eleventh, **custom**, you turn yourself.
+
+It is not eleven colour pickers — it is five dials, and the rest follows:
+
+- **Hue** — the instrument's colour. Turn this one dial and the whole palette
+  rotates with it, because everything else is defined *relative* to it.
+- **Accent** — the angle from that hue to the annunciator colour. The row names
+  the relationship (*same*, *near*, *wide*, *triad*, *split*, *opposite*) rather
+  than a number, because the relationship is what you are choosing, and it
+  survives turning Hue.
+- **Vividness** — how saturated the whole thing runs.
+- **Ground** — the stock, from *black* through *dusk* and *ash* up to *paper* and
+  *bright*. Cross into the light half and GLIDE flips its whole colour model:
+  ink pools instead of light summing, and every screen stays right.
+- **Contrast** — how far the ink sits off the stock.
+
+Two things worth knowing. Cycling onto *custom* from a palette you liked opens
+it as a **copy of that palette**, so you start from something good rather than
+from a jarring default — nudge it from there. And **Roll look** rolls a whole
+coherent palette at once, the same bargain as the sound randomizer: you do not
+have to want to design anything to end up with an instrument that is yours.
+
+The dials appear only while the theme reads *custom*; nothing changes for
+anyone who never opens it. You cannot make GLIDE unreadable with them — every
+combination is held to a minimum contrast against the stock, so the worst you
+can do is a palette you don't like, never one you can't play. And because the
+whole recipe lives in the device's own storage rather than in the firmware, it
+survives every update: a custom palette is yours to keep.
+
 
 ## The instrument teaches you
 
