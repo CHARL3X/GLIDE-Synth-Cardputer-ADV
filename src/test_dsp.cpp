@@ -2172,6 +2172,52 @@ int main() {
                 CHECK(bluesOnly && balts[0].rootPc == 9 && balts[1].rootPc == 0,
                       "Blues alternates move the root, never the scale");
             }
+
+            // RUNNER-UP KEYS: the sibling alternates all sit at the primary
+            // tonic (or its relative), so a verdict whose TONIC is wrong
+            // leaves space cycling with nothing that can reach the song's
+            // true home. The field shape: an E natural minor song heard as
+            // A minor — A Dorian is E minor's exact pitch set, so nothing
+            // plays sour and no guard fires, yet home is a fourth off. With
+            // room past the siblings (cap 6), the card must offer the
+            // detector's own runner-up keys, and E minor must be among them.
+            {
+                float em[12] = {0.f};
+                em[4] = 1.f; em[7] = .7f; em[11] = .65f; em[9] = .5f;
+                em[2] = .5f; em[0] = .45f; em[6] = .4f;
+                const KeyGuess gEmWrong = makeGuess(9, true, em);
+                ListenApply ralts[6];
+                const int nr = listenAlternates(SC_MINOR, gEmWrong, ralts, 6);
+                CHECK(nr > 4, "runner-up keys extend past the sibling set");
+                bool distinct = true;
+                for (int i = 0; i < nr; ++i)
+                    for (int j = i + 1; j < nr; ++j)
+                        if (ralts[i].scaleIdx == ralts[j].scaleIdx &&
+                            ralts[i].rootPc == ralts[j].rootPc)
+                            distinct = false;
+                CHECK(distinct, "runner-up alternates never repeat a landing");
+                bool hasTrueHome = false;
+                for (int i = 0; i < nr; ++i)
+                    if (ralts[i].scaleIdx == SC_MINOR && ralts[i].rootPc == 4)
+                        hasTrueHome = true;
+                CHECK(hasTrueHome,
+                      "wrong-tonic verdict: space can reach E minor");
+                // The old cap keeps the old contract exactly: siblings fill
+                // it and no runner-up displaces them.
+                ListenApply capped[4];
+                const int ncap = listenAlternates(SC_MINOR, gEmWrong, capped, 4);
+                CHECK(ncap == 4 && capped[3].scaleIdx == SC_MAJOR,
+                      "cap 4 still ends on the relative twin, unchanged");
+                // Flavor players: runner-ups move the root only, the chosen
+                // scale never changes even with room to spare.
+                ListenApply falts[6];
+                const int nf = listenAlternates(SC_BLUES, gC, falts, 6);
+                bool fBluesOnly = nf > 2;
+                for (int i = 0; i < nf; ++i)
+                    if (falts[i].scaleIdx != SC_BLUES) fBluesOnly = false;
+                CHECK(fBluesOnly,
+                      "flavor runner-ups keep the scale, offer new roots");
+            }
         }
 
         // The 7th-harmonic trap: a bright tonic paints its own b7 two

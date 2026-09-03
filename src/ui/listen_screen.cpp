@@ -520,8 +520,11 @@ bool runModal(M5Canvas& canvas) {
     // the A Dorian vamp it is), and a landing mapped to the player's scale
     // FAMILY — plain canvases play the mode, pentatonics swap tonic-home,
     // Blues stays Blues and re-centres. Weak evidence = frozen behavior.
-    dsp::ListenApply alts[4];
-    const int nAlts = dsp::listenAlternates(prevScale, ctx.guess, alts, 4);
+    // Room past the sibling readings for the detector's two runner-up KEYS:
+    // when the tonic itself lands wrong, the siblings are all flavors of the
+    // same mistake, and the runner-ups are the only way space can fix it.
+    dsp::ListenApply alts[6];
+    const int nAlts = dsp::listenAlternates(prevScale, ctx.guess, alts, 6);
     const dsp::ListenApply ap = alts[0];  // primary == applyListen
     int altIdx = 0;
     dsp::ListenApply sel = ap;

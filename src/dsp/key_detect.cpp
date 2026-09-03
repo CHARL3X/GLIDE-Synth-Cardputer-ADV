@@ -602,6 +602,53 @@ int listenAlternates(int scaleIdx, const KeyGuess& g, ListenApply* out, int cap)
         a.safe = false;
         out[n++] = a;
     }
+
+    // Runner-up keys. Every candidate above sits at the primary tonic or its
+    // relative, so a verdict whose TONIC is wrong — a fifth sharp, a minor
+    // song heard from its subdominant (A Dorian over an E minor song is the
+    // same seven notes, nothing sour, home a fourth off) — leaves the space
+    // key cycling flavors of the same mistake. Rescore the 24 profiles
+    // against the heard chroma and append the best-scoring keys whose
+    // APPLIED landing the list doesn't already hold, best first. Landings
+    // take the frozen mapping (applyScaleForKey / applyRootForScale): the
+    // mode refinements were judged at the primary tonic and don't transfer
+    // to a rival root.
+    float peak = 0.f;
+    for (int i = 0; i < 12; ++i)
+        if (g.chroma[i] > peak) peak = g.chroma[i];
+    if (peak <= 1e-9f) return n;  // no evidence: nothing to rescore
+    constexpr int kRunnerUps = 2;
+    for (int k = 0; k < kRunnerUps && n < cap; ++k) {
+        float bestR = -2.f;
+        int bestScale = -1, bestRoot = 0;
+        bool bestMinor = false;
+        for (int root = 0; root < 12; ++root) {
+            for (int m = 0; m < 2; ++m) {
+                const int sc = applyScaleForKey(scaleIdx, m != 0);
+                const int rt = applyRootForScale(root, m != 0, sc);
+                bool seen = false;
+                for (int j = 0; j < n; ++j)
+                    if (out[j].scaleIdx == sc && out[j].rootPc == rt) seen = true;
+                if (seen) continue;
+                const float r =
+                    keyScore(g.chroma, m ? kProfMinor : kProfMajor, root);
+                if (r > bestR) {
+                    bestR = r;
+                    bestScale = sc;
+                    bestRoot = rt;
+                    bestMinor = m != 0;
+                }
+            }
+        }
+        if (bestScale < 0) break;
+        ListenApply a = primary;
+        a.scaleIdx = bestScale;
+        a.rootPc = bestRoot;
+        a.mode = bestMinor ? (uint8_t)LM_AEO : (uint8_t)LM_ION;
+        a.modal = false;
+        a.safe = false;
+        out[n++] = a;
+    }
     return n;
 }
 
