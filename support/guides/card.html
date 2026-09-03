@@ -1,0 +1,442 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 -->
+<!-- Copyright (C) 2026 Charles Tobin (CHARL3X) -->
+<!-- Owner's Card - the one-sheet that goes in the box. Source for
+     docs/guides/GLIDE-Card.pdf; render it with support/guides/build.py (see
+     that file). LOGO_B64 and the fonts/ paths are placeholders the build
+     script fills in. The <style> block is lifted verbatim from playing.html
+     plus a card tail - the sheets in the box must not drift. The QR tiles were
+     cut by support/guides/qr.py; re-cut them there, never hand-edit a path.
+     It has to stay ONE page: check the render, don't trust the source. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GLIDE - the card</title>
+<style> block
+     is lifted verbatim from updating.html plus a No. 02 tail - the two sheets
+     go in the same box and must not drift. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Playing GLIDE</title>
+<style>
+@font-face { font-family:'Inter'; src:url('fonts/Inter-400.ttf'); font-weight:400; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-600.ttf'); font-weight:600; }
+@font-face { font-family:'Inter'; src:url('fonts/Inter-700.ttf'); font-weight:700; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-400.ttf'); font-weight:400; }
+@font-face { font-family:'JBMono'; src:url('fonts/JetBrainsMono-700.ttf'); font-weight:700; }
+
+:root{
+  --paper:#F6F2EA;      /* warm ground, a lighter drafting bg */
+  --panelfill:#E7E0D5;  /* drafting panel */
+  --rule:#C3BAAC;       /* drafting line */
+  --ink:#181818;        /* drafting primary */
+  --ink-soft:#5C584E;
+  --ink-faint:#8B897B;  /* drafting dim */
+  --amber:#C67A00;      /* the annunciator, darkened for paper */
+  --amber-bright:#FFAE00;
+  --phosphor:#00FF00;
+  --phosphor-dim:#007D00;
+  --steel:#4A6D8B;
+  --red:#B42010;
+  --black:#000000;
+  --screen:#0A0C0A;
+}
+
+@page { size: letter; margin: 0; }
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:var(--paper); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:10.4pt; line-height:1.5;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+.page{ width:8.5in; height:11in; padding:0.62in 0.72in 0.5in;
+  position:relative; page-break-after:always; overflow:hidden;
+  display:flex; flex-direction:column; }
+.page:last-child{ page-break-after:auto; }
+
+/* ---------- running furniture ---------- */
+.runhead{ display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'JBMono',monospace; font-size:7pt; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-faint);
+  border-bottom:1px solid var(--rule); padding-bottom:6px; margin-bottom:22px; }
+.runhead .lit{ color:var(--amber); }
+.foot{ margin-top:auto; padding-top:9px; border-top:1px solid var(--rule);
+  display:flex; justify-content:space-between;
+  font-family:'JBMono',monospace; font-size:7.3pt; letter-spacing:.1em;
+  color:#6E695D; text-transform:uppercase; }
+
+/* ---------- cover ---------- */
+.masthead{ background:var(--black); margin:-0.62in -0.72in 0 -0.72in;
+  padding:0.40in 0.72in 0.34in; position:relative; }
+.masthead::after{ content:''; position:absolute; left:0; right:0; bottom:0;
+  height:3px; background:linear-gradient(90deg,var(--amber-bright) 0%,var(--amber-bright) 22%,var(--phosphor-dim) 22%,var(--phosphor-dim) 30%,#000 30%); }
+.masthead img{ width:2.15in; display:block; }
+.masthead .kicker{ font-family:'JBMono',monospace; font-size:7.5pt;
+  letter-spacing:.34em; text-transform:uppercase; color:var(--phosphor);
+  margin-top:12px; }
+h1{ font-size:27pt; line-height:1.04; font-weight:700; letter-spacing:-.022em;
+  color:#FFFFFF; margin-top:8px; }
+.masthead .sub{ color:#B9B4A8; font-size:10.6pt; margin-top:9px; max-width:5.1in;
+  line-height:1.45; }
+
+.leadgrid{ display:flex; gap:0.34in; margin-top:15px; }
+.leadgrid > div{ flex:1; }
+.sechead{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:9px;
+  padding-bottom:5px; border-bottom:1px solid var(--rule); }
+ul.tick{ list-style:none; }
+ul.tick li{ position:relative; padding-left:15px; margin-bottom:5px; font-size:9.6pt;
+  color:var(--ink-soft); }
+ul.tick li::before{ content:''; position:absolute; left:0; top:.52em;
+  width:5px; height:5px; background:var(--amber); }
+ul.tick li b{ color:var(--ink); font-weight:600; }
+
+.assure{ margin-top:13px; background:var(--panelfill); border-left:3px solid var(--phosphor-dim);
+  padding:11px 15px; }
+.assure h3{ font-size:10.5pt; font-weight:700; margin-bottom:5px; }
+.assure p{ font-size:9.6pt; color:var(--ink-soft); }
+
+/* ---------- the power band (cover) ---------- */
+.powerband{ margin-top:13px; background:var(--black); color:#E9E4D8;
+  padding:11px 16px 12px; border-left:5px solid var(--red);
+  display:flex; gap:17px; align-items:flex-start; }
+.powerband .pbtag{ flex:0 0 0.9in; font-family:'JBMono',monospace; font-size:7pt;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--red);
+  padding-top:4px; line-height:1.35; }
+.powerband .pbbig{ font-size:13.4pt; font-weight:700; color:#FFFFFF; line-height:1.18; }
+.powerband .pbbig em{ font-style:normal; color:var(--amber-bright); }
+.powerband .pbsub{ font-size:9.2pt; color:#B4AFA3; margin-top:6px; line-height:1.45; }
+
+/* ---------- a menu path, when a real screenshot isn't at hand ---------- */
+.path{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:11px;
+  font-family:'JBMono',monospace; font-size:8.1pt; }
+.path span{ background:var(--panelfill); border:1px solid var(--rule);
+  padding:4px 8px; color:var(--ink-soft); }
+.path span + span::before{ content:'\2192'; color:var(--amber);
+  margin-right:8px; margin-left:-2px; }
+.path .end{ background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700; }
+
+/* ---------- the two triggers, side by side ---------- */
+.edgekey{ display:flex; gap:0.3in; margin-top:11px; }
+.edgekey > div{ flex:1; }
+.edgekey .lbl{ font-family:'JBMono',monospace; font-size:7.4pt; letter-spacing:.14em;
+  text-transform:uppercase; margin-bottom:4px; }
+.edgekey .lbl.l{ color:var(--red); }
+.edgekey .lbl.r{ color:var(--steel); }
+.edgekey p{ font-size:9.4pt; color:var(--ink-soft); line-height:1.44; }
+
+/* ---------- the map ---------- */
+.maphead{ margin-top:13px; }
+.map{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:10px; }
+.mapcell{ border:1px solid var(--rule); background:#FFFFFF88; padding:6px 9px; }
+.mapcell .n{ font-family:'JBMono',monospace; font-size:7.5pt; color:var(--amber);
+  font-weight:700; letter-spacing:.1em; }
+.mapcell .t{ font-size:9pt; line-height:1.32; margin-top:3px; }
+.mapcell.part2{ border-color:var(--steel); }
+.mapcell.part2 .n{ color:var(--steel); }
+
+/* ---------- steps ---------- */
+.partbar{ display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+.partbar .tag{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.2em;
+  text-transform:uppercase; color:#fff; background:var(--ink); padding:4px 9px; }
+.partbar h2{ font-size:16.5pt; font-weight:700; letter-spacing:-.015em; }
+.partbar .note{ margin-left:auto; font-family:'JBMono',monospace; font-size:7.5pt;
+  color:var(--ink-faint); letter-spacing:.08em; }
+
+.step{ display:flex; gap:16px; margin-bottom:17px; page-break-inside:avoid; }
+.step .num{ flex:0 0 30px; height:30px; border:1.6px solid var(--ink);
+  font-family:'JBMono',monospace; font-weight:700; font-size:12pt;
+  display:flex; align-items:center; justify-content:center; }
+.step .body{ flex:1; }
+.step h3{ font-size:11.4pt; font-weight:600; line-height:1.3; margin-bottom:3px; }
+.step p{ font-size:9.7pt; color:var(--ink-soft); }
+.step p + p{ margin-top:5px; }
+.step .why{ font-size:9pt; color:var(--ink-faint); font-style:italic; margin-top:4px; }
+kbd{ font-family:'JBMono',monospace; font-size:9.4pt; font-weight:700; background:var(--ink);
+  color:#fff; padding:1px 7px; border-radius:2px; }
+code{ font-family:'JBMono',monospace; font-size:9pt; background:var(--panelfill);
+  padding:1px 5px; color:var(--ink); }
+.url{ font-family:'JBMono',monospace; font-size:8.5pt; color:var(--ink);
+  background:var(--panelfill); border-left:2px solid var(--amber);
+  padding:7px 10px; margin-top:7px; word-break:break-all; line-height:1.4; }
+
+/* ---------- device screen mockups ---------- */
+.screen{ background:var(--screen); border:1px solid #000; padding:9px 11px;
+  font-family:'JBMono',monospace; font-size:8pt; line-height:1.55; color:#EEE;
+  margin-top:9px; position:relative; }
+.screen .bar{ color:var(--amber-bright); border-bottom:1px solid #2A2A2A;
+  padding-bottom:4px; margin-bottom:5px; display:flex; justify-content:space-between;
+  font-size:7.4pt; letter-spacing:.08em; }
+.screen .row{ color:#8A8A8A; }
+.screen .row.sel{ color:var(--screen); background:var(--phosphor); font-weight:700;
+  padding:0 4px; margin:0 -4px; }
+.screen .row.act{ color:var(--phosphor); }
+.screen .cap{ color:#6A696A; font-size:7pt; margin-top:6px; letter-spacing:.06em; }
+.caption{ font-family:'JBMono',monospace; font-size:7pt; color:var(--ink-faint);
+  letter-spacing:.1em; text-transform:uppercase; margin-top:5px; }
+
+/* the real Launcher UI (drawn from Launcher 2.7.2) */
+.lsc{ background:#000000; border:1px solid #2A2A2A; padding:7px 9px 6px; max-width:4.15in;
+  font-family:'JBMono',monospace; color:#DDE4F2; margin-top:9px; }
+.lsc .lbar{ display:flex; justify-content:space-between; align-items:center;
+  font-size:6.6pt; color:#9AA3B8; letter-spacing:.02em; }
+.lsc .batt{ display:inline-block; width:13px; height:7px; border:1px solid #9AA3B8;
+  margin-left:4px; position:relative; vertical-align:-1px; }
+.lsc .batt i{ position:absolute; left:1px; top:1px; bottom:1px; width:32%;
+  background:#DDE4F2; }
+.lsc .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin:7px 0 6px; }
+.lsc .tile{ border:1.3px solid #DDE4F2; border-radius:5px; text-align:center;
+  padding:3.5px 0 4px; font-size:8.4pt; letter-spacing:.02em; }
+.lsc .tile.sel{ background:#EDF2FB; color:#000000; border-color:#FFFFFF; font-weight:700; }
+.lsc .tile.app{ border-color:#FF6A45; color:#FF6A45; grid-column:2; }
+.lsc .tile.app.sel{ background:#FF6A45; color:#000000; border-color:#FFD2C4; }
+.lsc .hint{ text-align:center; font-size:6.6pt; color:#9AA3B8; }
+
+/* GLIDE's own splash: white line-art on black, dim stamps */
+.gsplash{ background:#000; padding:6px 9px 4px; margin-top:9px; position:relative;
+  font-family:'JBMono',monospace; }
+.gsplash .ver{ position:absolute; top:5px; right:9px; font-size:6.6pt; color:#6A696A; }
+.gsplash img{ display:block; width:50%; margin:3px auto 3px; }
+.gsplash .credit{ text-align:center; font-size:6.2pt; color:#6A696A; }
+
+.twocol{ display:flex; gap:0.3in; }
+.twocol > *{ flex:1; }
+
+/* ---------- callouts ---------- */
+.call{ border:1px solid var(--rule); border-left:3px solid var(--amber);
+  background:#FFFFFF88; padding:10px 14px; margin:13px 0; }
+.call.warn{ border-left-color:var(--red); }
+.call.info{ border-left-color:var(--steel); }
+.call h4{ font-family:'JBMono',monospace; font-size:7.5pt; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--amber); margin-bottom:5px; }
+.call.warn h4{ color:var(--red); }
+.call.info h4{ color:var(--steel); }
+.call p{ font-size:9.4pt; color:var(--ink-soft); }
+
+/* ---------- troubleshooting ---------- */
+.tr{ border-top:1px solid var(--rule); padding:2.8px 0; page-break-inside:avoid; }
+.tr h4{ font-size:9.8pt; font-weight:600; margin-bottom:2px; }
+.tr h4::before{ content:'▸ '; color:var(--amber); }
+.tr p{ font-size:9.1pt; line-height:1.42; color:var(--ink-soft); }
+
+.closing{ margin-top:11px; background:var(--black); color:#CFCABF;
+  padding:12px 16px; display:flex; gap:16px; align-items:center; }
+.closing .words{ flex:1; }
+.closing h3{ color:#fff; font-size:11.8pt; font-weight:700; margin-bottom:6px; }
+.closing p{ font-size:9.3pt; line-height:1.45; }
+.closing .lit{ color:var(--phosphor); font-family:'JBMono',monospace; font-size:9pt; }
+.closing a{ color:var(--amber-bright); text-decoration:none; }
+/* the QR is the repo URL below it, as a picture — white tile so scanners get
+   their dark-on-light modules and quiet zone even on this black band */
+.closing .qrtile{ flex:0 0 auto; background:#fff; padding:7px; }
+.closing .qrtile svg{ display:block; width:0.76in; height:0.76in; }
+.closing .qrpair{ flex:0 0 auto; display:flex; gap:11px; }
+.closing .qrcap{ font-family:'JBMono',monospace; font-size:6.4pt; color:#6A696A;
+  letter-spacing:.14em; text-transform:uppercase; text-align:center; margin-top:5px; }
+
+/* ---------- No. 02: the string rows ---------- */
+.rows{ margin-top:12px; }
+.row2{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.row2 .tagl{ flex:0 0 1.15in; font-family:'JBMono',monospace; font-size:7.4pt;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); text-align:right; }
+.row2 .keys{ display:flex; gap:4px; }
+.row2 .keys span{ width:0.25in; height:0.25in; border:1px solid var(--rule);
+  background:#FFFFFF88; font-family:'JBMono',monospace; font-size:8.6pt;
+  display:flex; align-items:center; justify-content:center; color:var(--ink); }
+.row2.hi .keys span{ border-color:var(--phosphor-dim); }
+.row2.jam .keys span{ border-color:var(--amber); color:var(--amber); }
+.row2 .aside{ font-size:8.6pt; color:var(--ink-faint); font-family:'JBMono',monospace;
+  letter-spacing:.06em; }
+
+/* ---------- No. 02: a gesture, drawn as a sentence ---------- */
+.ges{ border:1px solid var(--rule); border-left:3px solid var(--phosphor-dim);
+  background:#FFFFFF88; padding:10px 14px; margin-bottom:10px; }
+.ges h4{ font-size:10.6pt; font-weight:700; margin-bottom:3px; }
+.ges p{ font-size:9.4pt; color:var(--ink-soft); line-height:1.45; }
+.ges .keysline{ font-family:'JBMono',monospace; font-size:8pt; color:var(--amber);
+  letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; }
+
+/* ---------- No. 02: two-up reference table ---------- */
+.ref{ width:100%; border-collapse:collapse; margin-top:9px; }
+.ref td{ padding:2.9px 0; border-top:1px solid var(--rule); vertical-align:top;
+  font-size:9.3pt; color:var(--ink-soft); }
+.ref td.k{ width:1.5in; font-family:'JBMono',monospace; font-size:8.6pt;
+  color:var(--ink); padding-right:9px; }
+.ref tr:first-child td{ border-top:none; }
+
+/* ---------- the card: one sheet, so every block is tighter ---------- */
+.page.card{ padding:0.46in 0.6in 0.30in; }
+.card .masthead{ margin:-0.46in -0.6in 0 -0.6in; padding:0.16in 0.6in 0.15in; }
+.card .masthead img{ width:1.04in; }
+.card .masthead .kicker{ margin-top:6px; font-size:6.8pt; letter-spacing:.3em; }
+.card h1{ font-size:16.5pt; margin-top:3px; }
+.card .masthead .sub{ font-size:9pt; margin-top:4px; max-width:6.4in; line-height:1.36; }
+
+.card .powerband{ margin-top:8px; padding:7px 14px 8px; gap:13px; }
+.card .powerband .pbtag{ flex:0 0 0.74in; font-size:6.4pt; padding-top:3px; }
+.card .powerband .pbbig{ font-size:11.4pt; }
+.card .powerband .pbsub{ font-size:8.4pt; margin-top:4px; line-height:1.38; }
+
+.card .sechead{ margin-bottom:6px; padding-bottom:4px; font-size:7.2pt; }
+
+/* the string rows, shrunk to leave room for the rest of the sheet */
+.card .rows{ margin-top:9px; }
+.card .row2{ gap:8px; margin-bottom:3px; }
+.card .row2 .tagl{ flex:0 0 0.94in; font-size:6.6pt; }
+.card .row2 .keys{ gap:3px; }
+.card .row2 .keys span{ width:0.18in; height:0.18in; font-size:7pt; }
+.card .row2 .aside{ font-size:7.4pt; }
+.card .rowsnote{ font-size:8.4pt; color:var(--ink-soft); margin-top:5px;
+  padding-left:1.02in; line-height:1.38; }
+
+.card .cols{ display:flex; gap:0.26in; margin-top:8px; }
+.card .cols .left{ flex:0 0 3.36in; }
+.card .cols .right{ flex:1; }
+
+.card .ges{ padding:6px 10px; margin-bottom:4px; }
+.card .ges h4{ font-size:9.6pt; margin-bottom:2px; }
+.card .ges p{ font-size:8.2pt; line-height:1.33; }
+.card .ges .keysline{ font-size:7pt; margin-bottom:2px; letter-spacing:.08em; }
+
+.card .ref td{ padding:1.8px 0; font-size:8.4pt; }
+.card .ref td.k{ width:1.26in; font-size:7.9pt; padding-right:8px; }
+
+.card .map{ margin-top:7px; gap:7px; grid-template-columns:repeat(4,1fr); }
+.card .mapcell{ padding:5px 8px; }
+.card .mapcell .n{ font-size:6.9pt; }
+.card .mapcell .t{ font-size:7.5pt; line-height:1.3; margin-top:2px; }
+.card .mapcell .t b{ font-weight:600; }
+
+.card .closing{ margin-top:7px; padding:8px 13px; gap:13px; }
+.card .closing h3{ font-size:10.6pt; margin-bottom:4px; }
+.card .closing p{ font-size:8.2pt; line-height:1.38; }
+.card .closing .words{ display:flex; flex-direction:column; justify-content:center; }
+.card .closing .qrpair{ gap:9px; }
+.card .closing .qrtile{ padding:5px; }
+.card .closing .qrtile svg{ width:0.70in; height:0.70in; }
+.card .closing .qrcap{ font-size:5.9pt; margin-top:4px; letter-spacing:.1em; }
+.card .closing .qrone{ flex:0 0 auto; }
+.card .closing .byline{ font-family:'JBMono',monospace; font-size:6.4pt;
+  letter-spacing:.13em; text-transform:uppercase; color:#8C8779; margin-top:6px; }
+</style>
+</head>
+<body>
+
+<section class="page card">
+  <div class="masthead">
+    <img src="data:image/png;base64,LOGO_B64" alt="GLIDE">
+    <div class="kicker">Owner's card &middot; start here</div>
+    <h1>The whole instrument, on one sheet</h1>
+    <p class="sub">Four rows of keys, played like four strings. The two full guides are a scan away below.</p>
+  </div>
+
+  <div class="powerband">
+    <div class="pbtag">Read this<br>first</div>
+    <div>
+      <div class="pbbig">To charge it, the side switch must be <em>ON</em>.</div>
+      <div class="pbsub">Plug in a switched-off Cardputer and nothing happens &mdash; no light, no charge, and it looks broken. It isn't. Switch it on first, then plug in. The left top trigger, <b>BTN RST</b>, restarts the device and loses nothing.</div>
+    </div>
+  </div>
+
+  <div class="rows">
+    <div class="sechead">The four rows are four strings</div>
+    <div class="row2 hi"><div class="tagl">string 3 &middot; high</div><div class="keys"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></div></div>
+    <div class="row2"><div class="tagl">string 2</div><div class="keys"><span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span></div></div>
+    <div class="row2"><div class="tagl">string 1</div><div class="keys"><span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span><span>j</span><span>k</span><span>l</span><span>;</span></div></div>
+    <div class="row2 jam"><div class="tagl">string 0 &middot; low</div><div class="keys"><span>z</span><span>x</span><span>c</span><span>v</span><span>b</span><span>n</span><span>m</span><span>,</span><span>.</span><span>/</span></div><div class="aside">&larr; the backing row</div></div>
+    <p class="rowsnote">Left to right walks up the scale, and every key is a note of it &mdash; A minor pentatonic out of the box &mdash; so there are no dead keys and nothing to avoid. Each row behaves like a string: one voice, gliding between whatever you press on it.</p>
+  </div>
+
+  <div class="cols">
+    <div class="left">
+      <div class="sechead">The sliding is the instrument</div>
+
+      <div class="ges">
+        <div class="keysline">hold one key &middot; press another on the same row</div>
+        <h4>Hammer-on</h4>
+        <p>The voice <b>glides</b> to the new note instead of restarting. No new attack, no click &mdash; one continuous line, like sliding a finger up a string.</p>
+      </div>
+
+      <div class="ges">
+        <div class="keysline">then let the second one go</div>
+        <h4>Pull-off</h4>
+        <p>It glides back down to the key you're still holding. Together they give you trills, grace notes, and the scoops that make a line sound played rather than typed.</p>
+      </div>
+
+      <div class="ges">
+        <div class="keysline">hold a shape across rows &middot; re-finger it elsewhere</div>
+        <h4>Slide a chord &mdash; this is the thing</h4>
+        <p>Hold two or three keys across different rows, then move that shape while the old notes still ring. Every voice glides to its new home at once &mdash; the gesture no keyboard can make, and why the instrument exists.</p>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="sechead">Everything else, at a glance</div>
+      <table class="ref">
+        <tr><td class="k">shift <i>(hold)</i></td><td>the notes between &mdash; off-scale semitones, only while held</td></tr>
+        <tr><td class="k">- / =</td><td>octave down / up</td></tr>
+        <tr><td class="k">[ / ]</td><td>bend down / up</td></tr>
+        <tr><td class="k">space</td><td>sustain</td></tr>
+        <tr><td class="k">bksp</td><td>panic &mdash; silences everything</td></tr>
+        <tr><td class="k">fn + q..p</td><td>switch between the ten sounds, live</td></tr>
+        <tr><td class="k">fn + shift + q..p</td><td>save the live sound over that slot</td></tr>
+        <tr><td class="k">alt</td><td>the loop pedal (left thumb)</td></tr>
+        <tr><td class="k">fn + k</td><td>listen &mdash; retune to the song in the room</td></tr>
+        <tr><td class="k">enter</td><td>tilt on / off &mdash; never pitch bend</td></tr>
+        <tr><td class="k">tab</td><td>settings &mdash; and a full help screen</td></tr>
+        <tr><td class="k">ctrl / opt</td><td>volume down / up</td></tr>
+        <tr><td class="k">`</td><td>back out to the splash</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="map">
+    <div class="mapcell">
+      <div class="n">The sounds are yours</div>
+      <div class="t">Ten sit on <b>fn</b>+<b>q</b>..<b>p</b>. The last two were rolled from a seed made on your device's first boot &mdash; no other unit on Earth has them. <b>tab</b> &rarr; <b>Randomize</b> rolls more.</div>
+    </div>
+    <div class="mapcell">
+      <div class="n">One hand backs, one solos</div>
+      <div class="t">The bottom row latches: tap a key and it drones an octave down, hands-free. <b>alt</b> is the loop pedal, recording the performance &mdash; so a new sound re-voices the loop.</div>
+    </div>
+    <div class="mapcell">
+      <div class="n">What the screen says</div>
+      <div class="t">The waveform is the real output. Top left the sound's name, top middle the key and scale, then <b>OCT</b>, <b>vox</b> the voices sounding, <b>*</b> unsaved edits.</div>
+    </div>
+    <div class="mapcell part2">
+      <div class="n">Nothing you make is at risk</div>
+      <div class="t">Slots, settings and card files live outside the program, so a new GLIDE cannot touch them. The whole manual is on the device: <b>tab</b> &rarr; <b>help</b>.</div>
+    </div>
+  </div>
+
+  <div class="closing">
+    <div class="words">
+      <h3>The two full guides &mdash; scan, don't type</h3>
+      <p>Everything on this card in depth, plus the ten-minute update walkthrough and what to do when something looks wrong. The Discord is where players post the sounds their device gave them.</p>
+      <p style="margin-top:5px"><a>github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV</a></p>
+      <p class="byline">GLIDE &middot; a pocket synth by CHARL3X &middot; one sheet, no stapling</p>
+    </div>
+    <div class="qrpair">
+      <div class="qrone">
+        <!-- QR = https://cdn.shopify.com/s/files/1/0998/9868/7777/files/GLIDE-Updating.pdf  (cut by support/guides/qr.py) -->
+        <div class="qrtile"><svg viewBox="0 0 37 37" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m3 0h1m4 0h1m1 0h1m3 0h1m1 0h1m3 0h2m1 0h7m-37 1h1m5 0h1m5 0h1m1 0h4m2 0h1m6 0h2m1 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h2m4 0h2m1 0h1m2 0h1m2 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m3 0h3m1 0h3m4 0h1m1 0h2m1 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m3 0h2m1 0h1m3 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m1 0h1m1 0h6m1 0h1m2 0h1m1 0h1m3 0h3m1 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-29 1h2m6 0h3m2 0h1m1 0h1m4 0h1m-29 1h1m1 0h5m4 0h2m1 0h3m5 0h3m1 0h1m3 0h5m-35 1h2m1 0h1m1 0h1m1 0h1m3 0h3m1 0h1m2 0h1m1 0h1m2 0h1m1 0h1m1 0h2m2 0h1m3 0h1m-33 1h1m1 0h4m2 0h1m2 0h3m1 0h2m2 0h1m1 0h1m2 0h1m2 0h2m2 0h3m-33 1h2m3 0h1m1 0h2m1 0h2m2 0h5m3 0h4m2 0h2m2 0h1m-37 1h1m2 0h1m2 0h3m2 0h2m2 0h6m1 0h1m1 0h3m2 0h2m1 0h1m1 0h3m-36 1h1m1 0h2m3 0h2m1 0h1m1 0h1m5 0h1m1 0h1m1 0h2m3 0h1m2 0h1m3 0h1m-36 1h1m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m2 0h2m2 0h1m1 0h1m1 0h1m3 0h2m1 0h1m1 0h3m2 0h1m-37 1h1m2 0h1m1 0h1m1 0h9m3 0h4m3 0h2m2 0h3m2 0h1m-36 1h4m2 0h2m2 0h1m1 0h2m4 0h2m3 0h1m1 0h1m3 0h2m1 0h1m1 0h2m-36 1h5m2 0h1m1 0h2m2 0h1m1 0h3m3 0h1m1 0h1m3 0h2m2 0h1m3 0h1m-36 1h3m3 0h1m1 0h2m1 0h2m1 0h1m3 0h1m3 0h1m2 0h6m1 0h1m1 0h3m-37 1h1m1 0h2m7 0h2m1 0h1m1 0h1m4 0h1m2 0h1m3 0h1m1 0h2m1 0h1m2 0h1m-32 1h3m6 0h1m1 0h3m3 0h1m1 0h4m1 0h2m1 0h1m1 0h1m-35 1h1m3 0h2m4 0h1m2 0h1m3 0h1m1 0h1m3 0h1m1 0h2m1 0h1m4 0h1m-34 1h1m1 0h3m1 0h1m3 0h8m2 0h1m1 0h1m3 0h8m2 0h1m-37 1h2m3 0h1m5 0h5m1 0h3m1 0h1m1 0h1m2 0h1m2 0h4m3 0h1m-37 1h2m1 0h1m2 0h1m1 0h2m3 0h2m1 0h1m5 0h3m1 0h2m1 0h2m1 0h1m1 0h1m-35 1h3m2 0h1m4 0h1m1 0h4m1 0h2m3 0h2m1 0h5m1 0h1m-32 1h1m1 0h1m1 0h4m1 0h1m1 0h3m1 0h2m1 0h1m2 0h1m2 0h1m2 0h3m1 0h2m1 0h3m-37 1h1m3 0h1m2 0h1m3 0h2m1 0h2m3 0h4m3 0h1m1 0h1m2 0h3m1 0h2m-37 1h1m1 0h1m3 0h1m1 0h4m2 0h5m1 0h1m1 0h1m1 0h2m2 0h5m1 0h1m-27 1h1m1 0h2m1 0h2m4 0h3m1 0h1m4 0h1m3 0h2m1 0h1m-36 1h7m2 0h1m2 0h1m2 0h2m1 0h1m1 0h2m4 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m-37 1h1m5 0h1m1 0h1m3 0h1m3 0h1m3 0h2m1 0h2m1 0h1m1 0h1m3 0h2m-34 1h1m1 0h3m1 0h1m1 0h3m7 0h1m3 0h1m1 0h9m1 0h3m-37 1h1m1 0h3m1 0h1m1 0h1m4 0h5m1 0h2m2 0h1m1 0h4m1 0h1m1 0h1m3 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m4 0h2m3 0h1m2 0h2m1 0h3m1 0h1m5 0h3m-37 1h1m5 0h1m5 0h1m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m2 0h2m1 0h1m1 0h2m2 0h1m-37 1h7m1 0h2m7 0h2m3 0h1m1 0h4m1 0h1m2 0h5"/></svg></div>
+        <div class="qrcap">no. 01 &middot; updating</div>
+      </div>
+      <div class="qrone">
+        <!-- QR = https://cdn.shopify.com/s/files/1/0998/9868/7777/files/GLIDE-Playing.pdf  (cut by support/guides/qr.py) -->
+        <div class="qrtile"><svg viewBox="0 0 37 37" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m2 0h1m1 0h2m2 0h1m2 0h2m1 0h2m2 0h3m2 0h7m-37 1h1m5 0h1m1 0h7m1 0h2m1 0h1m1 0h1m2 0h1m3 0h1m1 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h2m2 0h2m1 0h1m3 0h5m3 0h1m2 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h7m1 0h1m1 0h1m2 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m2 0h2m1 0h3m4 0h1m1 0h1m1 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m2 0h3m4 0h1m1 0h1m1 0h3m3 0h1m1 0h1m1 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-29 1h1m7 0h1m5 0h2m3 0h2m-29 1h1m5 0h1m1 0h2m1 0h1m2 0h1m3 0h1m1 0h1m2 0h2m1 0h1m2 0h2m2 0h3m-36 1h3m1 0h1m2 0h1m4 0h1m7 0h4m1 0h2m4 0h5m-35 1h1m1 0h1m1 0h2m1 0h3m1 0h1m1 0h1m3 0h1m1 0h1m1 0h1m4 0h1m2 0h2m2 0h3m-35 1h1m2 0h1m1 0h1m2 0h2m3 0h2m1 0h1m3 0h1m1 0h1m1 0h1m1 0h2m2 0h1m3 0h1m-36 1h1m1 0h1m2 0h1m1 0h2m3 0h1m4 0h2m4 0h1m3 0h1m1 0h2m4 0h1m-37 1h5m2 0h1m3 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h2m2 0h1m1 0h1m1 0h1m-33 1h1m2 0h2m1 0h1m1 0h1m1 0h3m1 0h1m2 0h1m1 0h1m3 0h2m1 0h1m1 0h3m2 0h1m-36 1h3m3 0h1m4 0h1m1 0h1m1 0h4m2 0h1m5 0h1m1 0h2m1 0h3m-36 1h2m3 0h3m1 0h4m1 0h1m1 0h1m2 0h1m2 0h4m3 0h2m1 0h1m1 0h2m-36 1h3m2 0h1m3 0h4m4 0h2m1 0h1m1 0h2m4 0h1m2 0h1m1 0h1m1 0h1m-33 1h2m1 0h1m1 0h5m2 0h1m1 0h2m1 0h1m2 0h1m3 0h1m2 0h2m4 0h1m-36 1h3m5 0h3m7 0h2m3 0h1m2 0h2m1 0h2m4 0h1m-33 1h1m1 0h1m1 0h6m1 0h5m2 0h6m1 0h2m1 0h1m1 0h1m-35 1h2m6 0h5m2 0h2m2 0h2m1 0h2m1 0h1m1 0h1m4 0h1m1 0h1m-35 1h4m1 0h2m2 0h3m1 0h4m1 0h1m1 0h2m4 0h8m2 0h1m-33 1h1m2 0h3m1 0h1m2 0h1m4 0h1m3 0h1m2 0h2m1 0h5m2 0h1m-37 1h1m1 0h1m1 0h1m1 0h5m1 0h1m1 0h1m1 0h5m4 0h1m1 0h2m1 0h2m3 0h1m-36 1h1m6 0h2m4 0h2m1 0h2m3 0h1m1 0h1m1 0h2m1 0h2m1 0h1m1 0h1m-34 1h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h3m3 0h1m2 0h1m5 0h3m1 0h2m1 0h3m-37 1h1m1 0h2m1 0h1m3 0h1m1 0h1m3 0h1m4 0h1m3 0h1m2 0h1m3 0h1m2 0h1m1 0h1m-37 1h1m1 0h6m5 0h1m2 0h3m1 0h1m1 0h1m1 0h2m2 0h5m1 0h1m-27 1h3m4 0h1m1 0h1m1 0h2m2 0h1m3 0h2m3 0h1m2 0h1m-36 1h7m5 0h1m1 0h2m3 0h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h2m-37 1h1m5 0h1m3 0h3m2 0h4m1 0h1m2 0h2m2 0h2m3 0h1m-33 1h1m1 0h3m1 0h1m3 0h2m1 0h2m1 0h1m5 0h1m1 0h9m1 0h3m-37 1h1m1 0h3m1 0h1m3 0h2m1 0h1m2 0h3m1 0h4m1 0h2m3 0h1m2 0h2m1 0h1m-37 1h1m1 0h3m1 0h1m2 0h1m1 0h1m1 0h4m1 0h1m2 0h2m1 0h3m1 0h1m5 0h3m-37 1h1m5 0h1m2 0h3m1 0h1m4 0h3m7 0h1m1 0h1m1 0h1m3 0h1m-37 1h7m1 0h1m1 0h3m1 0h3m1 0h3m3 0h1m2 0h2m2 0h1m1 0h1m2 0h1"/></svg></div>
+        <div class="qrcap">no. 02 &middot; playing</div>
+      </div>
+      <div class="qrone">
+        <!-- QR = https://discord.gg/uRcuJGCeHG (permanent invite) -->
+        <div class="qrtile"><svg viewBox="0 0 29 29" shape-rendering="crispEdges"><path stroke="#000" d="M0 0.5h7m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m1 0h1m1 0h7m-29 1h1m5 0h1m2 0h1m1 0h4m2 0h2m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h1m1 0h2m3 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m3 0h1m1 0h2m3 0h1m2 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h4m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m1 0h2m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-13 1h1m1 0h1m-18 1h7m2 0h3m1 0h3m2 0h1m3 0h2m3 0h1m-28 1h1m1 0h1m1 0h1m2 0h3m2 0h1m1 0h1m2 0h3m1 0h4m2 0h1m-27 1h1m3 0h1m1 0h1m2 0h1m2 0h1m1 0h3m1 0h4m1 0h2m-24 1h1m1 0h1m4 0h1m2 0h2m1 0h1m2 0h1m1 0h2m1 0h1m2 0h1m-27 1h3m1 0h2m2 0h1m1 0h1m2 0h2m1 0h1m3 0h1m1 0h1m2 0h3m-29 1h2m2 0h1m2 0h2m1 0h2m1 0h1m2 0h1m1 0h5m1 0h2m1 0h2m-29 1h4m1 0h4m5 0h2m1 0h1m5 0h1m-24 1h2m3 0h1m2 0h4m2 0h1m5 0h1m3 0h2m2 0h1m-24 1h3m1 0h1m3 0h4m1 0h1m6 0h2m-27 1h2m1 0h3m3 0h3m1 0h1m1 0h1m1 0h2m1 0h2m1 0h6m-29 1h1m2 0h5m3 0h1m2 0h4m2 0h1m1 0h1m2 0h2m-27 1h1m3 0h2m2 0h3m2 0h3m3 0h2m1 0h1m1 0h2m-26 1h1m1 0h2m1 0h2m1 0h1m2 0h2m2 0h1m1 0h1m2 0h7m1 0h1m-21 1h2m3 0h1m6 0h1m3 0h2m1 0h2m-29 1h7m1 0h3m2 0h1m1 0h1m2 0h3m1 0h1m1 0h1m-25 1h1m5 0h1m1 0h1m1 0h4m1 0h2m1 0h3m3 0h2m1 0h2m-29 1h1m1 0h3m1 0h1m1 0h1m1 0h4m1 0h1m2 0h1m1 0h7m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h3m1 0h4m1 0h1m1 0h1m-26 1h1m1 0h3m1 0h1m1 0h1m2 0h1m5 0h9m1 0h1m-28 1h1m5 0h1m1 0h3m2 0h1m2 0h1m1 0h1m2 0h2m1 0h2m1 0h1m-28 1h7m3 0h1m2 0h1m3 0h1m1 0h1m1 0h2m1 0h2"/></svg></div>
+        <div class="qrcap">the discord</div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</body>
+</html>
