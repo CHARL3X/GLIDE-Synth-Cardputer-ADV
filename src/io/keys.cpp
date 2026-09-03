@@ -215,9 +215,11 @@ int gVolRepeatDir = 0;
 inline bool held(uint64_t mask, int cd) { return (mask >> cd) & 1ULL; }
 
 float pitchFor(const HeldNote& n) {
-    // drones sit an octave under the lead — bass-pad territory
-    return dsp::gridToMidi(store::get().layout, n.string, n.col, n.chromAtPress) -
-           (n.drone ? 12.f : 0.f);
+    // drones sit in the backing register (settings: Jam octave), not on the
+    // grid — the old fixed "octave under" was mud on the speaker
+    const dsp::Layout& lay = store::get().layout;
+    return dsp::gridToMidi(lay, n.string, n.col, n.chromAtPress) +
+           (n.drone ? dsp::backingShift(lay) : 0.f);
 }
 
 // ---- lane stack helpers ---------------------------------------------------
@@ -1382,6 +1384,27 @@ bool progActive() {
 int progLen() { return gProgLen; }
 int progIndex() { return gProgLen ? gProgIdx : -1; }
 bool progAppendStep(int string, int col, bool chrom) { return progAppend(string, col, chrom); }
+
+// Settings moved the Jam octave. The progression's frozen layout keeps the key
+// and octave it was built in but takes the new register at once, re-striking
+// the sounding chord so the change auditions from inside settings (the jam
+// keeps ticking there); latched drones glide to their new pitch. The lead
+// voices are untouched — this is the backing's knob, not the grid's.
+void backingRegisterChanged() {
+    gProgLayout.jamOctave = store::get().layout.jamOctave;
+    if (gProgSounding) strikeProgChord(gProgIdx);
+    for (int cd = 0; cd < 56; ++cd) {
+        HeldNote& n = gNotes[cd];
+        if (!n.drone || n.string < 0) continue;
+        n.pitch = pitchFor(n);
+        audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Retarget, (uint8_t)cd, 0xFF,
+                                              false, n.pitch));
+        if (n.droneVoicing > 0)
+            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Retarget,
+                                                  (uint8_t)(cd + kDroneStackOffset), 0xFF, false,
+                                                  n.pitch + n.droneVoicing));
+    }
+}
 
 void progStepName(int i, char* out, int cap) {
     if (cap <= 0) return;

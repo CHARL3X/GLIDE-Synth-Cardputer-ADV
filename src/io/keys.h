@@ -73,6 +73,9 @@ bool progActive();
 int progLen();
 int progIndex();
 bool progAppendStep(int string, int col, bool chrom);  // demo mode spells a bed
+// Settings changed layout.jamOctave (the backing register): re-voice the
+// sounding progression chord and glide latched drones, so it auditions live.
+void backingRegisterChanged();
 void progStepName(int i, char* out, int cap);
 // Roman numeral of step i (uppercase major, lowercase minor, ° dim, + aug),
 // against the progression's frozen layout. False = no diatonic degree.

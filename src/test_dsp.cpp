@@ -132,13 +132,45 @@ int main() {
     {
         float ch[3];
         // A min pent (default), lock on: triads come from the HARMONY PARENT
-        // (natural minor), an octave under. base = 12*(4+1)+9-12 = 57 (A3).
-        // deg 0 -> snap to minor degree 0 -> minor triad 0,3,7 = A3,C4,E4.
+        // (natural minor), in the backing register — jamOctave +1 by default,
+        // an octave OVER the grid. base = 12*(4+1)+9+12 = 81 (A5).
+        // deg 0 -> snap to minor degree 0 -> minor triad 0,3,7 = A5,C6,E6.
         const int nc = chordPitches(l, 0, 0, false, ch, 3);
         CHECK(nc == 3, "chord builds three tones");
-        CHECK(fabsf(ch[0] - 57.f) < 1e-4, "chord root = A3 (an octave under A4)");
-        CHECK(fabsf(ch[1] - 60.f) < 1e-4 && fabsf(ch[2] - 64.f) < 1e-4,
+        CHECK(fabsf(ch[0] - 81.f) < 1e-4, "chord root = A5 (the +1 jam octave over A4)");
+        CHECK(fabsf(ch[1] - 84.f) < 1e-4 && fabsf(ch[2] - 88.f) < 1e-4,
               "min pent backing = a real minor triad (not a quartal pile)");
+        // The backing register is a layout knob: -2..+2 octaves over the grid.
+        {
+            Layout lj = l;
+            CHECK(fabsf(backingShift(lj) - 12.f) < 1e-4, "default backing = +1 oct");
+            lj.jamOctave = -1;
+            chordPitches(lj, 0, 0, false, ch, 3);
+            CHECK(fabsf(ch[0] - 57.f) < 1e-4, "jam oct -1 = the old bass pad (A3)");
+            lj.jamOctave = 0;
+            chordPitches(lj, 0, 0, false, ch, 3);
+            CHECK(fabsf(ch[0] - 69.f) < 1e-4, "jam oct 0 = on the grid (A4)");
+            // Going LOW is never folded: a player who wants mud asked for mud.
+            lj.jamOctave = -2; lj.octave = 1;
+            CHECK(fabsf(backingShift(lj) + 24.f) < 1e-4, "jam oct -2 at oct 1 stays -2");
+            // The ceiling: the shift folds down an octave at a time until the
+            // grid's base note sits under C7, and never below -1 oct.
+            lj.jamOctave = 1; lj.octave = 5;   // base A5 (81) + 12 = 93 <= 96
+            CHECK(fabsf(backingShift(lj) - 12.f) < 1e-4, "oct 5 + 1: no fold");
+            lj.octave = 6;                     // base A6 (93) + 12 = 105 > 96
+            CHECK(fabsf(backingShift(lj)) < 1e-4, "oct 6 + 1 folds to the grid");
+            lj.octave = 7; lj.jamOctave = 2;   // base A7 (105): 129/117/105 all > 96
+            CHECK(fabsf(backingShift(lj) + 12.f) < 1e-4, "oct 7 + 2 folds to -1 and stops");
+            chordPitches(lj, 0, 0, false, ch, 3);
+            CHECK(ch[0] <= kBackingCeilMidi, "a folded chord roots under the ceiling");
+            // One fold per LAYOUT: every cell in a progression shares the
+            // register, so I-IV-V never inverts across the fold.
+            lj.octave = 6; lj.jamOctave = 1;
+            float lo[3], hi[3];
+            chordPitches(lj, 0, 0, false, lo, 3);
+            chordPitches(lj, 0, 9, false, hi, 3);
+            CHECK(hi[0] > lo[0], "far-right step still sits above the root step");
+        }
         CHECK(ch[1] > ch[0] && ch[2] > ch[1], "chord tones ascend");
         // chromatic fallback (lock off / shift) = power voicing root+5th+8ve
         chordPitches(l, 0, 0, true, ch, 3);

@@ -20,10 +20,36 @@ struct Layout {
                                   // so there's room to solo up over a backing)
     uint8_t rowIntervalSemis = 5; // string-to-string interval (a fourth)
     bool    scaleLock = true;
+    int8_t  jamOctave = 1;        // where the BACKING (jam-row drones and the
+                                  // progression's chords) sits, in octaves
+                                  // relative to the grid: -2..+2. +1 by
+                                  // default: an octave UNDER the grid (the old
+                                  // fixed voicing) was bass-pad territory on
+                                  // headphones and inaudible mud on the 1 W
+                                  // speaker whenever the solo rows were in a
+                                  // playable register — players were shifting
+                                  // up two octaves to tap chords, then back.
 };
 
 constexpr int kGridStrings = 4;
 constexpr int kGridCols = 10;
+
+// The backing register never turns into a dog whistle: if the grid's base
+// note plus the jam-octave shift would sit above this (C7), the shift folds
+// down an octave at a time (the tempo-synced delay's fold, applied to pitch).
+// One decision per LAYOUT, not per cell, so every chord in a progression
+// shares one register and I-IV-V never inverts across the fold.
+constexpr float kBackingCeilMidi = 96.f;
+
+// Semitone offset the backing adds to a grid pitch: 12 * jamOctave, folded
+// under the ceiling. Going LOW is never folded — a player who wants the
+// backing an octave or two under the grid asked for exactly that.
+inline float backingShift(const Layout& l) {
+    const float base = 12.f * (l.octave + 1) + l.rootSemis;  // string 0, col 0
+    float off = 12.f * l.jamOctave;
+    while (off > -12.f && base + off > kBackingCeilMidi) off -= 12.f;
+    return off;
+}
 
 // Row offset in *scale degrees*, derived from the semitone row interval so
 // "a fourth between strings" survives the degree mapping for any scale size
@@ -67,9 +93,9 @@ inline bool chromaticInScale(const Layout& l, int string, int col) {
 // while the solo keeps the literal scale: the blues ♭5 "blue note" stays a
 // melodic color over the chords and never lands as a chord tone (it snaps onto
 // the nearest harmony tone if you tap it as a step). Chromatic (lock off) falls
-// back to a power voicing (root, fifth, octave). Voiced one octave under the
-// grid pitch, like the drones — a low pad to solo over. Writes up to maxOut
-// fractional MIDI notes (root first) and returns the count.
+// back to a power voicing (root, fifth, octave). Voiced in the backing register
+// (backingShift: the jam octave over the grid, like the drones). Writes up to
+// maxOut fractional MIDI notes (root first) and returns the count.
 // The 0-based degree in the HARMONY PARENT scale that the chord at (string,
 // col) is rooted on — the Roman-numeral index (0 = I). Assumes scale lock and
 // no chromatic override; this is the tapped tone snapped onto the nearest
@@ -91,7 +117,7 @@ inline int chordDegree(const Layout& l, int string, int col) {
 inline int chordPitches(const Layout& l, int string, int col, bool chromatic,
                         float* out, int maxOut) {
     if (maxOut <= 0) return 0;
-    const float base = 12.f * (l.octave + 1) + l.rootSemis - 12.f;  // -1 oct: bass pad
+    const float base = 12.f * (l.octave + 1) + l.rootSemis + backingShift(l);
     int n = 0;
     if (l.scaleLock && !chromatic) {
         const Scale& sc = kScales[l.scaleIdx];

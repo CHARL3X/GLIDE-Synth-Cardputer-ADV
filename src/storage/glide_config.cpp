@@ -600,7 +600,8 @@ void removeLegacyLiveKeys() {
 // rigCollect() and rigApply() MUST walk the same fields in the same order —
 // and any change to that list BUMPS kRigVer, so a stale mirror is ignored
 // (defaults win), never misread.
-constexpr uint8_t kRigVer = 2;  // v2 appended themeLook (the custom palette)
+constexpr uint8_t kRigVer = 3;  // v2 appended themeLook (the custom palette);
+                                // v3 appended layout.jamOctave (backing register)
 constexpr int kRigMax = 48;
 uint32_t gRigStamp = 0;    // FNV of the last mirror landed (0 = never)
 bool gHealedAtBoot = false;
@@ -656,6 +657,7 @@ int rigCollect(int32_t* v) {
     v[n++] = c.morphMs;
     v[n++] = (int32_t)(c.synth.masterVol * 100);  // the player's volume
     v[n++] = c.metroVol;
+    v[n++] = c.layout.jamOctave;  // v3
     return n;  // <= kRigMax; kRigVer bumps if this list ever changes
 }
 
@@ -705,6 +707,7 @@ void rigApply(const int32_t* v, int n) {
     c.morphMs = (uint16_t)clampT<int>(v[i++], 0, 2000);
     c.synth.masterVol = clampT<int>(v[i++], 0, 100) / 100.f;
     c.metroVol = (uint8_t)clampT<int>(v[i++], 0, 100);
+    c.layout.jamOctave = (int8_t)clampT<int>(v[i++], -2, 2);  // v3
 }
 
 // Serialize the rig into buf; returns total length (0 if buf too small).
@@ -1177,6 +1180,8 @@ void begin() {
         gPrefs.putBool("oct3", true);
     }
     l.rowIntervalSemis = clampT<int>(gPrefs.getUChar("rowint", d.layout.rowIntervalSemis), 1, 12);
+    // backing register (absent key -> the +1 oct default: over the grid)
+    l.jamOctave = (int8_t)clampT<int>(gPrefs.getChar("jamoct", d.layout.jamOctave), -2, 2);
     // Scale lock is SESSION state, not config: ' un-locks for the moment, but
     // every boot starts locked (the default). Persisting it stranded players in
     // chromatic — one accidental ' and the instrument "sounded wrong" forever
@@ -1561,6 +1566,7 @@ void persistNow() {
     gPrefs.putUChar("scale", l.scaleIdx);
     gPrefs.putChar("oct", l.octave);
     gPrefs.putUChar("rowint", l.rowIntervalSemis);
+    gPrefs.putChar("jamoct", l.jamOctave);
     // scaleLock deliberately NOT persisted — session state, see begin()
 
     gPrefs.putBool("strmode", gCfg.stringMode);

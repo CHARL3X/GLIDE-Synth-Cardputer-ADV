@@ -133,6 +133,25 @@ void aDroneVoice(int d) {
     g.droneVoicing = (uint8_t)clampT((int)g.droneVoicing + d, 0, 2);
 }
 
+// Jam octave: where the backing (drones + progression chords) sits relative to
+// the grid. Honest about the ceiling fold: when the grid is so high that the
+// register folds down (dsp::backingShift), the row says so.
+void fJamOct(char* o, int c) {
+    static const char* kNames[5] = {"-2 oct (way under)", "-1 oct (under grid)",
+                                    "0 (with the grid)", "+1 oct (over grid)",
+                                    "+2 oct (way over)"};
+    const auto& l = store::get().layout;
+    const int v = clampT((int)l.jamOctave, -2, 2);
+    const int got = (int)(dsp::backingShift(l) / 12.f);
+    if (got != v) snprintf(o, c, "%+d oct (folds to %+d)", v, got);
+    else snprintf(o, c, "%s", kNames[v + 2]);
+}
+void aJamOct(int d) {
+    auto& l = store::get().layout;
+    l.jamOctave = (int8_t)clampT((int)l.jamOctave + d, -2, 2);
+    keys::backingRegisterChanged();  // hear it now, not on the next bar
+}
+
 void fJamMotion(char* o, int c) {
     static const char* kNames[4] = {"sustained", "pulse", "arp", "progression"};
     const uint8_t m = store::get().jamMotion;
@@ -990,6 +1009,7 @@ const Item kItems[] = {
     {"JAM / BACKING", nullptr, nullptr},
     {"Jam rows (drones)", fJamRows, aJamRows},
     {"Drone voicing", fDroneVoice, aDroneVoice},
+    {"Jam octave", fJamOct, aJamOct},
     {"Jam motion", fJamMotion, aJamMotion},
     {"Jam tempo", fJamBpm, aJamBpm, true, gJamBpmF},
     {"Tap tempo", fTapTempo, aTapTempo},

@@ -95,8 +95,9 @@ struct GlideConfig {
     bool tiltLock = true;
     uint8_t currentPatch = 0; // active sound slot (fn+q..p)
     uint8_t jamRows = 1;      // 0=off, 1..2 bottom rows become tap-to-latch
-                              // drones (-1 oct): the layering jam — backing
-                              // rings underneath while you solo above. On by
+                              // drones (voiced in the backing register,
+                              // layout.jamOctave): the layering jam — backing
+                              // rings while you solo on the rows above. On by
                               // default (bottom row) so the backing is ready.
     uint8_t droneVoicing = 2; // 0=single note, 1=+octave, 2=+fifth (power
                               // chord) — one drone key voices a fuller backing

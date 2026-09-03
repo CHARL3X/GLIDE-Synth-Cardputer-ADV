@@ -73,11 +73,16 @@ void start(uint32_t nowMs) {
         store::unlockBacking();  // a stale solo/backing split would trap the
                                  // bed on its frozen sound — Organ must land
         store::applyPatch(kBedSlot);         // nothing sounds yet — no lock
-        const int8_t keepOct = g.layout.octave;
-        g.layout.octave = 4;                 // bed = this minus an octave: audible
+        // The bed is pinned to an A3 root (octave 4, backing an octave under)
+        // whatever the player's octave or Jam octave: the register this Organ
+        // was tuned for. The progression freezes its layout on the first step.
+        const int8_t keepOct = g.layout.octave, keepJam = g.layout.jamOctave;
+        g.layout.octave = 4;
+        g.layout.jamOctave = -1;
         static const int kCols[8] = {0, 0, 3, 3, 4, 4, 3, 3};  // I-IV-V-IV, pulsed
         for (int i = 0; i < 8; ++i) keys::progAppendStep(0, kCols[i], false);
         g.layout.octave = keepOct;           // the player's register, untouched
+        g.layout.jamOctave = keepJam;
     }
     // (an existing player-built progression is reused as-is — their bed,
     // their sound, their tempo; the demo just solos over it)
