@@ -108,7 +108,8 @@ The gyro debate, resolved as agreed, then promoted, because in practice it's fan
 
 The brainstorm's "one hand plays the backing, the other solos over it," solved the way continuous-pitch instruments always have: with **drones** (sitar, bagpipes, hurdy-gurdy lineage). Settings → *Jam rows*:
 
-- The bottom one or two rows become **tap-to-latch drones**. Tap a key and it rings an octave down, hands-free, until you tap it again. Lay down a root, or root and fifth, and solo on the rows above.
+- The bottom one or two rows become **tap-to-latch drones**. Tap a key and it rings in the backing register, hands-free, until you tap it again. Lay down a root, or root and fifth, and solo on the rows above.
+- **Jam octave** (settings) is where that backing register sits relative to the grid, from two octaves under to two over. The default is one octave *over*: an octave under the grid was a fine bass pad on headphones but inaudible mud on the built-in speaker whenever the solo rows were somewhere playable, and the fix was always "shift up two octaves, tap the chords, shift back down". Now the row just sits there. Go under for the old bass pad. Above C7 the backing folds down an octave at a time instead of turning into a whistle, and the setting row says so when it does. It applies to drones and to the chord progression alike, and it auditions live: change it while a jam runs and the chord glides to its new register.
 - Drones are protected. They don't count against the lead's voice cap, and chord-slide stealing can never grab them. Your backing survives anything your solo hand does.
 - The backing is *pitch-stable*: bend keys and tilt vibrato move only the solo layer. Your fretting hand bends strings; the open strings keep droning. (Drones do keep the patch's own built-in vibrato. That's part of the sound.)
 - Release one and it fades with a long tail instead of stopping dead under your solo.
@@ -152,7 +153,7 @@ Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and y
 
 Once the backing is looping, you don't want to be stuck in its octave or its sound. You want to *solo* over it. So the moment you change the solo while a jam runs, the backing holds its ground:
 
-- **Different register.** Shift octave (or even change key/scale) and only your **solo** moves. The progression keeps looping in the register and key it was built in. Build a progression low, solo two octaves up over it.
+- **Different register.** Shift octave (or even change key/scale) and only your **solo** moves. The progression keeps looping in the register and key it was built in. Build a progression, then shift the solo wherever it sings over it.
 - **Different sound.** Switch patches (`fn`+letter) over a running jam and the backing freezes onto the sound it was playing while the new patch becomes your solo voice. Lay down an Organ progression, flip to Crisp Horn, and wail over it. The organ keeps holding. An amber **`LK`** by the octave readout (and a `SOLO` flash on the switch) tells you the split is engaged.
 - **Their own voice, a shared room.** The backing and the solo each keep their own oscillator, filter, envelope, and drive, but they wash into one shared reverb/delay space (the solo patch's), so the whole thing sits together instead of sounding like two unrelated machines.
 - **`bksp` (panic)** clears the jam and drops the split. The next sound switch goes back to changing everything, as normal.
