@@ -66,6 +66,9 @@ const StepDef kTips[kTipCount] = {
     {"MAKE YOUR OWN",
      "tab > Randomize rolls a new sound.",
      "it can't hurt a saved slot. roll away."},
+    {"ARPEGGIATE IT",
+     "fn+a walks your chords, note by note.",
+     "tap again: down, up/down, then off."},
 };
 
 // The banner sits right under the scope (13..94) and paints over the perform
@@ -161,6 +164,7 @@ uint32_t gTipAt = 0;
 bool gTipThisSession = false;  // at most one tip per session — never a nag
 uint16_t gShiftNotes = 0;   // off-scale notes this session (the fn+k/s trigger)
 uint16_t gGridNotes = 0;    // notes this session (proof they're really playing)
+uint16_t gProgSteps = 0;    // chord steps tapped this session (a backing exists)
 
 constexpr uint32_t kCelebrateMs = 700;
 constexpr uint32_t kDoneCardMs = 8000;    // the final tell-card auto-closes
@@ -169,7 +173,8 @@ constexpr uint32_t kOfferGraceMs = 1200;  // keys land before the card is read:
 constexpr uint32_t kOfferTimeoutMs = 30000;  // untouched boot: card yields to the
                                              // idle path, re-offers next boot
 constexpr uint32_t kTipMs = 5000;
-constexpr uint8_t kTipKeyScale = 0, kTipSlots = 1, kTipRandom = 2;
+constexpr uint8_t kTipKeyScale = 0, kTipSlots = 1, kTipRandom = 2, kTipArp = 3;
+constexpr uint16_t kProgSpelled = 2;  // steps/session = they spelled a progression
 constexpr uint16_t kShiftFight = 12;  // shift-notes/session = fighting the scale
 constexpr uint16_t kWarmedUp = 40;    // notes/session before an unprompted tip
 
@@ -257,6 +262,12 @@ void notify(Ev e) {
         case Ev::Randomize:
             markTaught(kTipRandom);
             break;
+        case Ev::ProgStep:
+            if (gProgSteps < 60000) ++gProgSteps;
+            break;
+        case Ev::ArpCycle:
+            markTaught(kTipArp);
+            break;
         default:
             break;
     }
@@ -303,6 +314,9 @@ void tick(uint32_t nowMs) {
         t = kTipSlots;
     } else if (!taught(kTipRandom) && store::bootCount() >= 5 && gGridNotes >= kWarmedUp) {
         t = kTipRandom;
+    } else if (!taught(kTipArp) && gProgSteps >= kProgSpelled && gGridNotes >= kWarmedUp) {
+        t = kTipArp;  // a progression is spelled and they're soloing over it:
+                      // the moment the walk would have been the next move
     }
     if (t < 0) return;
     gTip = (int8_t)t;

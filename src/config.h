@@ -11,7 +11,7 @@ namespace cfg {
 // Shown top-right on the boot splash so a player can answer "which build am
 // I on?" without a computer (a real support question, twice). Bump this with
 // every release tag — it is the only place the version lives.
-constexpr const char* kVersion = "v3.0";
+constexpr const char* kVersion = "v3.1";
 
 // ---- audio path -------------------------------------------------------
 // 32 kHz / 128-sample blocks = 4 ms per block. With dma_buf_count=3 the

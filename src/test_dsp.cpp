@@ -2436,6 +2436,14 @@ int main() {
     // the guard is worth keeping on its own, because until now nothing pinned
     // the room's output at all and it is the easiest thing in the engine to
     // perturb by accident.
+    // The value is bound to the native gate's toolchain (the pio mingw gcc with
+    // the SSE flags): both this input signal and the chorus LFO go through
+    // libm's sinf, and glibc and mingw disagree in the last ulp, which the
+    // bit-hash then amplifies. The first pin (2743211789) was captured in a
+    // Linux session and never matched here although fx.cpp was byte-identical
+    // to the pre-freeze source it claimed to pin; re-pinned on the gate
+    // 2026-09-04. If it moves again with fx.cpp untouched, suspect the
+    // toolchain before the room.
     {
         Fx fx;
         fx.init(kSr);
@@ -2457,7 +2465,7 @@ int main() {
                 h = (h ^ bits) * 16777619u;
             }
         }
-        CHECK(h == 2743211789u, "chorus+delay+reverb output is unchanged");
+        CHECK(h == 136409909u, "chorus+delay+reverb output is unchanged");
     }
 
     // ---- the G0 trigger macro -------------------------------------------

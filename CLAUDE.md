@@ -183,7 +183,7 @@ the native tests green and review carefully — there's no on-device build here.
 (Reproduce the native gate without `pio` via
 `g++ -std=gnu++14 -O2 -msse2 -mfpmath=sse -DGLIDE_HOST_BUILD -I src
 src/test_dsp.cpp src/dsp/*.cpp src/storage/patch_codec.cpp
-src/storage/patch_name.cpp`. The SSE flags are load-bearing: the pio mingw
+src/storage/patch_name.cpp src/ui/theme.cpp`. The SSE flags are load-bearing: the pio mingw
 toolchain is 32-bit, and its default x87 excess precision truncates one
 borderline hash-quantise product differently than the device FPU, failing a
 frozen-generator golden.)

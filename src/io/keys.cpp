@@ -322,6 +322,7 @@ void notePress(int cd, bool shiftHeld) {
             snprintf(v, sizeof v, "%d: %s", gProgLen, dsp::pitchClassName(pp[0]));
             hud::show("PROG", v, -1.f);
             store::odoNote();  // a chord-step tap is played, not configured
+            coach::notify(coach::Ev::ProgStep);
             return;
         }
         if (n.drone && n.string >= 0) {  // second tap: release the drone
@@ -775,6 +776,7 @@ void cycleArp() {
             strikeProgChord(gProgIdx);
     }
     arpHud();
+    coach::notify(coach::Ev::ArpCycle);  // found on their own: the tip retires
 }
 
 // fn+z steps the rate (1/8 -> 1/8T -> 1/16 -> 1/4), fn+x flips the span. Both

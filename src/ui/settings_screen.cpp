@@ -153,7 +153,10 @@ void aJamOct(int d) {
 }
 
 void fJamMotion(char* o, int c) {
-    static const char* kNames[4] = {"sustained", "pulse", "arp", "progression"};
+    // "arp (1 drone/beat)": the older per-beat drone walk. The arpeggiator
+    // proper is fn+a (a texture on the progression); this label keeps the
+    // settings row from being the second thing on the device called "arp".
+    static const char* kNames[4] = {"sustained", "pulse", "arp (1 drone/beat)", "progression"};
     const uint8_t m = store::get().jamMotion;
     snprintf(o, c, "%s", kNames[m < 4 ? m : 0]);
 }

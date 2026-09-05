@@ -1,5 +1,5 @@
 ================================================================================
-GLIDE v3.0 — third-party notices
+GLIDE v3.1 — third-party notices
 ================================================================================
 
 This file lists the software inside GLIDE.bin that was written by other people,

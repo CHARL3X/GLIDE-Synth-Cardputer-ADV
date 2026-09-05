@@ -24,7 +24,7 @@
 namespace coach {
 
 constexpr int kTutSteps = 7;
-constexpr int kTipCount = 3;
+constexpr int kTipCount = 4;
 
 // Pure draws, host-rendered by support/viz_render/render_coach.cpp so every
 // banner/tip/offer state is reviewed as pixels, never designed blind.
@@ -43,6 +43,8 @@ enum class Ev : uint8_t {
     SlotLoad,    // fn+q..p loaded a sound
     Randomize,   // settings > Randomize rolled a sound
     ShiftNote,   // an off-scale (shift) note struck under scale lock
+    ProgStep,    // a chord step tapped onto the jam row (the backing exists)
+    ArpCycle,    // fn+a cycled the arpeggiator (the player found it)
 };
 
 void begin();               // after store::begin(): auto-start / offer / resume
