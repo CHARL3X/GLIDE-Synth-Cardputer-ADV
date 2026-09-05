@@ -167,8 +167,11 @@ constexpr uint32_t kExitHoldMs = 700;
 
 // fn+k: short tap cycles the root key (fired on RELEASE), long-press fires
 // LISTEN — auto key detection off the mic. Same gesture split as the tilt key.
+// +shift reverses the tap (fn+shift+k = key DOWN); the direction is captured at
+// the PRESS because in a three-finger chord shift is often let go first, so
+// reading it at release would flip a deliberate "down" into "up".
 uint32_t gKeyCyclePressMs = 0;
-bool gKeyCyclePending = false;  // a fn+k press is in flight, undecided
+int8_t gKeyCyclePending = 0;    // a fn+k press is in flight: +1 up, -1 down, 0 none
 bool gKeyListenFired = false;   // long-press consumed this hold
 constexpr uint32_t kListenHoldMs = 500;
 
@@ -575,23 +578,26 @@ void adjustMetroVol(int dir) {
     hud::show("METRO VOL", t, g.metroVol / 100.f);
 }
 
-// fn+K: walk the root key up a semitone, wrapping B->C. Built for the audition
-// loop — step the key, play a phrase against a song, clash, step again — with no
-// trip to settings. Held notes keep their pitch; new notes play in the new key.
-void cycleRootKey() {
+// fn+K: walk the root key up a semitone, wrapping B->C; fn+shift+K walks it
+// down (A -> G# -> G instead of eleven taps round the ring). Built for the
+// audition loop — step the key, play a phrase against a song, clash, step
+// again — with no trip to settings. Held notes keep their pitch; new notes play
+// in the new key.
+void cycleRootKey(int dir) {
     auto& g = store::get();
-    g.layout.rootSemis = (uint8_t)((g.layout.rootSemis + 1) % 12);
+    g.layout.rootSemis = (uint8_t)((g.layout.rootSemis + 12 + dir) % 12);
     store::markDirty();
     hud::show("KEY", dsp::kNoteNames[g.layout.rootSemis], -1.f);
     coach::notify(coach::Ev::KeyCycle);
 }
 
 // fn+S: walk the scale table — the same audition loop as fn+K but for mode
-// color. Held notes keep sounding; new notes land in the new scale. The HUD
-// names it in full so "phdom" never has to be decoded mid-jam.
-void cycleScale() {
+// color; +shift walks it backwards. Held notes keep sounding; new notes land in
+// the new scale. The HUD names it in full so "phdom" never has to be decoded
+// mid-jam.
+void cycleScale(int dir) {
     auto& g = store::get();
-    g.layout.scaleIdx = (uint8_t)((g.layout.scaleIdx + 1) % dsp::kScaleCount);
+    g.layout.scaleIdx = (uint8_t)((g.layout.scaleIdx + dsp::kScaleCount + dir) % dsp::kScaleCount);
     store::markDirty();
     hud::show("SCALE", dsp::kScales[g.layout.scaleIdx].name, -1.f);
     coach::notify(coach::Ev::ScaleCycle);
@@ -737,12 +743,15 @@ void arpHud() {
     hud::show("ARP", v, -1.f);
 }
 
-// fn+a: off -> up -> down -> up/down -> off. Arming takes the jam row over from
-// any latched drones (the row is the arp's now) and hands the sounding chord
-// to the sequencer; disarming strikes it back as a pad. The progression itself
-// is untouched either way — the arp is how it sounds, not what it is.
-void cycleArp() {
+// fn+a: off -> up -> down -> up/down -> off; fn+shift+a walks the same ring the
+// other way (off <- up <- down <- up/down <- off), so "up" back to "off" is one
+// tap, not three. Arming takes the jam row over from any latched drones (the
+// row is the arp's now) and hands the sounding chord to the sequencer;
+// disarming strikes it back as a pad. The progression itself is untouched
+// either way — the arp is how it sounds, not what it is.
+void cycleArp(int dir) {
     auto& cfgr = store::get();
+    const int next = gArpOn ? (int)gArpPattern + dir : -1;  // -1: arming below
     if (!gArpOn) {
         if (cfgr.jamRows == 0) {  // nothing to arpeggiate: say so, name the fix
             hud::showError("ARP", "needs jam rows", "settings > Jam rows");
@@ -755,7 +764,8 @@ void cycleArp() {
             gArpPrevCd = -1;
         }
         gArpOn = true;
-        gArpPattern = 0;
+        // stepping backwards INTO the ring lands on its last pattern
+        gArpPattern = dir < 0 ? (uint8_t)(dsp::kArpPatternCount - 1) : 0;
         if (gProgSounding) {
             for (int i = 0; i < kProgVoices; ++i)  // the pad yields to the walk
                 audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
@@ -763,10 +773,10 @@ void cycleArp() {
         } else {
             publishArp();
         }
-    } else if (cfgr.jamRows > 0 && gArpPattern + 1 < dsp::kArpPatternCount) {
-        ++gArpPattern;
+    } else if (cfgr.jamRows > 0 && next >= 0 && next < dsp::kArpPatternCount) {
+        gArpPattern = (uint8_t)next;
         publishArp();
-    } else {
+    } else {  // walked off either end of the ring -> off
         gArpOn = false;
         gArpPattern = 0;
         publishArp();  // the sequencer lets its note go
@@ -975,7 +985,7 @@ void resync() {
     gExitFired = true;      // and the exit hold — needs a fresh press to fire
     // fn+k may still be held coming back from the LISTEN modal it fired —
     // don't let its release read as a fresh root-cycling tap.
-    gKeyCyclePending = false;
+    gKeyCyclePending = 0;
     gKeyListenFired = false;
     // The jam clock is NOT reset here: settings now ticks the backing every
     // frame (keys::tickBacking), so the progression/arp/drones play straight
@@ -1105,17 +1115,17 @@ Actions poll(uint32_t nowMs) {
             if (gQuickEdit) {
                 if (cd == kKeyKeyCycle) {
                     // fn+K: decided on release — tap retunes the root key
-                    // (live), a ~0.5 s hold fires LISTEN instead.
-                    gKeyCyclePending = true;
+                    // (live, +shift = down), a ~0.5 s hold fires LISTEN instead.
+                    gKeyCyclePending = shiftHeld ? -1 : 1;
                     gKeyListenFired = false;
                     gKeyCyclePressMs = nowMs;
                     continue;
                 }
-                if (cd == kKeyScaleCycle) {  // fn+S: next scale, immediately
-                    cycleScale();
+                if (cd == kKeyScaleCycle) {  // fn+S: next scale (+shift: previous), immediately
+                    cycleScale(shiftHeld ? -1 : 1);
                     continue;
                 }
-                if (cd == kKeyArp) { cycleArp(); continue; }            // fn+A: arpeggiator
+                if (cd == kKeyArp) { cycleArp(shiftHeld ? -1 : 1); continue; }  // fn+A: arpeggiator (+shift: back)
                 if (cd == kKeyArpRate) { adjustArp(false); continue; }  // fn+Z: rate
                 if (cd == kKeyArpSpan) { adjustArp(true); continue; }   // fn+X: span
                 if (gGridString[cd] == 3) {
@@ -1272,9 +1282,9 @@ Actions poll(uint32_t nowMs) {
             // fn+k released: if the LISTEN hold didn't consume it, it was a
             // short tap -> cycle the root. (pending is only ever set on the
             // quick-edit path, where the press never entered gNotes.)
-            if (cd == kKeyKeyCycle && gKeyCyclePending) {
-                if (!gKeyListenFired) cycleRootKey();
-                gKeyCyclePending = false;
+            if (cd == kKeyKeyCycle && gKeyCyclePending != 0) {
+                if (!gKeyListenFired) cycleRootKey(gKeyCyclePending);
+                gKeyCyclePending = 0;
             }
             if (gNotes[cd].string >= 0) noteRelease(cd);
             continue;
@@ -1353,7 +1363,7 @@ Actions poll(uint32_t nowMs) {
     // fn+k held past the threshold -> LISTEN (fires once; the release is then
     // a no-op tap). The modal takes over the loop, so poll never sees the
     // release — resync() clears the pending flag on the way back.
-    if (gKeyCyclePending && !gKeyListenFired && held(cur, kKeyKeyCycle) &&
+    if (gKeyCyclePending != 0 && !gKeyListenFired && held(cur, kKeyKeyCycle) &&
         nowMs - gKeyCyclePressMs >= kListenHoldMs) {
         gKeyListenFired = true;
         act.listen = true;

@@ -75,6 +75,7 @@ const Line kLines[] = {
     {kHd, nullptr, "KEY & SCALE"},
     {kKey, "fn+k", "key up (match a song)"},
     {kKey, "fn+s", "next scale (the mood)"},
+    {kKey, "+shift", "the other way (k/s/a)"},
     {kKey, "fn+k hold", "LISTEN: the mic hears"},
     {kSub, nullptr, "the song, retunes you"},
 
@@ -115,6 +116,7 @@ const Line kLines[] = {
     {kTxt, nullptr, "on the rows above it."},
     {kKey, "fn+a", "arpeggiate the chords:"},
     {kSub, nullptr, "up, down, up/down, off"},
+    {kSub, nullptr, "(+shift steps back)"},
     {kKey, "fn+z / fn+x", "arp rate / octave span"},
     {kSub, nullptr, "(off again on restart)"},
 
