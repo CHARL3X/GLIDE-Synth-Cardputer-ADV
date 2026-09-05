@@ -236,7 +236,7 @@ tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 | glide mode | legato-only / always | legato-only | settings (per sound) |
 | allocation | strings (mono rows) / free poly | strings | settings |
 | jam rows (drones) | off / bottom / bottom 2 | bottom | settings |
-| jam motion | sustained / pulse / arp / progression | progression | settings |
+| jam motion | sustained / pulse / arp (1 drone/beat) / progression | progression | settings |
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
