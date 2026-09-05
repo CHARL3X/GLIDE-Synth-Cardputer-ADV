@@ -103,6 +103,7 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
  fn + shift + q..p : save your current tweaks over that slot
  fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone (HOLD: listen & retune)
+ fn + a            : arpeggiate the backing chords (fn+z rate, fn+x span)
 ```
 </details>
 

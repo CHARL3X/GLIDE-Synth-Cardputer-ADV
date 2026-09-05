@@ -22,6 +22,7 @@ Everything the instrument does and how to play it. For install and the five-minu
  fn + k            : cycle the key (root) up a semitone, live
  fn + s            : cycle the scale, live
  fn + k  (HOLD)    : LISTEN - the mic hears the song and retunes for you
+ fn + a            : arpeggiate the backing (fn+z rate, fn+x span) - session only
 ```
 
 **A note on the two ways out.** Holding `` ` `` saves your work and reboots —
@@ -148,6 +149,19 @@ The loop pedal records a *performance*, which means your timing has to be right,
 - **bksp (panic)** clears the progression to start over, the same gesture that clears the drones. Like them, it's performance state and never hits flash.
 
 Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and you've got a song to solo on in about ten seconds.
+
+## The arpeggiator (the progression, one note at a time)
+
+The progression is the chord half of an arpeggiator already: a tap on the jam row builds a real in-key triad and walks it per bar. `fn`+`a` is the other half. It does not change what the jam row *means*, only how the backing *sounds*: while it is on, whatever chord the row holds is broken into notes instead of sustained.
+
+- **`fn`+`a`** cycles `up` → `down` → `up/down` → off (the `fn`+`k` / `fn`+`s` habit). Nothing sounds until there is a chord.
+- **Tap one bottom-row key** and that chord goes root-3rd-5th-octave (1-3-5-8, always in key), hands-free, looping every bar. Solo on the three rows above. The first chord takes a one-beat count-in rather than starting under your finger, so the walk begins on the grid and a quick run of taps lands in time.
+- **Tap three more** and you have four chords; each bar the arp moves to the next one. The strip over the scope reads `ARP^` (`ARPv`, `ARP^v`) instead of `PROG` and boxes the sounding chord with its Roman numeral, exactly as before.
+- **`fn`+`z`** steps the note rate (`1/8` → `1/8T` → `1/16` → `1/4`) and **`fn`+`x`** flips the span (one octave, or two: 1-3-5-8-10-12-15). Both work with the arp off too, so it arrives already tuned. Speed itself is the *Jam tempo*: tap it in on `\` and the arp follows.
+- Cycling back to **off** returns the pads; the progression survives. `bksp` clears the chords and leaves the arp armed, like the metronome.
+- **It never survives a restart.** The arp is session state, the same as the metronome: a mode you fell into by accident and can't find your way out of is exactly what the old latching chromatic toggle got wrong, so every boot starts with it off, and while it is on the strip says so.
+
+Everything else is inherited from the progression: shift octave or key and only the solo moves (`LK`); switch sound over it and the backing holds its own (`SOLO`); the metronome locks to each chord change; *Jam octave* re-voices it live. The notes are clocked on the audio engine, not the screen, so sixteenths land where sixteenths should. If *Jam rows* is off, `fn`+`a` says so and names the setting instead of arming a row that isn't there. (The older *Jam motion: arp*, one latched drone per beat, is still there in settings; `fn`+`a` is the arpeggiator.)
 
 ## Soloing over the jam: a separate register and sound
 
