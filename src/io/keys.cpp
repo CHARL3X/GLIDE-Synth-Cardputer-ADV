@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "../config.h"
+#include "../dsp/arp.h"
 #include "../dsp/pitch.h"
 #include "../dsp/scales.h"
 #include "../storage/glide_config.h"
@@ -39,6 +40,9 @@ constexpr int kKeyFn = 28;         // fn
 constexpr int kKeyShift = 29;      // shift
 constexpr int kKeyKeyCycle = 37;   // k — fn+K cycles the root key (live retune)
 constexpr int kKeyScaleCycle = 31; // s — fn+S cycles the scale (live)
+constexpr int kKeyArp = 30;        // a — fn+A cycles the arpeggiator (off/up/down/up-down)
+constexpr int kKeyArpRate = 45;    // z — fn+Z steps the arp rate (the key under a)
+constexpr int kKeyArpSpan = 46;    // x — fn+X flips the arp span (1 / 2 octaves)
 constexpr int kKeyTilt = 41;       // enter
 constexpr int kKeyCtrl = 42;       // ctrl  (octave down, left thumb)
 constexpr int kKeyOpt = 43;        // opt   (octave up, left thumb)
@@ -196,9 +200,36 @@ int gProgLen = 0;
 int gProgIdx = 0;
 bool gProgSounding = false;
 uint32_t gProgLastAdv = 0;  // beat clock for the chord advance (0 = re-arm)
+uint32_t gProgDueMs = 0;    // arpeggiated start: the first strike waits until here
 // The layout (octave/root/scale) snapshotted when the progression was built, so
 // shifting octave or changing key while soloing leaves the backing in place.
 dsp::Layout gProgLayout;
+
+// The arpeggiator: SESSION state, never persisted — a mode you can't find your
+// way out of is the old chromatic-toggle sin, so every boot starts with it off
+// (the metronome precedent). It is a texture on the progression, not a second
+// chord engine: while on, the jam row keeps its tap-a-chord meaning and the
+// sounding chord is handed to dsp::Arp (on the audio thread) instead of being
+// struck as a block chord. Whatever the persisted Jam motion says, the arp
+// rides the progression engine (jamMotionNow).
+bool gArpOn = false;
+uint8_t gArpPattern = 0;                  // 0 up, 1 down, 2 up/down
+uint8_t gArpRate = dsp::kArpDefaultRate;  // delaySync division (1/8)
+uint8_t gArpSpan = 1;                     // octaves
+uint16_t gArpGen = 0;                     // bumped per CHORD change: restarts the walk
+dsp::ArpConfig gArpCfg;                   // the last published chord — republished
+                                          // unchanged when only pattern/rate/span move
+constexpr uint8_t kArpRates[4] = {3, 4, 5, 1};  // 1/8 -> 1/8T -> 1/16 -> 1/4 (fn+z)
+
+inline uint8_t jamMotionNow() { return gArpOn ? kJamProg : store::get().jamMotion; }
+
+void publishArp() {
+    gArpCfg.on = gArpOn ? 1 : 0;
+    gArpCfg.pattern = gArpPattern;
+    gArpCfg.rate = gArpRate;
+    gArpCfg.span = gArpSpan;
+    audio::setArp(gArpCfg);
+}
 
 // quick-edit
 bool gQuickEdit = false;
@@ -260,6 +291,13 @@ bool progAppend(int string, int col, bool chrom) {
         gProgIdx = 0;
         gProgLastAdv = 0;                  // arm the clock
         gProgLayout = store::get().layout; // freeze the key/register here
+        // Arpeggiated, the first chord takes a one-beat count-in instead of
+        // striking under the tap. An arp is a rhythm: step 0 landing at
+        // whatever phase the finger had made a quick three-tap start play
+        // "on keypress" (measured on hardware). A block chord's swell hides
+        // that phase, so the plain progression still strikes at once.
+        const uint16_t bpm = store::get().jamBpm < 20 ? 20 : store::get().jamBpm;
+        gProgDueMs = gArpOn ? (millis() + 60000u / bpm) | 1u : 0;  // never 0
     }
     return true;
 }
@@ -272,7 +310,7 @@ void notePress(int cd, bool shiftHeld) {
     if (gGridString[cd] < cfgr.jamRows) {
         // progression mode: a jam-row tap APPENDS a chord step (no timing,
         // repeats allowed) — spell the loop, then solo on the rows above.
-        if (cfgr.jamMotion == kJamProg) {
+        if (jamMotionNow() == kJamProg) {
             const bool chrom = shiftHeld || !cfgr.layout.scaleLock;
             if (!progAppend(gGridString[cd], gGridCol[cd], chrom)) {
                 hud::showError("PROG", "full (16)");
@@ -606,6 +644,10 @@ void cycleTilt() {
 // ---- auto chord progression -------------------------------------------------
 // Release the progression's backing voices (mode change / panic).
 void silenceProg() {
+    if (gArpCfg.n > 0) {  // the arp has no chord to walk: it lets its note go
+        gArpCfg.n = 0;
+        publishArp();
+    }
     if (!gProgSounding) return;
     for (int i = 0; i < kProgVoices; ++i)
         audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
@@ -618,6 +660,7 @@ void clearProg() {
     gProgLen = 0;
     gProgIdx = 0;
     gProgLastAdv = 0;
+    gProgDueMs = 0;
 }
 
 // Fire step `idx` as a diatonic chord on the fixed backing ids. Re-firing the
@@ -630,14 +673,23 @@ void strikeProgChord(int idx) {
     // frozen layout: the backing keeps its key/register while the solo roams
     const int n = dsp::chordPitches(gProgLayout, gProg[idx].string, gProg[idx].col,
                                     gProg[idx].chrom, p, kProgVoices);
-    for (int i = 0; i < kProgVoices; ++i) {
-        if (i < n) {
-            dsp::NoteEvent ev = dsp::NoteEvent::make(dsp::NoteEvent::On,
-                                                     (uint8_t)(kProgIdBase + i), 0xFF, false, p[i]);
-            ev.drone = true;
-            audio::pushEvent(ev);
-        } else if (gProgSounding) {
-            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
+    if (gArpOn) {
+        // arpeggiated: the chord goes to the sequencer, not to the block-chord
+        // voices — a fresh gen restarts the walk on this downbeat
+        for (int i = 0; i < 3; ++i) gArpCfg.pitches[i] = i < n ? p[i] : 0.f;
+        gArpCfg.n = (uint8_t)(n > 3 ? 3 : n);
+        gArpCfg.gen = ++gArpGen;
+        publishArp();
+    } else {
+        for (int i = 0; i < kProgVoices; ++i) {
+            if (i < n) {
+                dsp::NoteEvent ev = dsp::NoteEvent::make(dsp::NoteEvent::On,
+                                                         (uint8_t)(kProgIdBase + i), 0xFF, false, p[i]);
+                ev.drone = true;
+                audio::pushEvent(ev);
+            } else if (gProgSounding) {
+                audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
+            }
         }
     }
     // a chord change is the bar's downbeat: phase-lock the metronome to it so
@@ -657,6 +709,8 @@ void progTick(uint32_t nowMs) {
     const uint32_t beatMs = 60000u / (cfgr.jamBpm < 20 ? 20 : cfgr.jamBpm);
     const uint32_t stepMs = beatMs * (cfgr.jamChordBeats < 1 ? 1 : cfgr.jamChordBeats);
     if (gProgLastAdv == 0) {  // first downbeat (or re-arm): strike now
+        if (gProgDueMs && (int32_t)(nowMs - gProgDueMs) < 0) return;  // arp count-in
+        gProgDueMs = 0;
         gProgIdx %= gProgLen;
         strikeProgChord(gProgIdx);
         gProgLastAdv = nowMs;
@@ -671,6 +725,75 @@ void progTick(uint32_t nowMs) {
     strikeProgChord(gProgIdx);
     gBeatFlashAt = nowMs;
     gBeatFlashCd = -1;
+}
+
+// ---- the arpeggiator gestures ----------------------------------------------
+void arpHud() {
+    char v[24];
+    if (!gArpOn) snprintf(v, sizeof v, "off");
+    else snprintf(v, sizeof v, "%s  %s  %doct", dsp::arpPatternName(gArpPattern),
+                  dsp::delaySyncName(gArpRate), gArpSpan);
+    hud::show("ARP", v, -1.f);
+}
+
+// fn+a: off -> up -> down -> up/down -> off. Arming takes the jam row over from
+// any latched drones (the row is the arp's now) and hands the sounding chord
+// to the sequencer; disarming strikes it back as a pad. The progression itself
+// is untouched either way — the arp is how it sounds, not what it is.
+void cycleArp() {
+    auto& cfgr = store::get();
+    if (!gArpOn) {
+        if (cfgr.jamRows == 0) {  // nothing to arpeggiate: say so, name the fix
+            hud::showError("ARP", "needs jam rows", "settings > Jam rows");
+            return;
+        }
+        for (int cd = 0; cd < 56; ++cd)
+            if (gNotes[cd].drone && gNotes[cd].string >= 0) sendDroneOff(cd);
+        if (gArpPrevCd >= 0) {  // the old per-beat arp motion's held note
+            audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)gArpPrevCd));
+            gArpPrevCd = -1;
+        }
+        gArpOn = true;
+        gArpPattern = 0;
+        if (gProgSounding) {
+            for (int i = 0; i < kProgVoices; ++i)  // the pad yields to the walk
+                audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)(kProgIdBase + i)));
+            strikeProgChord(gProgIdx);
+        } else {
+            publishArp();
+        }
+    } else if (cfgr.jamRows > 0 && gArpPattern + 1 < dsp::kArpPatternCount) {
+        ++gArpPattern;
+        publishArp();
+    } else {
+        gArpOn = false;
+        gArpPattern = 0;
+        publishArp();  // the sequencer lets its note go
+        // the pads come back — unless the persisted motion isn't progression,
+        // in which case jamTick retires the chord on its next frame anyway
+        if (gProgSounding && cfgr.jamMotion == kJamProg && cfgr.jamRows > 0)
+            strikeProgChord(gProgIdx);
+    }
+    arpHud();
+}
+
+// fn+z steps the rate (1/8 -> 1/8T -> 1/16 -> 1/4), fn+x flips the span. Both
+// adjust even while the arp is off — the HUD says what they set and fn+a then
+// arrives already tuned; no dead keys in the layer.
+void adjustArp(bool span) {
+    if (span) {
+        gArpSpan = (uint8_t)(gArpSpan >= dsp::kArpMaxSpan ? 1 : gArpSpan + 1);
+    } else {
+        int i = 0;
+        while (i < 4 && kArpRates[i] != gArpRate) ++i;
+        gArpRate = kArpRates[(i + 1) % 4];
+    }
+    publishArp();
+    char v[24];
+    const char* tail = gArpOn ? "" : " (arp off)";
+    if (span) snprintf(v, sizeof v, "%d octave%s%s", gArpSpan, gArpSpan > 1 ? "s" : "", tail);
+    else      snprintf(v, sizeof v, "%s%s", dsp::delaySyncName(gArpRate), tail);
+    hud::show(span ? "ARP SPAN" : "ARP RATE", v, -1.f);
 }
 
 }  // namespace
@@ -710,17 +833,18 @@ void jamTick(uint32_t nowMs) {
     // progression: the chord sequencer. Silence its backing if the mode or the
     // jam rows turned off, so the prog voice ids don't ring on with no driver.
     static uint8_t prevMotion = 0;
-    const bool progMode = cfgr.jamMotion == kJamProg && cfgr.jamRows > 0;
+    const uint8_t motion = jamMotionNow();  // the arpeggiator rides the progression
+    const bool progMode = motion == kJamProg && cfgr.jamRows > 0;
     if (!progMode && (prevMotion == kJamProg || gProgSounding)) silenceProg();
     // leaving arp: drop the single note it was holding so it doesn't ring on
-    if (prevMotion == kJamArp && cfgr.jamMotion != kJamArp && gArpPrevCd >= 0) {
+    if (prevMotion == kJamArp && motion != kJamArp && gArpPrevCd >= 0) {
         audio::pushEvent(dsp::NoteEvent::make(dsp::NoteEvent::Off, (uint8_t)gArpPrevCd));
         gArpPrevCd = -1;
     }
-    prevMotion = cfgr.jamMotion;
+    prevMotion = motion;
     if (progMode) { progTick(nowMs); gLastBeatMs = 0; return; }
 
-    if (cfgr.jamMotion == 0 || cfgr.jamRows == 0) { gLastBeatMs = 0; return; }
+    if (motion == 0 || cfgr.jamRows == 0) { gLastBeatMs = 0; return; }
     int drones[56];
     const int nd = collectDrones(drones);
     if (nd == 0) {
@@ -739,7 +863,7 @@ void jamTick(uint32_t nowMs) {
     gLastBeatMs += beatMs;                                  // steady phase, no drift
     if (nowMs - gLastBeatMs > beatMs) gLastBeatMs = nowMs;  // resync if we fell far behind
 
-    if (cfgr.jamMotion == 1) {            // pulse: re-strike the whole chord
+    if (motion == 1) {                    // pulse: re-strike the whole chord
         for (int i = 0; i < nd; ++i) restrikeDrone(drones[i]);
         gBeatFlashCd = -1;
     } else {                              // arp: ONE note per beat, low->high —
@@ -989,6 +1113,9 @@ Actions poll(uint32_t nowMs) {
                     cycleScale();
                     continue;
                 }
+                if (cd == kKeyArp) { cycleArp(); continue; }            // fn+A: arpeggiator
+                if (cd == kKeyArpRate) { adjustArp(false); continue; }  // fn+Z: rate
+                if (cd == kKeyArpSpan) { adjustArp(true); continue; }   // fn+X: span
                 if (gGridString[cd] == 3) {
                     // top row selects the quick-edit parameter
                     gQuickParam = gGridCol[cd];
@@ -1378,8 +1505,12 @@ uint32_t lastActivityMs() { return gLastActivityMs; }
 
 // ---- auto chord progression view state --------------------------------------
 bool progActive() {
-    auto& c = store::get();
-    return c.jamMotion == kJamProg && c.jamRows > 0;
+    return jamMotionNow() == kJamProg && store::get().jamRows > 0;
+}
+bool arpOn() { return gArpOn; }
+void arpLabel(char* out, int cap) {
+    static const char* const kTags[dsp::kArpPatternCount] = {"ARP^", "ARPv", "ARP^v"};
+    snprintf(out, cap, "%s", kTags[gArpPattern < dsp::kArpPatternCount ? gArpPattern : 0]);
 }
 int progLen() { return gProgLen; }
 int progIndex() { return gProgLen ? gProgIdx : -1; }

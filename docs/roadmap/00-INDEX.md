@@ -93,6 +93,8 @@ bit-identical; the suite asserts exactly that.
 
 **Shared seams multiple docs touch:** the G0 trigger dispatch in `keys.cpp` (09), the NoteEvent tap point where `looper::record` sits (06 out, 19 in — both directions coexist), the audio engine's finished-block consumers (05 recorder tap, 15 line-out mirror — symmetric copies, coexist) and its render-source override (13), the output stage between `softLimit` and the `int16` write (15 and 23 both want a level control there — one control, not two), the jam clock (18 adds eighth callbacks + swing; 19's MIDI clock sets the same `tempoBpm` all consumers read), the looper's take (04 serialize, 17 read-only iterator). Each doc specifies a minimal, additive seam; any subset lands cleanly.
 
+**Backing voice ids** (`keys.cpp` + `dsp/arp.h`): lead keys 0..55, drone partners 64..119, progression block chord 120..122, **arpeggiator 123..124** (landed 2026-09-04, session-only `fn`+`a`), loop playback 128..183, boot chime 250. A new backing layer claims its ids here first.
+
 **Live-mod / rig fields on `SynthParams`** (never persisted in patches): `fxFreeze` (09), `deepBass` (16). Follow the `bendCents` precedent; the patch-save hygiene must exclude them.
 
 ## Execution rules (for whoever picks these up)

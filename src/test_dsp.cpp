@@ -22,6 +22,7 @@
 #include "storage/patch_codec.h"  // host-safe codec (in env:native build_src_filter)
 #include "storage/patch_name.h"   // host-safe SD naming rules (same build filter)
 #include "ui/theme.h"             // host-safe palette derivation (same build filter)
+#include "dsp/arp.h"
 #include "dsp/fx.h"
 #include "storage/glide_config.h"  // host-safe header: the TriggerAction enum + its names
 
@@ -55,6 +56,39 @@ static float peakOf(Synth& s, int blocks) {
         }
     }
     return peak;
+}
+
+// Steps dsp::Arp for `blocks` render blocks and records every note-on (block
+// index, pitch, id). *orderOk = every On was preceded by the previous note's
+// Off and every event was flagged backing — a run, never a pile-up.
+struct ArpOn { int block; float pitch; uint8_t id; };
+static int runArp(Arp& a, int blocks, ArpOn* out, int cap, bool* orderOk, float bpm = 120.f) {
+    int n = 0, sounding = 0;
+    bool ok = true;
+    for (int b = 0; b < blocks; ++b) {
+        NoteEvent ev[4];
+        const int k = a.advance(kBlock, kSr, bpm, ev, 4);
+        for (int i = 0; i < k; ++i) {
+            if (ev[i].type == NoteEvent::On) {
+                if (sounding > 0 || !ev[i].backing) ok = false;
+                ++sounding;
+                if (n < cap) { out[n].block = b; out[n].pitch = ev[i].pitchMidi; out[n].id = ev[i].id; }
+                ++n;
+            } else if (ev[i].type == NoteEvent::Off) {
+                --sounding;
+            } else {
+                ok = false;
+            }
+        }
+    }
+    if (orderOk) *orderOk = ok && sounding <= 1;
+    return n;
+}
+static bool arpSeq(const ArpOn* on, int n, const float* want, int m) {
+    if (n < m) return false;
+    for (int i = 0; i < m; ++i)
+        if (fabsf(on[i].pitch - want[i]) > 1e-4f) return false;
+    return true;
 }
 
 // Mirrors ui/audition.cpp exactly: the fixed lick's notes and ids under the
@@ -2527,6 +2561,126 @@ int main() {
         for (int b = 0; b < kNB; ++b)
             if (!std::isfinite(eWah[b]) || !std::isfinite(eGate[b])) finite = false;
         CHECK(finite, "the motion macros stay finite");
+    }
+
+    // ---- the arpeggiator (dsp/arp) ---------------------------------------
+    // 1/8 at 120 bpm = 8000 samples = 62.5 blocks per step: the walk, the
+    // clock, the gate, and the restart-on-chord rule.
+    {
+        ArpConfig c;
+        c.pitches[0] = 60.f; c.pitches[1] = 64.f; c.pitches[2] = 67.f;
+        c.n = 3; c.on = 1; c.gen = 1;
+        ArpOn on[16];
+        bool ok = false;
+        {
+            Arp a; a.set(c);
+            const int n = runArp(a, 260, on, 16, &ok);
+            CHECK(n == 5, "1/8 at 120 bpm: a note every 62.5 blocks -> 5 in 260");
+            CHECK(ok, "one note at a time: every On follows the last Off, all flagged backing");
+            const float up[5] = {60.f, 64.f, 67.f, 72.f, 60.f};
+            CHECK(arpSeq(on, n, up, 5), "up walks 1-3-5-8 and wraps");
+            CHECK(on[0].block == 0, "the first strike lands on the block the chord arrives");
+            bool spacing = true;
+            for (int i = 1; i < 5 && i < n; ++i) {
+                const int d = on[i].block - on[i - 1].block;
+                if (d < 62 || d > 63) spacing = false;
+            }
+            CHECK(spacing, "steps are 62-63 blocks apart (8000 samples), no drift");
+            CHECK(n >= 3 && on[0].id != on[1].id && on[0].id == on[2].id,
+                  "ids alternate so a release tail overlaps the next attack");
+            CHECK(on[0].id == kArpIdA || on[0].id == kArpIdB, "ids are the reserved arp pair");
+        }
+        {
+            Arp a; c.pattern = 1; a.set(c);
+            const int n = runArp(a, 260, on, 16, &ok);
+            const float dn[5] = {72.f, 67.f, 64.f, 60.f, 72.f};
+            CHECK(ok && arpSeq(on, n, dn, 5), "down walks 8-5-3-1 and wraps");
+        }
+        {
+            Arp a; c.pattern = 2; a.set(c);
+            const int n = runArp(a, 470, on, 16, &ok);
+            const float ud[8] = {60.f, 64.f, 67.f, 72.f, 67.f, 64.f, 60.f, 64.f};
+            CHECK(ok && arpSeq(on, n, ud, 8), "up/down bounces without repeating the ends");
+        }
+        {
+            Arp a; c.pattern = 0; c.span = 2; a.set(c);
+            const int n = runArp(a, 470, on, 16, &ok);
+            const float two[8] = {60.f, 64.f, 67.f, 72.f, 76.f, 79.f, 84.f, 60.f};
+            CHECK(ok && arpSeq(on, n, two, 8), "span 2 walks 1-3-5-8-10-12-15");
+            c.span = 1;
+        }
+        {
+            Arp a; c.rate = 5; a.set(c);  // 1/16: 4000 samples = 31.25 blocks
+            const int n = runArp(a, 130, on, 16, &ok);
+            bool spacing = n == 5;
+            for (int i = 1; i < 5 && i < n; ++i) {
+                const int d = on[i].block - on[i - 1].block;
+                if (d < 31 || d > 32) spacing = false;
+            }
+            CHECK(spacing, "1/16 halves the step: 31-32 blocks, 5 notes in 130");
+            c.rate = 9;
+            Arp b; b.set(c);
+            CHECK(runArp(b, 260, on, 16, &ok) == 5, "an unknown division falls back to eighths");
+            c.rate = kArpDefaultRate;
+        }
+        {
+            Arp a; a.set(c);
+            CHECK(runArp(a, 100, on, 16, &ok, 1000.f) == 4,
+                  "bpm clamps at 300: 3200-sample steps, 4 notes in 100 blocks");
+        }
+        {
+            // a new chord (gen bump) restarts the walk on that very block
+            Arp a; a.set(c);
+            runArp(a, 100, on, 16, &ok);  // notes at 0 and 63
+            ArpConfig c2 = c;
+            c2.pitches[0] = 65.f; c2.pitches[1] = 69.f; c2.pitches[2] = 72.f;
+            c2.gen = 2;
+            a.set(c2);
+            const int n = runArp(a, 1, on, 16, &ok);
+            CHECK(n == 1 && on[0].block == 0 && fabsf(on[0].pitch - 65.f) < 1e-4f && ok,
+                  "a chord change strikes the new root at once (the downbeat)");
+        }
+        {
+            // pattern/rate edits do NOT restart: the walk carries on from where it is
+            Arp a; a.set(c);
+            runArp(a, 40, on, 16, &ok);  // one note so far (block 0)
+            ArpConfig c2 = c; c2.pattern = 1;
+            a.set(c2);
+            const int n = runArp(a, 60, on, 16, &ok);  // next step lands at block 63 overall
+            CHECK(n == 1 && fabsf(on[0].pitch - 67.f) < 1e-4f,
+                  "switching to down mid-walk continues from step 1 (67), no re-strike");
+        }
+        {
+            // the off edge releases exactly once, then the arp costs nothing
+            Arp a; a.set(c);
+            runArp(a, 10, on, 16, &ok);
+            ArpConfig c2 = c; c2.on = 0;
+            a.set(c2);
+            NoteEvent ev[4];
+            int offs = 0, total = 0;
+            for (int b = 0; b < 10; ++b) {
+                const int k = a.advance(kBlock, kSr, 120.f, ev, 4);
+                total += k;
+                for (int i = 0; i < k; ++i) if (ev[i].type == NoteEvent::Off) ++offs;
+            }
+            CHECK(offs == 1 && total == 1, "off edge: one Off, then silence");
+            CHECK(!a.running(), "idle after the off edge");
+            // ...and a chord of nothing never sounds
+            ArpConfig c3 = c; c3.n = 0;
+            Arp z; z.set(c3);
+            CHECK(runArp(z, 50, on, 16, &ok) == 0, "no chord, no notes");
+        }
+        {
+            // a voicing handed out of order still walks ascending
+            ArpConfig c2 = c;
+            c2.pitches[0] = 67.f; c2.pitches[1] = 60.f; c2.pitches[2] = 64.f;
+            Arp a; a.set(c2);
+            const int n = runArp(a, 260, on, 16, &ok);
+            const float up[4] = {60.f, 64.f, 67.f, 72.f};
+            CHECK(arpSeq(on, n, up, 4), "the walk sorts its chord low to high");
+        }
+        CHECK(strcmp(arpPatternName(2), "up/down") == 0 && strcmp(arpPatternName(7), "up") == 0,
+              "pattern names, with a safe fallback");
     }
 
     // ---- the custom palette (ui/theme.cpp) -------------------------------

@@ -37,6 +37,12 @@ dsp::SynthParams gParamsBack[2];
 std::atomic<uint8_t> gParamIdx{0};
 std::atomic<uint32_t> gTrig{0};   // G0 motion macro: kind<<16 | amount*1000
 
+// The arpeggiator: its chord/pattern double-buffered like the params, its
+// clock on this thread (a 30 fps UI frame cannot place sixteenths).
+dsp::Arp gArp;
+dsp::ArpConfig gArpCfg[2];
+std::atomic<uint8_t> gArpIdx{0};
+
 // 3 rotating output buffers vs M5Unified's per-channel queue depth of 2:
 // playRaw stores our POINTER (no copy), so the buffer being refilled must
 // never be one of the two still in flight.
@@ -135,6 +141,17 @@ void renderTask(void*) {
 
         dsp::NoteEvent ev;
         while (gEvents.pop(ev)) gSynth.handleEvent(ev);
+
+        {   // the arpeggiator walks its chord on this thread's clock, at the
+            // jam tempo the params already carry
+            const uint8_t ai = gArpIdx.load(std::memory_order_acquire);
+            gArp.set(gArpCfg[ai]);
+            const uint8_t pi = gParamIdx.load(std::memory_order_relaxed);
+            dsp::NoteEvent aev[4];
+            const int na = gArp.advance(cfg::kBlockSamples, (float)cfg::kSampleRate,
+                                        gParams[pi].tempoBpm, aev, 4);
+            for (int i = 0; i < na; ++i) gSynth.handleEvent(aev[i]);
+        }
 
         gSynth.render(gMix, cfg::kBlockSamples);
 
@@ -261,6 +278,13 @@ void setParams(const dsp::SynthParams& lead, const dsp::SynthParams& back) {
 }
 
 void setParams(const dsp::SynthParams& p) { setParams(p, p); }
+
+void setArp(const dsp::ArpConfig& c) {
+    const uint8_t cur = gArpIdx.load(std::memory_order_relaxed);
+    const uint8_t next = cur ^ 1;
+    gArpCfg[next] = c;
+    gArpIdx.store(next, std::memory_order_release);
+}
 
 // kind in the high byte, amount as thousandths in the low half — one atomic
 // word, so the render task never sees a half-updated pair.

@@ -1570,15 +1570,21 @@ void drawProg(M5Canvas& c, uint32_t now) {
     const int x0 = kTraceX + 2;
     c.setFont(&fonts::Font0);
     const int len = keys::progLen();
+    // the arp is armed: the strip says so the whole time (ARP^ / ARPv / ARP^v),
+    // so nobody is ever in it without knowing — the tag is 4-5 chars, so the
+    // chips step right to clear it
+    const bool arp = keys::arpOn();
     if (len == 0) {
         c.setTextColor(theme::kDim, theme::kBg);
-        c.drawString("PROG: tap chords", x0, y);
+        c.drawString(arp ? "ARP: tap chords" : "PROG: tap chords", x0, y);
         return;
     }
     c.setTextColor(theme::kAmber, theme::kBg);
-    c.drawString("PROG", x0, y);
+    char lbl[8] = "PROG";
+    if (arp) keys::arpLabel(lbl, sizeof lbl);
+    c.drawString(lbl, x0, y);
     const int cur = keys::progIndex();
-    int x = x0 + 28;
+    int x = x0 + (arp ? 36 : 28);
     char nm[12];
     for (int i = 0; i < len && x < kTraceX + kTraceW - 14; ++i) {
         keys::progStepName(i, nm, sizeof nm);
@@ -1684,7 +1690,12 @@ void drawHint(M5Canvas& c, uint32_t now) {
         // commands, which nobody was finding after WEEKS: k steps the key, s
         // the scale, and holding k points the mic at the song (LISTEN).
         c.setTextColor(theme::kAmber, theme::kBg);
-        c.drawString("q-p sound  k key  s scale  hold k: mic", 2, kHintY);  // 38ch
+        // while the arp is armed the layer's arp keys take the line: they are
+        // the ones the player is reaching for right now
+        if (keys::arpOn())
+            c.drawString("a arp  z rate  x span  k key  s scale", 2, kHintY);  // 37ch
+        else
+            c.drawString("q-p sound  k key  s scale  hold k: mic", 2, kHintY);  // 38ch
         return;
     }
     if (demo::active()) {
@@ -1698,6 +1709,8 @@ void drawHint(M5Canvas& c, uint32_t now) {
     c.setTextColor(theme::kDim, theme::kBg);
     if (ls == looper::State::Recording)
         c.drawString("recording...  alt: close the loop", 2, kHintY);
+    else if (keys::progActive() && keys::arpOn())
+        c.drawString("tap row=arp chord  bksp clear  fn+a off", 2, kHintY);  // 39ch
     else if (keys::progActive())
         c.drawString("tap row = chord progression   bksp clear", 2, kHintY);
     else if (ls != looper::State::Empty)

@@ -85,6 +85,14 @@ bool progCurrentCell(int& string, int& col);
 // nothing is walking. Drives the grid map's guide-tone marks.
 int progChordPcs(uint8_t* pcs, int cap);
 
+// The arpeggiator (fn+a): a SESSION-only texture on the backing — the
+// progression's chord walked one note at a time by dsp::Arp on the audio
+// thread. Off on every boot by design (a mode you can't find your way out of
+// is the old chromatic-toggle sin). arpLabel writes the strip's tag:
+// "ARP^" / "ARPv" / "ARP^v".
+bool arpOn();
+void arpLabel(char* out, int cap);
+
 // re-sync edge state after a blocking screen (settings) ate the keyboard
 void resync();
 

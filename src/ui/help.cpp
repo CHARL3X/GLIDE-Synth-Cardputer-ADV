@@ -113,6 +113,10 @@ const Line kLines[] = {
     {kTxt, nullptr, "row becomes chords. Tap one to"},
     {kTxt, nullptr, "start a progression, then solo"},
     {kTxt, nullptr, "on the rows above it."},
+    {kKey, "fn+a", "arpeggiate the chords:"},
+    {kSub, nullptr, "up > down > up/down > off"},
+    {kKey, "fn+z / fn+x", "arp rate / octave span"},
+    {kSub, nullptr, "(off again on restart)"},
 
     {kGap, nullptr, nullptr},
     {kHd, nullptr, "TILT  (lean the unit)"},
