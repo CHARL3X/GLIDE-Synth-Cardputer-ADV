@@ -1107,6 +1107,30 @@ Actions poll(uint32_t nowMs) {
     gQuickEdit = held(cur, kKeyFn);
     if (wasQuickEdit && !gQuickEdit) store::markDirty();  // persist on fn release
 
+    // A MATRIX GHOST, not a logic bug — and it must be read AFTER gQuickEdit is
+    // assigned above, or it tests the previous frame's fn state.
+    // The vendor reader folds the TCA8418's scan matrix into our 4x14 grid as
+    // phys_row = x/2, phys_col = y + 4*(x&1). Only logical row y==2 — the home
+    // row — lands on phys columns 2 and 6, and those are exactly where fn (0,2)
+    // and shift (0,6) sit. So fn+shift+<home-row key> presses three corners of a
+    // rectangle, and a diode-less matrix conducts through the fourth: the
+    // controller reports the key's horizontal neighbour as a genuine press.
+    // Every home-row key has such a twin — (a,s) (d,f) (g,h) (j,k) (l,;) (',enter)
+    // — but only (a,s) has BOTH halves bound here, so only it misbehaves: each
+    // chord used to fire cycleArp AND cycleScale in the same frame, the arp's HUD
+    // painted over by the scale's, which is why it read as the arp changing at
+    // random. fn+shift+K is the same rectangle; its ghost lands on J, unbound in
+    // this layer, which is why that one always looked fine.
+    // fn+shift+A and fn+shift+S are bit-identical at the controller and CANNOT be
+    // told apart downstream, so one of them has to win: the scale keeps shift (13
+    // scales to walk) and the arp ring — four states, three taps to cross — stays
+    // forward-only. Other rows are structurally safe (y=0,1,3 never touch phys
+    // column 2 or 6), which is why fn+shift+q..p has always been reliable.
+    // Tested against `cur`, not `pressed`: the real key and its ghost need not
+    // arrive in the same frame if the controller's FIFO drains across two.
+    const bool arpScaleGhost =
+        gQuickEdit && shiftHeld && held(cur, kKeyArp) && held(cur, kKeyScaleCycle);
+
     // ---- presses ---------------------------------------------------------
     for (int cd = 0; cd < 56 && pressed; ++cd) {
         if (!held(pressed, cd)) continue;
@@ -1125,7 +1149,11 @@ Actions poll(uint32_t nowMs) {
                     cycleScale(shiftHeld ? -1 : 1);
                     continue;
                 }
-                if (cd == kKeyArp) { cycleArp(shiftHeld ? -1 : 1); continue; }  // fn+A: arpeggiator (+shift: back)
+                // fn+A: arpeggiator, forward-only (see arpScaleGhost above). The
+                // reverse chord cannot be distinguished from fn+shift+S, so we
+                // step the ring one way and let the scale own shift. cycleArp
+                // keeps its direction argument for a future ghost-free binding.
+                if (cd == kKeyArp) { if (!arpScaleGhost) cycleArp(1); continue; }
                 if (cd == kKeyArpRate) { adjustArp(false); continue; }  // fn+Z: rate
                 if (cd == kKeyArpSpan) { adjustArp(true); continue; }   // fn+X: span
                 if (gGridString[cd] == 3) {

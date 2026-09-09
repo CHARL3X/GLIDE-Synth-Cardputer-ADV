@@ -21,7 +21,7 @@ Everything the instrument does and how to play it. For install and the five-minu
  fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone, live
  fn + s            : cycle the scale, live
- fn + shift + k/s/a: the same cycle, backwards (key down, previous scale...)
+ fn + shift + k/s:   the same cycle, backwards (key down, previous scale)
  fn + k  (HOLD)    : LISTEN - the mic hears the song and retunes for you
  fn + a            : arpeggiate the backing (fn+z rate, fn+x span) - session only
 ```
@@ -155,7 +155,7 @@ Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and y
 
 The progression is the chord half of an arpeggiator already: a tap on the jam row builds a real in-key triad and walks it per bar. `fn`+`a` is the other half. It does not change what the jam row *means*, only how the backing *sounds*: while it is on, whatever chord the row holds is broken into notes instead of sustained.
 
-- **`fn`+`a`** cycles `up` → `down` → `up/down` → off (the `fn`+`k` / `fn`+`s` habit), and `fn`+`shift`+`a` walks the same ring the other way, so `up` back to off is one tap. Nothing sounds until there is a chord.
+- **`fn`+`a`** cycles `up` → `down` → `up/down` → off (the `fn`+`k` / `fn`+`s` habit). Nothing sounds until there is a chord. This ring runs **forwards only**, unlike key and scale: on the Cardputer's scan matrix `fn` shares a column with `A` and `shift` with `S`, so holding `fn`+`shift`+`A` closes a circuit that makes the keyboard report `S` as well — the two chords are identical by the time the firmware sees them. The scale keeps `shift`, having thirteen entries to walk; the arp's ring is four, so the long way round is three taps. `fn`+`shift`+`A` is therefore read as `fn`+`shift`+`S` and steps the scale back.
 - **Tap one bottom-row key** and that chord goes root-3rd-5th-octave (1-3-5-8, always in key), hands-free, looping every bar. Solo on the three rows above. The first chord takes a one-beat count-in rather than starting under your finger, so the walk begins on the grid and a quick run of taps lands in time.
 - **Tap three more** and you have four chords; each bar the arp moves to the next one. The strip over the scope reads `ARP^` (`ARPv`, `ARP^v`) instead of `PROG` and boxes the sounding chord with its Roman numeral, exactly as before.
 - **`fn`+`z`** steps the note rate (`1/8` → `1/8T` → `1/16` → `1/4`) and **`fn`+`x`** flips the span (one octave, or two: 1-3-5-8-10-12-15). Both work with the arp off too, so it arrives already tuned. Speed itself is the *Jam tempo*: tap it in on `\` and the arp follows.
