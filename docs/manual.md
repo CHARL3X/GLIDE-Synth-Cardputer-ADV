@@ -13,7 +13,7 @@ Everything the instrument does and how to play it. For install and the five-minu
  `     restart (HOLD ~0.7s)  fn (hold)    quick-edit layer   [see note below]
  tab   settings             shift (hold) momentary chromatic
  ctrl/opt volume -/+ (left thumb)        alt loop pedal (left thumb)
- - / =    octave -/+          G0 (RIGHT trigger, top edge) = trigger macro (muffle)
+ - / =    octave -/+          G0 (RIGHT trigger, top edge) = trigger macro (wah)
                                          (tap rec/play/dub, hold clear, fn+alt undo)
 
  fn + q..p         : switch between the ten sounds, live
@@ -219,6 +219,11 @@ tap G0, and play over your own moving texture. Depth is the whole range between
 "a hint" and "the point", and both sit still at 0%, so an unpressed button
 changes nothing.
 
+**Wah on latch is what the instrument ships as**, because it is the setting that
+makes G0 sound like the instrument is doing something on its own: one tap and it
+sweeps until you tap it off. A latch is session state, never saved — however you
+left it, a reboot always comes up unlatched.
+
 Tempo comes from the same place the jam and the synced delay read it, so tap
 tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 
@@ -241,7 +246,7 @@ tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate / 0-100% / momentary, latch | muffle / 70% / momentary | settings (right trigger, G0) |
+| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate / 0-100% / momentary, latch | wah / 70% / latch | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |

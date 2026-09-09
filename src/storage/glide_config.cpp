@@ -1321,22 +1321,24 @@ void begin() {
     gCfg.tutOffered = gPrefs.getBool("tutoffer", d.tutOffered);
     gCfg.taughtMask = gPrefs.getUInt("taught", d.taughtMask);
 
-    // G0 trigger macro (absent on pre-existing devices -> the muffle default,
-    // i.e. the original behaviour at the gentler default depth)
+    // G0 trigger macro (absent -> the header's default, adopted below)
     gCfg.triggerAction = clampT<int>(gPrefs.getUChar("trigact", d.triggerAction), 0,
                                      (int)TriggerAction::Count - 1);
     gCfg.triggerDepth = clampT<int>(gPrefs.getInt("trigdep", (int)(d.triggerDepth * 100)), 0, 100) / 100.f;
     gCfg.triggerLatch = gPrefs.getBool("triglat", d.triggerLatch);
     gCfg.morphMs = clampT<int>(gPrefs.getUShort("morphms", d.morphMs), 0, 2000);
-    // one-time: synth morph (latched) became the G0 default — adopt it even on
-    // devices that persisted the old muffle default (the player's later choice
-    // still sticks, same pattern as the pitch-trail adoption above).
-    if (!gPrefs.getBool("trigv2", false)) {
-        gCfg.triggerAction = (uint8_t)TriggerAction::Morph;
+    // one-time: WAH (latched) became the G0 default — adopt it even on devices
+    // that persisted an older default (the player's later choice still sticks,
+    // same pattern as the pitch-trail adoption above). This supersedes the
+    // "trigv2" morph adoption; that key may linger in NVS on older units and is
+    // deliberately not rewritten — the partition is tight and a stale key costs
+    // nothing, while a second write per boot would not.
+    if (!gPrefs.getBool("trigv3", false)) {
+        gCfg.triggerAction = (uint8_t)TriggerAction::Wah;
         gCfg.triggerLatch = true;
         gPrefs.putUChar("trigact", gCfg.triggerAction);
         gPrefs.putBool("triglat", gCfg.triggerLatch);
-        gPrefs.putBool("trigv2", true);
+        gPrefs.putBool("trigv3", true);
     }
 
     // The morph partner — "the sound you were just on", the other half of the

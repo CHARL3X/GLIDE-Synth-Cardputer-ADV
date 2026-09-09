@@ -152,11 +152,14 @@ struct GlideConfig {
     uint32_t taughtMask = 0;
 
     // ---- G0 trigger macro ---------------------------------------------------
-    // Default is SYNTH MORPH, latched: tap G0 to become the previous sound,
-    // tap to come back. (The partner survives a reboot, and the boot seeds the
-    // GLIDE<->ACID pair when there is none, so this always works out of the
-    // box.) Muffle — the original throw — is one menu step away.
-    uint8_t triggerAction = (uint8_t)TriggerAction::Morph;
+    // Default is WAH, latched: tap G0 and a resonant peak sweeps in tempo until
+    // you tap it off — hands free, so you play over your own moving texture
+    // rather than holding a button to keep it. It is the one action that makes
+    // the instrument sound like it is doing something on its own, which is why
+    // it leads. Morph (the previous default) and muffle (the original throw)
+    // are one menu step away. The engaged state is deliberately RAM-only (see
+    // perform_screen.cpp): a reboot always comes up unlatched.
+    uint8_t triggerAction = (uint8_t)TriggerAction::Wah;
     float   triggerDepth  = 0.70f;  // 0..1 — how hard the action drives
     bool    triggerLatch  = true;   // false = momentary (hold), true = tap-latch
 
