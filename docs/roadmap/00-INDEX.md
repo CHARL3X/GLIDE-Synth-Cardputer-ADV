@@ -6,11 +6,11 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 
 ## The bank
 
-| # | doc | one line | effort | risk | UI cost |
-|---|-----|----------|--------|------|---------|
+| # | doc | one line | effort | risk | UI cost | status |
+|---|-----|----------|--------|------|---------|--------|
 | 01 | [pluck-voice](01-pluck-voice.md) | Karplus-Strong plucked string — glide becomes a *physical* gliss | M | low-med | 0 rows, 0 gestures |
 | 02 | [wave-morph](02-wave-morph.md) | Osc B + blend as a mod destination — timbre becomes a continuous axis | M | low | 2 rows ⚠ (1-row variant specified) |
-| 03 | [loop-quantize](03-loop-quantize.md) | Loop length snaps to the jam clock — looper + progression stop drifting | S | low | 1 row |
+| 03 | [loop-quantize](03-loop-quantize.md) | Loop length snaps to the jam clock — looper + progression stop drifting | S | low | 1 row | ✅ **landed** |
 | 04 | [jam-sessions](04-jam-sessions.md) | Save the whole jam (progression + loop + sounds) to SD as `.gjam` | L | med | 2 rows ⚠ (mirrors sound save/load pair) |
 | 05 | [wav-bounce](05-wav-bounce.md) | Record the master bus to WAV on SD — takes leave the device | M | med | 1 row |
 | 06 | [usb-midi](06-usb-midi.md) | USB MIDI out, MPE-lite: chord slides arrive bent in a DAW | L | high (HW-gated) | 1 row (phase 2) |
@@ -38,21 +38,27 @@ longer safe. Read the generator-versions note below before touching either.
 
 **Field-driven maintenance** — same plan format, but these came from players rather than from the idea bank. They harden or diagnose things that already ship, so neither one adds a feature:
 
-| # | doc | one line | effort | risk | UI cost |
-|---|-----|----------|--------|------|---------|
-| 22 | [battery-warning](22-battery-warning.md) | The low-battery badge stops flickering, hides while charging, and warns at 25% / 10% | S | low | 0 rows, 0 gestures |
+| # | doc | one line | effort | risk | UI cost | status |
+|---|-----|----------|--------|------|---------|--------|
+| 22 | [battery-warning](22-battery-warning.md) | The low-battery badge stops flickering, hides while charging, and warns at 25% / 10% | S | low | 0 rows, 0 gestures | ✅ **landed** |
 | 23 | [poly-stutter](23-poly-stutter.md) | Dense chords reportedly break up on the headphone jack — measure first, then fix the thing it actually is | S–M | low (diagnosis-gated) | 0 rows to diagnose, 1 if the trim remedy wins |
+
+**Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
+**A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so
+they are not a progress signal and this table is the only one. Do not re-execute a marked doc on the
+strength of its "execute task-by-task" header; check here first. (Written 2026-09-09, after 22 and 03 were
+found shipped-but-unmarked and a session proposed rebuilding 22 from scratch.)
 
 ## Suggested order
 
-- **Warm-ups / immediate wins:** 11 (the parameter-recipe exemplar) → 09 → 07 → 03 → 10. Five small features, each shippable in a day or less, all high felt-value.
+- **Warm-ups / immediate wins:** **07 is the only one left.** This list read 11 → 09 → 07 → 03 → 10; 11, 03 and 10 have since landed and 09 was built and cut on hardware, so four fifths of it was pointing at finished work. 07 (microtonal) is still a day or less and still high felt-value.
 - **Core instrument depth:** 01 → 02 (02 lists 01's Pluck interaction) → 08.
-- **The session layer:** 03 before 04 (quantized jams are worth saving); 05 anytime.
+- **The session layer:** 03 has landed, so 04 (jam sessions) is unblocked — quantized jams are worth saving; 05 anytime.
 - **Ecosystem:** 12 early if development velocity matters (it makes every later DSP doc audible without hardware, and adds CI); 06 and 13 start with go/no-go hardware probes — run the probes cheap and early, build only on evidence.
 - 14 after 07/10 if the "learn" pillar is the season's theme.
 - **The second wave (15–20):** 16 (psycho-bass) is a near-warm-up and pairs with any bass-heavy work; 17 (midi-export) anytime, compounding with 03; 18 (groove) after 03 so the pulse and the loop share a trustworthy clock; 15 (line-out) probe early — its dongle answer shapes how much 16 matters; 19 strictly after 06's Task 1 gate; 20 after 01 lands `Pluck = 6` (or use the explicit-value rule below and land in any order).
 - **Distribution:** 21 (web-flasher) is independent of every engine doc and directly retires the sharpest half of debt D1 for standalone units; its Task 2 hardware gate decides everything, so run that early and cheap.
-- **Maintenance (22–23):** both are ahead of every feature above in a release that ships units to strangers. 22 is a half-day and touches one UI function; 23 is a measurement first — its Task 1–2 gate is cheap and can run the same afternoon, and its answer may be "nothing to build," which is a fine outcome. 23 must be sequenced with 15 (line-out) if both are live: they share the output stage and the settings row.
+- **Maintenance (22–23):** ~~both are~~ **23 is** ahead of every feature above in a release that ships units to strangers. **22 landed 2026-08-26 (`384c66b`)** — latched thresholds at 25% amber / 10% red-blinking, hysteresis clears at 35% / 18% over two consecutive polls, and a peak-hold so the badge reports the worst reading rather than the noisiest; the charging case is covered by that recovery hysteresis rather than by charge-state detection, which the ADV does not report. It took the doc's recommendation and shipped **no** `batwarn` row. 23 is a measurement first — its Task 1–2 gate is cheap and can run the same afternoon, and its answer may be "nothing to build," which is a fine outcome. 23 must be sequenced with 15 (line-out) if both are live: they share the output stage and the settings row.
 
 ## Cross-doc coordination ledger (read before editing shared enums/tags)
 
