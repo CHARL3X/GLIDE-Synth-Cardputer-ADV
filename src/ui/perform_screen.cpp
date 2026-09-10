@@ -1973,11 +1973,20 @@ void run() {
         float trigCtlA = 0.f, trigCtlB = 0.f;
         if (trigMod == dsp::TrigMod::Talk) {
             if (tilt::available()) {
+                // Axis A is ONE-SIDED, the same way every other axis-A route
+                // here is ("forward to sing"): leaning the device away past
+                // level is an awkward gesture to hold while playing, so the
+                // whole F1 range lives on the comfortable throw instead of
+                // straddling flat. Rest is the OPEN vowel — the clearest,
+                // most neutral tone — and leaning closes the mouth toward it.
+                // Roll stays symmetric because it is comfortable both ways.
+                //
                 // tilt.cpp normalises 1.0 to NINETY degrees, which nobody
-                // reaches while actually playing. Scaled so a realistic ~45
-                // degree lean reaches the end of the vowel path.
-                trigCtlA = clampf(gTiltLiveA * 2.f, -1.f, 1.f);   // along the vowel path
-                trigCtlB = clampf(gTiltLiveB * 2.f, -1.f, 1.f);   // mouth size
+                // reaches while playing; x2 puts the end of the range at a
+                // realistic ~45 degrees.
+                const float lean = gTiltLiveA > 0.f ? gTiltLiveA : 0.f;
+                trigCtlA = 1.f - 2.f * clampf(lean * 2.f, 0.f, 1.f);   // F1: open -> closed
+                trigCtlB = clampf(gTiltLiveB * 2.f, -1.f, 1.f);        // F2: back <-> front
             } else {
                 // No IMU: the mouth moves itself rather than being a dead
                 // button (failures must be visible, and a silent macro is the
