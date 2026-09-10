@@ -113,6 +113,14 @@ void accumTilt(store::TiltRoute route, float v, float depth, bool oneSided,
     }
 }
 
+// TALK takes the wrists. Set by the trigger pass and read by applyTilt() on the
+// next frame (33 ms, invisible for the purpose of deciding to poll an IMU).
+// gTiltLiveA/B are the LIVE axes with the mod-latch DELIBERATELY ignored: a
+// mouth that cannot move is not a mouth, and a frozen vowel is the one failure
+// that would make the button feel broken.
+bool  gTalkEngaged = false;
+float gTiltLiveA = 0.f, gTiltLiveB = 0.f;
+
 void applyTilt() {
     auto& c = store::get();
     auto& s = c.synth;
@@ -121,7 +129,11 @@ void applyTilt() {
 
     // Guard on enabled+available only — axis A may be Off while roll (B) is
     // active, so the per-route switch (not this guard) handles Off.
-    if (c.tiltOn && tilt::available()) {
+    // TALK must work with no setup: if the player never turned tilt on, we poll
+    // anyway rather than switching their tilt on behind their back (which is
+    // what the latch long-press does, route and depth included — fine there,
+    // wrong here, because it would outlive the macro).
+    if ((c.tiltOn || gTalkEngaged) && tilt::available()) {
         tilt::poll();  // updates both axes in one IMU read
 
         // mod-latch: freeze the per-axis readings on the rising edge so the
@@ -135,14 +147,24 @@ void applyTilt() {
         }
         prevLatched = latched;
 
-        rawA = latched ? latchedA : tilt::value();
-        rawB = latched ? latchedB : tilt::valueB();  // read both, even if dual is off,
-                                                      // so the matrix can route roll
-        accumTilt(store::effectiveTiltRoute(c.tiltMorphA, c.tiltRoute), rawA, c.tiltDepth,
-                  true, cutOct, vibCents, volMul, morphAmt);
-        if (c.tiltDual)
-            accumTilt(store::effectiveTiltRoute(c.tiltMorphB, c.tiltRouteB), rawB,
-                      c.tiltDepthB, false, cutOct, vibCents, volMul, morphAmt);
+        gTiltLiveA = tilt::value();   // the mouth reads these, latch and all
+        gTiltLiveB = tilt::valueB();
+
+        rawA = latched ? latchedA : gTiltLiveA;
+        rawB = latched ? latchedB : gTiltLiveB;  // read both, even if dual is off,
+                                                  // so the matrix can route roll
+        // While the mouth has the wrists, tilt drives the mouth and NOTHING
+        // else — routes and matrix sources alike. Two effects fighting over one
+        // gesture is exactly the "what is even happening" the macro must avoid.
+        if (gTalkEngaged) {
+            rawA = rawB = 0.f;
+        } else {
+            accumTilt(store::effectiveTiltRoute(c.tiltMorphA, c.tiltRoute), rawA, c.tiltDepth,
+                      true, cutOct, vibCents, volMul, morphAmt);
+            if (c.tiltDual)
+                accumTilt(store::effectiveTiltRoute(c.tiltMorphB, c.tiltRouteB), rawB,
+                          c.tiltDepthB, false, cutOct, vibCents, volMul, morphAmt);
+        }
         if (cutOct > 3.f) cutOct = 3.f;
         if (cutOct < -3.f) cutOct = -3.f;
         if (volMul < 0.1f) volMul = 0.1f;  // two volume routes can't hit silence
@@ -192,6 +214,11 @@ void applyTrigger(dsp::SynthParams& lead, dsp::SynthParams& back, uint8_t action
         case store::TriggerAction::Drive:       // shove the lead into the soft clipper
             lead.drive = clampf(lead.drive + depth * 6.f, 1.f, 8.f);
             break;
+        // Talk and Trill are MOTION like wah and gate: they live in the DSP
+        // (synth.cpp), including TALK's source ownership, so the guarantee is
+        // host-testable and cannot be lost by a UI path forgetting it.
+        case store::TriggerAction::Talk:
+        case store::TriggerAction::Trill: break;
         default: break;
     }
 }
@@ -1931,12 +1958,62 @@ void run() {
         // Wah and Gate are MOTION — they run in the DSP (a gate quantised to
         // this 30 fps loop would be audibly sloppy), so publish them rather
         // than folding them into the param copies.
+        const store::TriggerAction trigAct = (store::TriggerAction)cf.triggerAction;
         const dsp::TrigMod trigMod =
-            (store::TriggerAction)cf.triggerAction == store::TriggerAction::Wah  ? dsp::TrigMod::Wah
-          : (store::TriggerAction)cf.triggerAction == store::TriggerAction::Gate ? dsp::TrigMod::Gate
+            trigAct == store::TriggerAction::Wah   ? dsp::TrigMod::Wah
+          : trigAct == store::TriggerAction::Gate  ? dsp::TrigMod::Gate
+          : trigAct == store::TriggerAction::Talk  ? dsp::TrigMod::Talk
+          : trigAct == store::TriggerAction::Trill ? dsp::TrigMod::Trill
           : dsp::TrigMod::None;
+        gTalkEngaged = trigEngaged && trigMod == dsp::TrigMod::Talk;
+
+        // The macro's continuous control, computed HERE because both answers
+        // are the UI's to know: where the wrists are, and what the next note in
+        // the key is.
+        float trigCtlA = 0.f, trigCtlB = 0.f;
+        if (trigMod == dsp::TrigMod::Talk) {
+            if (tilt::available()) {
+                // tilt.cpp normalises 1.0 to NINETY degrees, which nobody
+                // reaches while actually playing. Scaled so a realistic ~45
+                // degree lean reaches the end of the vowel path.
+                trigCtlA = clampf(gTiltLiveA * 2.f, -1.f, 1.f);   // along the vowel path
+                trigCtlB = clampf(gTiltLiveB * 2.f, -1.f, 1.f);   // mouth size
+            } else {
+                // No IMU: the mouth moves itself rather than being a dead
+                // button (failures must be visible, and a silent macro is the
+                // least visible failure there is). Two slow, mutually detuned
+                // sweeps trace a wandering path through the vowel space.
+                const float t = (float)frameStart * 0.001f;
+                trigCtlA = sinf(t * 1.7f);
+                trigCtlB = sinf(t * 1.1f + 1.3f);
+            }
+        } else if (trigMod == dsp::TrigMod::Trill) {
+            // The trill partner is simply the NEXT COLUMN on the same string:
+            // the grid is isomorphic, so column+1 is the next scale degree by
+            // construction — in key in any scale, with no interval to choose
+            // and nothing to clash with. Take the highest held note, which is
+            // the one being played as melody.
+            float bestMidi = -1.f, semis = 2.f;
+            for (int str = 0; str < dsp::kGridStrings; ++str)
+                for (int col = 0; col < dsp::kGridCols; ++col) {
+                    if (!keys::noteHeld(str, col)) continue;
+                    const float m = dsp::gridToMidi(cf.layout, str, col, false);
+                    if (m <= bestMidi) continue;
+                    bestMidi = m;
+                    semis = dsp::gridToMidi(cf.layout, str, col + 1, false) - m;
+                }
+            if (semis < 0.5f) semis = 2.f;   // degenerate layout: fall back to a step
+            trigCtlA = semis;
+        }
+        // TALK is FULL WET and ignores the depth knob, the way TRILL ignores it.
+        // A talkbox has no dry path: the amp's whole output goes down the tube.
+        // At the default depth of 0.70 a third of the dry signal leaked past the
+        // mouth and filled in every formant valley, which is most of the reason
+        // the first build measured "working" and sounded like a mild filter.
+        const float trigLevel = trigMod == dsp::TrigMod::Talk ? 1.f : cf.triggerDepth;
         audio::setTrigger((uint8_t)trigMod,
-                          (trigMod != dsp::TrigMod::None && trigEngaged) ? cf.triggerDepth : 0.f);
+                          (trigMod != dsp::TrigMod::None && trigEngaged) ? trigLevel : 0.f,
+                          trigCtlA, trigCtlB);
 
         // synth morph: G0-Morph leans toward the previous sound by the trigger
         // depth; a sound switch kicked pos to 1 and it glides home from here

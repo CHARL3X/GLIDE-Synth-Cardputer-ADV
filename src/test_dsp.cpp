@@ -2470,7 +2470,7 @@ int main() {
 
     // ---- the G0 trigger macro -------------------------------------------
     {
-        CHECK((int)store::TriggerAction::Count == 7,
+        CHECK((int)store::TriggerAction::Count == 9,
               "the trigger action list is what the settings row expects");
         bool named = true, tagged = true;
         for (int a = 0; a < (int)store::TriggerAction::Count; ++a) {
@@ -2617,6 +2617,157 @@ int main() {
             CHECK(identical, "toBp 0 leaves the notch tap bit-for-bit unchanged");
             CHECK(moved, "toBp 1 actually changes the notch tap");
         }
+    }
+
+    // ---- TALK + TRILL: the G0 EXPRESSION macros ---------------------------
+    // Wah and gate are switches; these two are surfaces. What is pinned here is
+    // not "wired up" but the three things that actually decide whether they are
+    // worth a slot: TALK must MOVE, it must move DIFFERENTLY at different tilt
+    // positions (that is the whole claim — a mouth, not an effect), and it must
+    // survive a source with no harmonics in it. That last one is the notch-wah
+    // failure written down as a test before it can happen again.
+    {
+        auto render = [](uint8_t kind, float amt, float a, float b, Waveform w,
+                         float cut, float* out, int blocks) {
+            Synth sp;
+            sp.init(kSr);
+            SynthParams p;
+            p.masterVol = 0.9f; p.wave = w; p.cutoffHz = cut; p.resonance = 0.15f;
+            p.attackS = 0.002f; p.sustain = 1.f; p.tempoBpm = 120.f;
+            sp.setParams(p);
+            sp.setTrigger(kind, amt, a, b);
+            sp.handleEvent(NoteEvent::make(NoteEvent::On, 251, 0xFF, false, 45.f));
+            for (int i = 0; i < blocks; ++i) {
+                float buf[kBlock];
+                sp.setTrigger(kind, amt, a, b);   // republished per block
+                sp.render(buf, kBlock);
+                for (int k = 0; k < kBlock; ++k) out[i * kBlock + k] = buf[k];
+            }
+        };
+        // one-bin DFT with a Hann window, past the attack
+        auto mag = [](const float* y, int n, int off, float f) {
+            double re = 0.0, im = 0.0;
+            const int m = n - off;
+            for (int i = 0; i < m; ++i) {
+                const double h = 0.5 - 0.5 * cos(2.0 * 3.14159265358979 * i / (m - 1));
+                const double w = 2.0 * 3.14159265358979 * (double)f * i / kSr;
+                re += y[i + off] * h * cos(w);
+                im -= y[i + off] * h * sin(w);
+            }
+            return (float)(2.0 * sqrt(re * re + im * im) / m);
+        };
+        auto rmsOf = [](const float* y, int n, int off) {
+            double s = 0.0;
+            for (int i = off; i < n; ++i) s += (double)y[i] * y[i];
+            return (float)sqrt(s / (n - off));
+        };
+        const int kB = 200, kN = kB * kBlock, kOff = 60 * kBlock;
+        static float aBuf[200 * 128], bBuf[200 * 128], cBuf[200 * 128];
+        // harmonic-by-harmonic distance between two renders, in dB
+        auto dist = [&](const float* x, const float* y) {
+            double sum = 0.0; int c = 0;
+            for (int h = 1; h <= 40; ++h) {
+                const float f = 110.f * h;
+                if (f > 9000.f) break;
+                const float A = mag(x, kN, kOff, f) + 1e-7f;
+                const float B = mag(y, kN, kOff, f) + 1e-7f;
+                sum += fabs(20.0 * log10((double)A / B)); ++c;
+            }
+            return (float)(sum / c);
+        };
+
+        const uint8_t kTalk = (uint8_t)TrigMod::Talk;
+
+        // THE test: a MOUTH, not a WAH. A wah is one resonance moving
+        // monotonically; a vowel is two resonances moving in OPPOSITE
+        // directions, and the relationship between them is the identity.
+        // Going "ee" to "ah", F1 RISES (280 -> 730) while F2 FALLS
+        // (2250 -> 1100). Anything that moves them together is a wah however
+        // it is dressed up — which is what two rejected builds were, one by
+        // scaling all formants with a common "mouth size" and one by walking a
+        // single 1D vowel path, where every gesture is the same trajectory
+        // played forwards or backwards. Assert the opposition directly.
+        // Find where each formant actually IS, by scanning for the strongest
+        // response in its own range. Band-energy comparisons cannot do this:
+        // "ah" puts F1 at 730 and F2 at 1100, which straddle any fixed split.
+        auto peakIn = [&](const float* y, float f0, float f1) {
+            float best = 0.f, at = f0;
+            for (float f = f0; f <= f1; f += 25.f) {
+                const float m = mag(y, kN, kOff, f);
+                if (m > best) { best = m; at = f; }
+            }
+            return at;
+        };
+        render(kTalk, 1.f, -1.f, +1.0f, Waveform::Saw, 3000.f, aBuf, kB);   // "ee"
+        render(kTalk, 1.f, +1.f, -0.6f, Waveform::Saw, 3000.f, bBuf, kB);   // "ah"
+        render(0,     0.f,  0.f,  0.f,  Waveform::Saw, 3000.f, cBuf, kB);
+        const float eeF1 = peakIn(aBuf, 180.f, 900.f), eeF2 = peakIn(aBuf, 950.f, 2800.f);
+        const float ahF1 = peakIn(bBuf, 180.f, 900.f), ahF2 = peakIn(bBuf, 950.f, 2800.f);
+        CHECK(ahF1 > eeF1 * 1.5f, "ee -> ah moves F1 UP");
+        CHECK(eeF2 > ahF2 * 1.5f, "ee -> ah moves F2 DOWN");
+        CHECK(ahF1 > eeF1 && ahF2 < eeF2,
+              "F1 and F2 move in OPPOSITE directions — which is what a wah cannot do");
+
+        // the four corners of the F1/F2 plane are four different vowels, so
+        // there is more than one route between any two targets
+        render(kTalk, 1.f, -1.f, -1.f, Waveform::Saw, 3000.f, aBuf, kB);    // "oo"
+        render(kTalk, 1.f, +1.f, +1.f, Waveform::Saw, 3000.f, bBuf, kB);    // "aa"
+        CHECK(dist(aBuf, bBuf) > 8.f, "the far corners of the vowel plane are far apart");
+        // roll is the F2 axis: it must move F2 with the jaw held still, which
+        // is also what stops it from being a common-mode (wah-like) scaling
+        const float ooF2 = peakIn(aBuf, 950.f, 2800.f), aaF2 = peakIn(bBuf, 950.f, 2800.f);
+        CHECK(aaF2 > ooF2 * 1.5f, "roll alone moves F2, with the jaw held still");
+
+        // level discipline across the whole plane: a loudness wobble is heard
+        // INSTEAD of a vowel change, not as well as it
+        float loR = 1e9f, hiR = 0.f;
+        for (int i = 0; i < 4; ++i) {
+            const float px = (i & 1) ? 1.f : -1.f, py = (i & 2) ? 1.f : -1.f;
+            render(kTalk, 1.f, px, py, Waveform::Saw, 3000.f, aBuf, kB);
+            const float r = rmsOf(aBuf, kN, kOff);
+            if (r < loR) loR = r;
+            if (r > hiR) hiR = r;
+        }
+        const float dryR = rmsOf(cBuf, kN, kOff);
+        CHECK(hiR / loR < 2.2f, "every corner of the vowel plane is about as loud as the others");
+        CHECK(loR > dryR * 0.4f && hiR < dryR * 2.5f, "TALK stays in the dry sound's level range");
+
+        // THE regression test. A sine has no partials for a formant to sculpt,
+        // so a naive bank is silent and motionless on it — measured 0.2 dB of
+        // vowel movement before formant.h normalised and buzzed its own source.
+        // This is the same class of bug as the notch wah, pinned in advance.
+        render(kTalk, 1.f, -1.f, 0.f, Waveform::Sine, 600.f, aBuf, kB);
+        render(kTalk, 1.f, +1.f, 0.f, Waveform::Sine, 600.f, bBuf, kB);
+        render(0,     0.f,  0.f,  0.f, Waveform::Sine, 600.f, cBuf, kB);
+        CHECK(dist(aBuf, bBuf) > 2.f, "TALK still moves on a SINE — it makes its own harmonics");
+        CHECK(rmsOf(aBuf, kN, kOff) > rmsOf(cBuf, kN, kOff) * 0.4f,
+              "TALK on a sine is not a silence");
+
+        // TRILL: the note has to actually alternate with its partner. 2 semis
+        // above 110 Hz is 123.47 Hz, which is silent when the macro is off.
+        const uint8_t kTrill = (uint8_t)TrigMod::Trill;
+        render(kTrill, 1.f, 2.f, 0.f, Waveform::Saw, 3000.f, aBuf, kB);
+        render(0,      0.f, 2.f, 0.f, Waveform::Saw, 3000.f, cBuf, kB);
+        const float partOn  = mag(aBuf, kN, kOff, 123.47f);
+        const float partOff = mag(cBuf, kN, kOff, 123.47f);
+        const float rootOn  = mag(aBuf, kN, kOff, 110.00f);
+        CHECK(partOn > partOff * 4.f, "TRILL sounds the partner note");
+        CHECK(rootOn > partOn * 0.25f, "TRILL alternates — it does not just transpose");
+
+        // both macros are true bypasses when the button is not pressed
+        render(kTalk,  0.f, 0.5f, 0.5f, Waveform::Saw, 3000.f, aBuf, kB);
+        render(kTrill, 0.f, 2.0f, 0.f,  Waveform::Saw, 3000.f, bBuf, kB);
+        render(0,      0.f, 0.f,  0.f,  Waveform::Saw, 3000.f, cBuf, kB);
+        bool bypass = true;
+        for (int i = 0; i < kN; ++i)
+            if (aBuf[i] != cBuf[i] || bBuf[i] != cBuf[i]) bypass = false;
+        CHECK(bypass, "an unpressed TALK/TRILL leaves the instrument bit-for-bit alone");
+
+        bool finiteEx = true;
+        render(kTalk, 1.f, 1.f, 1.f, Waveform::Saw, 3000.f, aBuf, kB);
+        for (int i = 0; i < kN; ++i)
+            if (!std::isfinite(aBuf[i]) || fabsf(aBuf[i]) > 4.f) finiteEx = false;
+        CHECK(finiteEx, "the mouth stays finite and bounded at full tilt");
     }
 
     // ---- the arpeggiator (dsp/arp) ---------------------------------------

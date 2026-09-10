@@ -24,7 +24,7 @@ using dsp::tiltRouteName;
 // bendCents) or a local param copy (drive), never into the saved sound.
 // Append-only (persisted as "trigact").
 enum class TriggerAction : uint8_t { Muffle, Brighten, PitchDive, Drive, Morph,
-                                    Wah, Gate, Count };
+                                    Wah, Gate, Talk, Trill, Count };
 
 inline const char* triggerActionName(uint8_t a) {
     switch ((TriggerAction)a) {
@@ -35,6 +35,8 @@ inline const char* triggerActionName(uint8_t a) {
         case TriggerAction::Morph:     return "synth morph";
         case TriggerAction::Wah:       return "wah (sweeps)";
         case TriggerAction::Gate:      return "gate (16ths)";
+        case TriggerAction::Talk:      return "talkbox (tilt)";
+        case TriggerAction::Trill:     return "trill (in key)";
         default:                       return "?";
     }
 }
@@ -49,6 +51,8 @@ inline const char* triggerActionTag(uint8_t a) {
         case TriggerAction::Morph:     return "MORPH";
         case TriggerAction::Wah:       return "WAH";
         case TriggerAction::Gate:      return "GATE";
+        case TriggerAction::Talk:      return "TALK";
+        case TriggerAction::Trill:     return "TRILL";
         default:                       return "TRIG";
     }
 }

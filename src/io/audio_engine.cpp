@@ -36,6 +36,10 @@ dsp::SynthParams gParams[2];
 dsp::SynthParams gParamsBack[2];
 std::atomic<uint8_t> gParamIdx{0};
 std::atomic<uint32_t> gTrig{0};   // G0 motion macro: kind<<16 | amount*1000
+// The macro's continuous control, two int16 thousandths in one word (talk: jaw
+// and tongue; trill: semitones). A second atomic, not a wider struct, so the
+// render task still never sees a torn value.
+std::atomic<uint32_t> gTrigCtl{0};
 
 // The arpeggiator: its chord/pattern double-buffered like the params, its
 // clock on this thread (a 30 fps UI frame cannot place sixteenths).
@@ -126,7 +130,10 @@ void renderTask(void*) {
         }
         {   // the G0 motion macro, refreshed every block
             const uint32_t t = gTrig.load(std::memory_order_relaxed);
-            gSynth.setTrigger((uint8_t)(t >> 16), (float)(t & 0xFFFF) * 0.001f);
+            const uint32_t c = gTrigCtl.load(std::memory_order_relaxed);
+            gSynth.setTrigger((uint8_t)(t >> 16), (float)(t & 0xFFFF) * 0.001f,
+                              (float)(int16_t)(c >> 16) * 0.001f,
+                              (float)(int16_t)(c & 0xFFFF) * 0.001f);
         }
 
         // scheduled (loop playback) events that have come due
@@ -288,10 +295,16 @@ void setArp(const dsp::ArpConfig& c) {
 
 // kind in the high byte, amount as thousandths in the low half — one atomic
 // word, so the render task never sees a half-updated pair.
-void setTrigger(uint8_t kind, float amount) {
+void setTrigger(uint8_t kind, float amount, float ctlA, float ctlB) {
     const float a = amount < 0.f ? 0.f : (amount > 1.f ? 1.f : amount);
     gTrig.store(((uint32_t)kind << 16) | (uint32_t)(a * 1000.f + 0.5f),
                 std::memory_order_relaxed);
+    auto q = [](float v) {   // +-32 in thousandths: covers both axes and an octave
+        if (v < -32.f) v = -32.f;
+        if (v > 32.f) v = 32.f;
+        return (uint32_t)(uint16_t)(int16_t)(v * 1000.f + (v < 0.f ? -0.5f : 0.5f));
+    };
+    gTrigCtl.store((q(ctlA) << 16) | q(ctlB), std::memory_order_relaxed);
 }
 
 Lead lead() {

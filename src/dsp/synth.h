@@ -8,6 +8,7 @@
 #include "fx.h"
 #include "params.h"
 #include "saturator.h"
+#include "formant.h"
 #include "svf.h"
 #include "voice.h"
 
@@ -31,10 +32,16 @@ public:
     // The G0 macro's motion modulators (wah / gate), pushed every block.
     // A fresh grab restarts the cycle so the sweep or the chop begins under
     // your thumb instead of mid-stride.
-    void setTrigger(uint8_t kind, float amount) {
+    // `a`/`b` carry the macro's continuous control, and stay on this small
+    // lock-free publish rather than growing a SynthParams field — the hygiene
+    // the reverb-freeze experiment paid for. Talk: a = jaw (-1..+1), b = tongue.
+    // Trill: a = semitones to the next scale degree. Unused by wah/gate.
+    void setTrigger(uint8_t kind, float amount, float a = 0.f, float b = 0.f) {
         if (amount > 0.f && trigAmt_ <= 0.f) trigPhase_ = 0.f;
         trigKind_ = kind;
         trigAmt_ = amount < 0.f ? 0.f : (amount > 1.f ? 1.f : amount);
+        trigA_ = a;
+        trigB_ = b;
     }
     void handleEvent(const NoteEvent& ev);
     void render(float* out, int n);
@@ -89,6 +96,8 @@ private:
     // your thumb lands rather than wherever a free-running LFO happened to be.
     uint8_t trigKind_ = 0;
     float   trigAmt_ = 0.f, trigAmtSm_ = 0.f, trigPhase_ = 0.f;
+    float   trigA_ = 0.f, trigB_ = 0.f;   // the macro's continuous control
+    Formant formant_;                     // the TALK mouth (lead bus only)
     float backBuf_[kBlockMax] = {0.f};  // backing sub-mix before it joins the lead
     float sr_ = 32000.f;
     float lfoPhase_ = 0.f;       // the dedicated 5.5 Hz auto-vibrato LFO
