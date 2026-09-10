@@ -22,7 +22,9 @@ public:
     enum Mode : uint8_t { LP, HP, BP, Notch };
 
     // res 0..0.95; called once per block with the smoothed cutoff + the mode.
-    void set(float cutoffHz, float res, uint8_t mode = LP) {
+    // `toBp` (0..1) crossfades the NOTCH tap toward bandpass, and is ignored by
+    // every other mode. It exists for the G0 wah: see the note on process().
+    void set(float cutoffHz, float res, uint8_t mode = LP, float toBp = 0.f) {
         if (cutoffHz < 40.f) cutoffHz = 40.f;
         const float ny = sr_ * 0.49f;
         if (cutoffHz > ny) cutoffHz = ny;
@@ -32,6 +34,7 @@ public:
         a2_ = g * a1_;
         a3_ = g * a2_;
         mode_ = mode;
+        toBp_ = toBp < 0.f ? 0.f : (toBp > 1.f ? 1.f : toBp);
     }
 
     inline float process(float x) {
@@ -43,7 +46,21 @@ public:
         switch (mode_) {
             case HP:    return x - k_ * v1 - v2;
             case BP:    return v1;
-            case Notch: return x - k_ * v1;  // = HP + LP
+            // Notch = HP + LP. Its width is proportional to k_, which is the
+            // INVERSE of resonance -- so a notch gets narrower as Q goes up,
+            // where every other mode gets more dramatic. That inversion is what
+            // made the wah inaudible on a notch patch: the wah drives res to
+            // 0.95, k_ falls to 0.195, and the null narrows to ~176 Hz at a
+            // 900 Hz centre, so a sweep across a 220 Hz-spaced harmonic series
+            // passes BETWEEN the partials and cancels nothing (measured: 0.9 dB
+            // of harmonic swing over the full sweep, against 33 dB in LP).
+            // toBp_ crossfades the tap to bandpass -- which is what a wah pedal
+            // physically IS, and the one response that WANTS the Q the wah
+            // brings. Three flops, and only on this branch.
+            case Notch: {
+                const float nf = x - k_ * v1;
+                return toBp_ > 0.f ? nf + toBp_ * (v1 - nf) : nf;
+            }
             default:    return v2;           // LP
         }
     }
@@ -54,6 +71,7 @@ private:
     float sr_ = 32000.f;
     float a1_ = 0.f, a2_ = 0.f, a3_ = 0.f, k_ = 1.f;
     float ic1_ = 0.f, ic2_ = 0.f;
+    float toBp_ = 0.f;
     uint8_t mode_ = LP;
 };
 

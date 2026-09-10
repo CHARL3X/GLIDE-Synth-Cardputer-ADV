@@ -2490,13 +2490,15 @@ int main() {
         // Per-block RMS, smoothed into an ENVELOPE. Raw block RMS is useless
         // here: a 110 Hz saw fits ~0.44 cycles in a 4 ms block, so it jitters
         // 7x on its own and buries the modulation being measured.
-        auto envelope = [](uint8_t kind, float amt, float* env, int nb) {
+        auto envelope = [](uint8_t kind, float amt, float* env, int nb,
+                           uint8_t fmode = (uint8_t)FilterMode::LP) {
             Synth sp;
             sp.init(kSr);
             SynthParams p;
             p.masterVol = 0.9f;
             p.cutoffHz = 1200.f;
             p.resonance = 0.2f;
+            p.filterMode = fmode;
             p.tempoBpm = 120.f;
             p.attackS = 0.002f;
             p.sustain = 1.f;
@@ -2569,6 +2571,52 @@ int main() {
         for (int b = 0; b < kNB; ++b)
             if (!std::isfinite(eWah[b]) || !std::isfinite(eGate[b])) finite = false;
         CHECK(finite, "the motion macros stay finite");
+
+        // NOTCH was the one response the wah could not move. A notch's width is
+        // proportional to k = 2 - 1.9*res, so the wah's own Q closes it: at res
+        // 0.95 the null is ~176 Hz wide and sweeps BETWEEN a harmonic series,
+        // cancelling nothing. Measured on the shipping code: 0.9 dB of harmonic
+        // swing over the whole sweep, against 33 dB in LP -- audibly a dead
+        // button, which is exactly the "technically working, imperceptible"
+        // failure that killed the reverb freeze. svf.h now crossfades the tap
+        // to bandpass under the pedal. Both halves are pinned here: the wah has
+        // to MOVE a notch patch, and an unpressed one has to stay a notch.
+        {
+            static float nOff[640], nWah[640];
+            float mnOff, mnWah;
+            envelope((uint8_t)TrigMod::None, 0.f, nOff, kNB, (uint8_t)FilterMode::Notch);
+            envelope((uint8_t)TrigMod::Wah, 1.f, nWah, kNB, (uint8_t)FilterMode::Notch);
+            const float snOff = stats(nOff, kNB, mnOff);
+            const float snWah = stats(nWah, kNB, mnWah);
+            CHECK(snOff < 1.2f, "an unpressed notch patch is a steady envelope");
+            CHECK(snWah > 1.5f, "the wah sweeps a NOTCH patch too, not just a lowpass one");
+            bool nFinite = true;
+            for (int b = 0; b < kNB; ++b)
+                if (!std::isfinite(nWah[b])) nFinite = false;
+            CHECK(nFinite, "the notch wah stays finite");
+        }
+
+        // ...and the crossfade is inert off the pedal: a notch with toBp 0 is
+        // bit-for-bit the notch that shipped, so no saved patch changes tone.
+        {
+            Svf a, b;
+            a.init(kSr); b.init(kSr);
+            a.set(900.f, 0.4f, (uint8_t)FilterMode::Notch);
+            b.set(900.f, 0.4f, (uint8_t)FilterMode::Notch, 0.f);
+            bool identical = true, moved = false;
+            Svf c; c.init(kSr);
+            c.set(900.f, 0.4f, (uint8_t)FilterMode::Notch, 1.f);
+            float ph = 0.f;
+            for (int i = 0; i < 4096; ++i) {
+                const float x = 2.f * ph - 1.f;
+                ph += 220.f / kSr; if (ph >= 1.f) ph -= 1.f;
+                const float ya = a.process(x), yb = b.process(x), yc = c.process(x);
+                if (ya != yb) identical = false;
+                if (fabsf(ya - yc) > 1e-4f) moved = true;
+            }
+            CHECK(identical, "toBp 0 leaves the notch tap bit-for-bit unchanged");
+            CHECK(moved, "toBp 1 actually changes the notch tap");
+        }
     }
 
     // ---- the arpeggiator (dsp/arp) ---------------------------------------

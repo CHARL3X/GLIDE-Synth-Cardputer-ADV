@@ -495,7 +495,13 @@ void Synth::render(float* out, int n) {
     if (wahAmt > 0.f) resL += (0.95f - resL) * wahAmt;
     if (resL < 0.f) resL = 0.f;
     if (resL > 0.95f) resL = 0.95f;
-    svf_.set(cutoffSm_, resL, p_.filterMode);
+    // A wah OWNS the filter -- and that has to include the RESPONSE, not just
+    // the cutoff and the Q. In notch mode the wah's own high Q narrows the null
+    // until the sweep passes between the harmonics and does nothing (see the
+    // note in svf.h). So a notch patch crossfades to bandpass under the pedal,
+    // by the same smoothed amount that moves everything else: no step when it
+    // engages, and off the pedal the patch is bit-for-bit its own notch again.
+    svf_.set(cutoffSm_, resL, p_.filterMode, wahAmt);
 
     // backing filter: its own env, NO tilt (the bed stays put under the solo)
     // The backing sweeps WITH the lead here. Tilt deliberately leaves the bed
@@ -509,7 +515,7 @@ void Synth::render(float* out, int n) {
     cutoffSmBack_ += (cutB - cutoffSmBack_) * 0.2f;
     float resB = pBack_.resonance;
     if (wahAmt > 0.f) resB += (0.95f - resB) * wahAmt;
-    svfBack_.set(cutoffSmBack_, resB, pBack_.filterMode);
+    svfBack_.set(cutoffSmBack_, resB, pBack_.filterMode, wahAmt);
 
     // per-bus volume ramps (no zipper). Tilt swell only touches the lead.
     auto rampVol = [n](float target, float& sm, float& step) {
