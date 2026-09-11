@@ -10,6 +10,7 @@
 #include "config.h"
 #include "dsp/patches.h"
 #include "io/audio_engine.h"
+#include "io/joystick.h"
 #include "io/keys.h"
 #include "io/led.h"
 #include "io/sd_store.h"
@@ -185,6 +186,9 @@ void setup() {
 
     keys::begin();
     tilt::begin();
+#ifdef GLIDE_JOYSTICK
+    joystick::begin();
+#endif
     led::begin();
     coach::begin();  // after the splash/factory-reset block: the tour auto-runs
                      // on a fresh unit, offers itself once on an existing one

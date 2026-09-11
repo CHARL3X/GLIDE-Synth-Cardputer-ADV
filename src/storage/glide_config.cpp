@@ -1237,6 +1237,10 @@ void begin() {
         gPrefs.putBool("tilton2", true);
     }
     gCfg.tiltDual = gPrefs.getBool("tiltdual", d.tiltDual);
+#ifdef GLIDE_JOYSTICK
+    gCfg.joyMode = (JoyMode)clampT<int>(gPrefs.getUChar("joymode", (uint8_t)d.joyMode), 0,
+                                        (int)JoyMode::Count - 1);
+#endif
     // Tilt map is global by default (follows your hands, not the sound). Absent
     // key -> lock on, so existing devices adopt it too — non-destructive: the
     // per-patch tilt data is kept, just not reloaded on a sound switch.
@@ -1581,6 +1585,9 @@ void persistNow() {
     gPrefs.putInt("tiltctrb", (int)(gCfg.tiltCenterB * 1000));
     gPrefs.putBool("tilton", gCfg.tiltOn);
     gPrefs.putBool("tiltdual", gCfg.tiltDual);
+#ifdef GLIDE_JOYSTICK
+    gPrefs.putUChar("joymode", (uint8_t)gCfg.joyMode);
+#endif
     gPrefs.putBool("tiltlk", gCfg.tiltLock);
     gPrefs.putBool("tmorpha", gCfg.tiltMorphA);
     gPrefs.putBool("tmorphb", gCfg.tiltMorphB);

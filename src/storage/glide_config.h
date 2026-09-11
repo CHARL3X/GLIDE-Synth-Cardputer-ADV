@@ -57,6 +57,26 @@ inline const char* triggerActionTag(uint8_t a) {
     }
 }
 
+#ifdef GLIDE_JOYSTICK
+// The joystick's route is a GLOBAL rig setting, exactly like TiltRoute above
+// — NOT per-patch data. It was per-patch first (mod-matrix slots) and that
+// measurably broke on real hardware: the routing vanished after switching
+// sounds (a new patch's slots[] just doesn't have it) and appeared to change
+// mid-morph (slots[] is patch data, so it blends/switches with the patch).
+// perform_screen.cpp's applyJoystick() computes this fresh every frame from
+// live x/y into SynthParams::cutoffModOct/resonanceMod — the same live-mod
+// scalars tilt already writes into — so it survives any patch switch or
+// morph blend unchanged, the way tilt's own route always has.
+enum class JoyMode : uint8_t { Filter, Wah, Off, Count };
+inline const char* joyModeName(JoyMode m) {
+    switch (m) {
+        case JoyMode::Filter: return "filter (x=cutoff y=reso)";
+        case JoyMode::Wah:    return "wah (push = sweep)";
+        default:              return "off";
+    }
+}
+#endif
+
 struct GlideConfig {
     dsp::SynthParams synth;   // engine params (ADSR, glide, wave, filter...)
     dsp::Layout layout;       // key, scale, octave, row interval, lock
@@ -81,6 +101,10 @@ struct GlideConfig {
     float tiltCenterB = 0.f;  // axis B calibrated "flat"
     bool tiltOn = true;       // tilt expression on by default
     bool tiltDual = true;     // roll axis (B) live by default — the 2D body
+#ifdef GLIDE_JOYSTICK
+    JoyMode joyMode = JoyMode::Filter;  // global rig setting, cycled by the
+                                        // stick's own click — see JoyMode above
+#endif
     // Tilt->MORPH is a RIG setting, global like the G0 trigger action — not a
     // patch personality. The morph partner is "the sound you were just on"
     // (session state), so a patch can't meaningfully own the mapping; and the

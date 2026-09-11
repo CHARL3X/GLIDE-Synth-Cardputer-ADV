@@ -64,6 +64,16 @@ enum class Archetype : uint8_t {
 // The v2 pool ends here: archetypeForSeed() (frozen) only ever returns these.
 constexpr int kArchetypeCountV2 = 9;
 
+// Same freeze, same reason, for the other append-only enum the frozen
+// generators roll by range. GLIDE_JOYSTICK (personal-build only, never
+// public — see io/joystick.h) appends ModSource::JoyX/JoyY after Random,
+// which would otherwise widen every r.i(1, (int)ModSource::Count-1) roll
+// inside generateSoundLegacy/generateSound(v2) below and drift their golden
+// hashes — and, on a joystick-flagged build, re-derive different o/p slots
+// than the SAME seed gave yesterday. Use this constant, never the live
+// ModSource::Count, at those three call sites.
+constexpr int kModSourceCountV2 = 9;
+
 inline const char* archetypeName(Archetype a) {
     switch (a) {
         case Archetype::Pluck:   return "pluck";

@@ -13,6 +13,7 @@
 #include "../dsp/scales.h"
 #include "../io/audio_engine.h"
 #include "../io/demo.h"
+#include "../io/joystick.h"
 #include "../io/keys.h"
 #include "../io/led.h"
 #include "../io/looper.h"
@@ -181,6 +182,77 @@ void applyTilt() {
     s.metroBeats = c.jamChordBeats;    // like tempo (the synth edge-detects the
     s.metroLevel = c.metroVol;         // toggle and free-runs the beat)
 }
+
+#ifdef GLIDE_JOYSTICK
+// Unit JoyStick2 — a personal-build-only GLOBAL rig control, exactly like
+// tilt (store::JoyMode, dsp/params.h SynthParams::cutoffModOct/resonanceMod).
+// Never in the public build.
+//
+// This was per-patch mod-matrix data first (ModSource::JoyX/Y routed through
+// a couple of s.slots[] entries) and that broke on real hardware two ways:
+// switching sounds silently dropped it (a new patch's slots[] just doesn't
+// carry it) and it appeared to change mid-morph (slots[] is patch data, so
+// morphParams blends/switches it with the patch at t=0.5). A global rig
+// setting computed fresh every frame — the same treatment tilt's own route
+// already gets — can't suffer either problem: it's added on top of whatever
+// patch is loaded or mid-blend, never stored inside one.
+//
+// JoyX/JoyY (raw axes) are still published to the matrix as optional EXTRA
+// per-patch sources, same as TiltA/TiltB sit alongside tilt's own hardwired
+// route — nothing here removes that, it's just no longer what auto-maps.
+//
+// The click (now on the case back — too fiddly to hold mid-phrase two-
+// handed) cycles JoyMode instead of holding to freeze an axis: a deliberate
+// press between phrases, not a gesture you ride during a note.
+void applyJoystick() {
+    auto& c = store::get();
+    auto& s = c.synth;
+    joystick::poll();  // always poll, even while absent — that's how a hotplug is caught
+    const bool isAvailable = joystick::available();
+
+    const float jx = isAvailable ? joystick::x() : 0.f;
+    const float jy = isAvailable ? joystick::y() : 0.f;
+    s.joyXVal = jx;  // raw axes, for anyone who wants them as extra matrix sources
+    s.joyYVal = jy;
+
+    float radius = sqrtf(jx * jx + jy * jy);
+    if (radius > 1.f) radius = 1.f;
+
+    float cutOct = 0.f, resOct = 0.f;
+    if (isAvailable) {
+        switch (c.joyMode) {
+            case store::JoyMode::Filter:  // the wah pedal's two knobs, always live
+                cutOct += jx * 2.f;     // ±2 oct, matches tilt's own cutoff swing
+                resOct += jy * 0.4f;    // ±0.4, a musical range short of self-oscillation
+                break;
+            case store::JoyMode::Wah:    // push-any-direction = pedal down
+                cutOct += radius * 2.5f;
+                resOct += jx * 0.25f;   // a little character riding on left/right
+                break;
+            default: break;  // Off: stick still polled (for the click), no effect
+        }
+    }
+    s.cutoffModOct += cutOct;  // ADDS to tilt's own contribution (applyTilt ran first)
+    s.resonanceMod = resOct;   // resonanceMod has no other writer, so this can assign
+
+    if (isAvailable && joystick::pressed()) {
+        c.joyMode = (store::JoyMode)(((int)c.joyMode + 1) % (int)store::JoyMode::Count);
+        store::markDirty();
+        hud::show("JOYSTICK", store::joyModeName(c.joyMode), -1.f);
+    }
+
+    // The unit's own WS2812: color names the MODE (glanceable even back-
+    // mounted, in peripheral view), brightness rides how far you've pushed
+    // it — center is a dim idle glow, a full push is the mode's full color.
+    // setLed() smooths internally, so a mode-switch color jump still glides.
+    const float br = 0.12f + radius * 0.88f;
+    switch (c.joyMode) {
+        case store::JoyMode::Filter: joystick::setLed(0.05f * br, 0.55f * br, 1.0f * br); break;  // cool cyan
+        case store::JoyMode::Wah:    joystick::setLed(1.0f * br, 0.42f * br, 0.02f * br); break;  // pedal amber
+        default:                     joystick::setLed(0.02f, 0.02f, 0.02f); break;                 // Off: near-dark
+    }
+}
+#endif  // GLIDE_JOYSTICK
 
 inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -1940,6 +2012,9 @@ void run() {
         }
 
         applyTilt();
+#ifdef GLIDE_JOYSTICK
+        applyJoystick();
+#endif
 
         // G0 trigger macro: momentary reads the level; latch toggles on each
         // press (rising edge), so a tap arms it and a second tap releases.

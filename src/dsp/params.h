@@ -110,7 +110,19 @@ inline const char* filterModeName(FilterMode m) {
 // Append-only (values persist in patches): add new entries before Count, never
 // renumber. TiltA/TiltB are the live gyro axes as routable sources; Random is a
 // fresh value sampled at each note-on (per-note variation).
-enum class ModSource : uint8_t { None, LFO1, LFO2, ModEnv, KeyTrack, Bend, TiltA, TiltB, Random, Count };
+enum class ModSource : uint8_t {
+    None, LFO1, LFO2, ModEnv, KeyTrack, Bend, TiltA, TiltB, Random,
+#ifdef GLIDE_JOYSTICK
+    // Unit JoyStick2 (I2C, Port.A) — a personal-build-only source, never
+    // defined in the public build, so ModSource::Count (and every frozen
+    // generator's r.i(1, Count-1) routing roll) never moves for a shipped
+    // unit. See kModSourceCountV2 in sound_gen.h for the belt-and-suspenders
+    // freeze that protects genver-2/3 devices even on a joystick-flagged
+    // build. io/joystick.h has the hardware side.
+    JoyX, JoyY,
+#endif
+    Count
+};
 enum class ModDest   : uint8_t { None, Pitch, Cutoff, Resonance, Amp, FenvDepth, Drive, Chorus, Delay, Reverb, Count };
 enum class LfoShape  : uint8_t { Sine, Tri, Saw, Square, SH, Count };
 
@@ -124,6 +136,10 @@ inline const char* modSourceName(ModSource s) {
         case ModSource::TiltA:    return "tilt f/b";
         case ModSource::TiltB:    return "tilt l/r";
         case ModSource::Random:   return "random";
+#ifdef GLIDE_JOYSTICK
+        case ModSource::JoyX:     return "joy x";
+        case ModSource::JoyY:     return "joy y";
+#endif
         default:                  return "off";
     }
 }
@@ -239,6 +255,20 @@ struct SynthParams {
                                // synced delay locks to it
     float tiltAVal     = 0.f;  // raw calibrated fwd/back axis (-1..1) — the mod
     float tiltBVal     = 0.f;  // raw calibrated roll axis — matrix source inputs
+#ifdef GLIDE_JOYSTICK
+    float joyXVal      = 0.f;  // Unit JoyStick2 X, -1..1 (0 if absent/centered/
+    float joyYVal      = 0.f;  // held at center) — personal build only. Raw
+                               // axes, published for anyone who wants to wire
+                               // JoyX/JoyY into a per-patch matrix slot.
+    // The GLOBAL hardwired route (store::JoyMode, perform_screen.cpp
+    // applyJoystick) lands here, added on TOP of cutoffModOct/resonanceMod —
+    // same live-mod treatment as tilt's cutoff route, and for the same
+    // reason: it must survive a patch switch and a morph blend unchanged,
+    // which a per-patch mod-matrix slot cannot (measured on hardware: the
+    // routing "disappeared" after switching sounds, and appeared to change
+    // mid-morph, because slots[] is patch data that gets replaced/blended).
+    float resonanceMod = 0.f;  // joystick(/future)->resonance offset, bipolar
+#endif
     // Metronome — performance state like tempoBpm, published each frame, never
     // a patch field (no codec tag; default off = bit-identical render, so the
     // frozen-generator goldens can't see it). Bytes, not floats: SynthParams

@@ -32,6 +32,11 @@ SynthParams morphParams(const SynthParams& a, const SynthParams& b, float t) {
         out.tempoBpm = a.tempoBpm;
         out.tiltAVal = a.tiltAVal;
         out.tiltBVal = a.tiltBVal;
+#ifdef GLIDE_JOYSTICK
+        out.joyXVal = a.joyXVal;
+        out.joyYVal = a.joyYVal;
+        out.resonanceMod = a.resonanceMod;
+#endif
         out.metroOn = a.metroOn;        // the metronome is the player's too — a
         out.metroBeats = a.metroBeats;  // full-depth morph must not silence or
         out.metroLevel = a.metroLevel;  // detune the click

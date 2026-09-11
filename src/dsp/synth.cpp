@@ -417,6 +417,10 @@ void Synth::render(float* out, int n) {
     src[(int)ModSource::TiltA]    = p_.tiltAVal;
     src[(int)ModSource::TiltB]    = p_.tiltBVal;
     src[(int)ModSource::Random]   = randHold_;
+#ifdef GLIDE_JOYSTICK
+    src[(int)ModSource::JoyX]     = p_.joyXVal;
+    src[(int)ModSource::JoyY]     = p_.joyYVal;
+#endif
 
     float modPitchCents = 0.f, modCutOct = 0.f, modRes = 0.f, modFenvOct = 0.f, modAmpMul = 1.f;
     float modDrive = 0.f, modChorus = 0.f, modDelay = 0.f, modReverb = 0.f;
@@ -542,6 +546,9 @@ void Synth::render(float* out, int n) {
         leadBright_ = b < 0.f ? 0.f : (b > 1.f ? 1.f : b);
     }
     float resL = p_.resonance + modRes;  // matrix can push resonance
+#ifdef GLIDE_JOYSTICK
+    resL += p_.resonanceMod;  // global joystick route — see dsp/params.h
+#endif
     // ...and the wah takes the Q all the way up: the peak IS the effect.
     if (wahAmt > 0.f) resL += (0.95f - resL) * wahAmt;
     if (resL < 0.f) resL = 0.f;
