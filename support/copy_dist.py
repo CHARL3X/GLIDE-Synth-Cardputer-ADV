@@ -9,6 +9,7 @@ import os, shutil, subprocess, sys
 
 DIST_NAMES = {
     "cardputer-adv": "GLIDE.bin",
+    "cardputer-adv-joystick": "GLIDE-joystick.bin",  # personal build, never ships
     "phase0-probe": "GLIDE-probe.bin",
     "nvsfill": "GLIDE-nvsfill.bin",
 }

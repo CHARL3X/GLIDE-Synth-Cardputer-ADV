@@ -254,7 +254,8 @@ GenPatch generateSoundLegacy(uint32_t seed) {
     s.modEnvDecS = 0.08f + r.f() * 1.2f;
     const int nmod = r.i(0, 3);  // 0..3 routings — more engine in play = richer
     for (int i = 0; i < nmod && i < kModSlots; ++i) {
-        const ModSource src = (ModSource)r.i(1, (int)ModSource::Count - 1);
+        // frozen (legacy): kModSourceCountV2, never the live Count — see sound_gen.h
+        const ModSource src = (ModSource)r.i(1, kModSourceCountV2 - 1);
         const ModDest   dst = (ModDest)r.i(1, (int)ModDest::Count - 1);
         s.slots[i] = ModSlot::make(src, dst, (r.f() * 2.f - 1.f) * 0.6f);
     }
@@ -772,7 +773,8 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             if (r.chance(0.25f)) s.lfo1Sync = (uint8_t)r.i(1, kDelaySyncCount - 1);
             const int nmod = r.i(1, 3);
             for (int i = 0; i < nmod; ++i) {
-                const ModSource src = (ModSource)r.i(1, (int)ModSource::Count - 1);
+                // frozen (v2): kModSourceCountV2, never the live Count — see sound_gen.h
+                const ModSource src = (ModSource)r.i(1, kModSourceCountV2 - 1);
                 const ModDest dst = (ModDest)r.i(1, (int)ModDest::Count - 1);
                 addMod(s, src, dst, (r.f() * 2.f - 1.f) * 0.7f);
             }
@@ -786,7 +788,8 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
         if (r.chance(0.5f) && s.filterMode == (uint8_t)FilterMode::LP) {
             s.filterMode = (uint8_t)r.i(1, (int)FilterMode::Count - 1);
         } else {
-            const ModSource src = (ModSource)r.i(1, (int)ModSource::Count - 1);
+            // frozen (v2): kModSourceCountV2, never the live Count — see sound_gen.h
+            const ModSource src = (ModSource)r.i(1, kModSourceCountV2 - 1);
             const ModDest dst = (ModDest)r.i(1, (int)ModDest::Count - 1);
             addMod(s, src, dst, (r.f() * 2.f - 1.f) * 0.5f);
         }
