@@ -29,11 +29,10 @@ enum class GlideMode : uint8_t {
 // patch (the reverb-freeze experiment grew a SynthParams field and needed the
 // same hygiene repeated at three separate call sites to stay out of storage).
 // It is pushed straight to Synth::setTrigger instead.
-// Talk hands both tilt axes to dsp/formant.h for as long as the macro is
-// engaged; Trill alternates the lead pitch with the next scale degree, whose
-// interval the UI computes off the isomorphic grid (a trill partner is simply
-// the next COLUMN, so it is in key by construction, in any scale).
-enum class TrigMod : uint8_t { None, Wah, Gate, Talk, Trill };
+// Trill alternates the lead pitch with the next scale degree, whose interval
+// the UI computes off the isomorphic grid (a trill partner is simply the next
+// COLUMN, so it is in key by construction, in any scale).
+enum class TrigMod : uint8_t { None, Wah, Gate, Trill };
 
 enum class TiltRoute : uint8_t { Off, Cutoff, Vibrato, Volume, Morph, Count };
 

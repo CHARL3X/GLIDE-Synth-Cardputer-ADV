@@ -8,7 +8,6 @@
 #include "fx.h"
 #include "params.h"
 #include "saturator.h"
-#include "formant.h"
 #include "svf.h"
 #include "voice.h"
 
@@ -34,8 +33,8 @@ public:
     // your thumb instead of mid-stride.
     // `a`/`b` carry the macro's continuous control, and stay on this small
     // lock-free publish rather than growing a SynthParams field — the hygiene
-    // the reverb-freeze experiment paid for. Talk: a = jaw (-1..+1), b = tongue.
-    // Trill: a = semitones to the next scale degree. Unused by wah/gate.
+    // the reverb-freeze experiment paid for. Trill: a = semitones to the next
+    // scale degree. Unused by wah/gate.
     void setTrigger(uint8_t kind, float amount, float a = 0.f, float b = 0.f) {
         if (amount > 0.f && trigAmt_ <= 0.f) trigPhase_ = 0.f;
         trigKind_ = kind;
@@ -97,7 +96,6 @@ private:
     uint8_t trigKind_ = 0;
     float   trigAmt_ = 0.f, trigAmtSm_ = 0.f, trigPhase_ = 0.f;
     float   trigA_ = 0.f, trigB_ = 0.f;   // the macro's continuous control
-    Formant formant_;                     // the TALK mouth (lead bus only)
     float backBuf_[kBlockMax] = {0.f};  // backing sub-mix before it joins the lead
     float sr_ = 32000.f;
     float lfoPhase_ = 0.f;       // the dedicated 5.5 Hz auto-vibrato LFO

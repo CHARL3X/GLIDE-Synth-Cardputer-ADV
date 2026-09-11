@@ -36,8 +36,8 @@ dsp::SynthParams gParams[2];
 dsp::SynthParams gParamsBack[2];
 std::atomic<uint8_t> gParamIdx{0};
 std::atomic<uint32_t> gTrig{0};   // G0 motion macro: kind<<16 | amount*1000
-// The macro's continuous control, two int16 thousandths in one word (talk: jaw
-// and tongue; trill: semitones). A second atomic, not a wider struct, so the
+// The macro's continuous control, two int16 thousandths in one word (trill:
+// semitones; unused by wah/gate). A second atomic, not a wider struct, so the
 // render task still never sees a torn value.
 std::atomic<uint32_t> gTrigCtl{0};
 

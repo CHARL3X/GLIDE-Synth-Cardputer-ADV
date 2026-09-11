@@ -7,7 +7,6 @@
 
 namespace dsp {
 
-
 namespace {
 constexpr float kTwoPi = 6.28318530718f;
 constexpr float kVibratoHz = 5.5f;
@@ -34,7 +33,6 @@ void Synth::init(float sampleRate) {
     initWavetables();
     svf_.init(sr_);
     svfBack_.init(sr_);
-    formant_.init(sr_);
     out_.init(sr_);
     outBack_.init(sr_);
     fx_.init(sr_);
@@ -451,29 +449,11 @@ void Synth::render(float* out, int n) {
     trigAmtSm_ += (trigAmt_ - trigAmtSm_) * 0.25f;
     const float trigBpm = p_.tempoBpm < 20.f ? 20.f : (p_.tempoBpm > 300.f ? 300.f : p_.tempoBpm);
     const bool trigLive = trigAmtSm_ > 0.001f;
-    float wahHz = 0.f, wahAmt = 0.f, talkAmt = 0.f, trillCents = 0.f;
+    float wahHz = 0.f, wahAmt = 0.f, trillCents = 0.f;
     if (trigLive) {
         switch ((TrigMod)trigKind_) {
             case TrigMod::Wah:
                 wahAmt = trigAmtSm_;
-                break;
-            case TrigMod::Talk:
-                // The mouth. trigA_/trigB_ are the LIVE tilt axes — the UI
-                // passes them straight through, so the tilt mod-latch can never
-                // freeze a vowel and leave the button feeling dead.
-                //
-                // Deliberately NO motion of its own. A build that articulated
-                // on the beat came back as "a consistent rate up down like the
-                // wah feature ... it should talk and react to motion" — it had
-                // become a second wah. The point of this macro is that the
-                // WRIST talks: a clear tone at rest that the hand shapes.
-                // What made the first attempt inaudible was never the missing
-                // motion, it was a 30% dry leak past the mouth and an
-                // unnatural formant balance. With those fixed the tilt alone
-                // sweeps 3.46x of spectral centroid and the roll another
-                // 2.63x — the wah, for scale, sweeps 3.3x.
-                talkAmt = trigAmtSm_;
-                formant_.set(trigA_, trigB_);
                 break;
             case TrigMod::Trill: {
                 // 16ths, alternating the played note with the next scale
@@ -521,17 +501,6 @@ void Synth::render(float* out, int n) {
     // lead filter: base * (tilt + matrix) octaves * (env + matrix) env octaves
     float cutL = p_.cutoffHz * exp2f(p_.cutoffModOct + modCutOct + (p_.fenvOct + modFenvOct) * fenv_);
     if (wahAmt > 0.f) cutL += (wahHz - cutL) * wahAmt;   // depth blends toward the pedal
-    // TALK owns its SOURCE the way the wah owns the filter, and for the same
-    // reason. Formants sculpt HARMONICS: a sine, or a patch filtered dark, has
-    // nothing up at F2/F3 to shape, so a mouth over one measures "working" and
-    // is inaudible — the notch-wah failure exactly, known in advance this time.
-    // Measured: a sine patch loses 5x level and moves 0.1 dB between vowels
-    // without this; the drive is what actually manufactures the partials.
-    uint8_t modeL = p_.filterMode;
-    if (talkAmt > 0.f) {
-        cutL += (9000.f - cutL) * talkAmt;
-        if (talkAmt > 0.5f) modeL = (uint8_t)FilterMode::LP;
-    }
     if (cutL < 60.f) cutL = 60.f;
     if (cutL > 14000.f) cutL = 14000.f;
     cutoffSm_ += (cutL - cutoffSm_) * 0.2f;
@@ -552,7 +521,7 @@ void Synth::render(float* out, int n) {
     // note in svf.h). So a notch patch crossfades to bandpass under the pedal,
     // by the same smoothed amount that moves everything else: no step when it
     // engages, and off the pedal the patch is bit-for-bit its own notch again.
-    svf_.set(cutoffSm_, resL, modeL, wahAmt);
+    svf_.set(cutoffSm_, resL, p_.filterMode, wahAmt);
 
     // backing filter: its own env, NO tilt (the bed stays put under the solo)
     // The backing sweeps WITH the lead here. Tilt deliberately leaves the bed
@@ -583,23 +552,13 @@ void Synth::render(float* out, int n) {
     float volB = rampVol(pBack_.masterVol * pBack_.volMod, volSmBack_, dvB);
 
     float driveLm = p_.drive + modDrive;  // matrix can pulse the grit
-    // the mouth needs something to chew on — see the note on cutL above
-    if (talkAmt > 0.f && driveLm < 3.2f) driveLm += (3.2f - driveLm) * talkAmt;
     const float driveL = driveLm < 1.f ? 1.f : (driveLm > 8.f ? 8.f : driveLm);
     const float driveB = pBack_.drive < 1.f ? 1.f : (pBack_.drive > 8.f ? 8.f : pBack_.drive);
     const float makeupL = 1.f / (0.55f + 0.45f * driveL);
     const float makeupB = 1.f / (0.55f + 0.45f * driveB);
 
     for (int i = 0; i < n; ++i) {
-        // The mouth sits AFTER the saturator, on the LEAD bus only. After,
-        // because out_ IS the soft clipper: the drive's harmonics are made
-        // there, and a mouth placed upstream of them shapes a signal that has
-        // nothing in it yet (measured on a sine: 0.2 dB of vowel movement).
-        // It is also how the real thing is wired — a talkbox takes the amp's
-        // output into the tube. Lead only: a talkbox over the drone bed is mud.
-        float lf = out_.process(svf_.process(out[i] * driveL));
-        if (talkAmt > 0.f) lf += (formant_.process(lf) - lf) * talkAmt;
-        const float l = lf * makeupL * volL;
+        const float l = out_.process(svf_.process(out[i] * driveL)) * makeupL * volL;
         const float b = outBack_.process(svfBack_.process(backBuf_[i] * driveB)) * makeupB * volB;
         out[i] = l + b;
         volL += dvL;
