@@ -43,6 +43,7 @@ longer safe. Read the generator-versions note below before touching either.
 | 22 | [battery-warning](22-battery-warning.md) | The low-battery badge stops flickering, hides while charging, and warns at 25% / 10% | S | low | 0 rows, 0 gestures | ✅ **landed** |
 | 23 | [poly-stutter](23-poly-stutter.md) | Dense chords reportedly break up on the headphone jack — measure first, then fix the thing it actually is | S–M | low (diagnosis-gated) | 0 rows to diagnose, 1 if the trim remedy wins |
 | 24 | [intro-repeat](24-intro-repeat.md) | Intro card shows across a new player's first 3 startups instead of burning its one shot on the boxing play-test | S | low | 0 rows, 0 gestures |
+| 25 | [screen-real-estate](25-screen-real-estate.md) | Fresh units one octave lower; stabilize tutorial card reflow; consolidate overlapping indicators at visualizer top | M | low-med | 0 rows, 0 gestures |
 
 **Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
 **A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so
