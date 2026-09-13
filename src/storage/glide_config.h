@@ -65,11 +65,30 @@ inline const char* triggerActionTag(uint8_t a) {
 // live x/y into SynthParams::cutoffModOct/resonanceMod — the same live-mod
 // scalars tilt already writes into — so it survives any patch switch or
 // morph blend unchanged, the way tilt's own route always has.
-enum class JoyMode : uint8_t { Filter, Wah, Off, Count };
+//
+// Four modes, each spending the four directions on things that sound
+// DIFFERENT (field notes: the old filter/wah pair were near twins, and
+// up/down vs left/right barely told apart). perform_screen.cpp's
+// applyJoystick() is the source of truth for what each direction does.
+// NVS "joymode" from the two-mode build maps onto the new order harmlessly.
+enum class JoyMode : uint8_t { Wah, Fx, Bend, Body, Off, Count };
+// The click's toast: label (small font, 22 ch) names the mode + two
+// directions, value (big font, ~15 ch fits the card) the other two.
+inline const char* joyModeLabel(JoyMode m) {
+    switch (m) {
+        case JoyMode::Wah:    return "JOY WAH   ^v pedal";
+        case JoyMode::Fx:     return "JOY FX  ^verb vgrit";
+        case JoyMode::Bend:   return "JOY BEND  ^v bend";
+        case JoyMode::Body:   return "JOY BODY ^wide vsub";
+        default:              return "JOYSTICK";
+    }
+}
 inline const char* joyModeName(JoyMode m) {
     switch (m) {
-        case JoyMode::Filter: return "filter (x=cutoff y=reso)";
-        case JoyMode::Wah:    return "wah (push = sweep)";
+        case JoyMode::Wah:    return "<soft  >sharp";
+        case JoyMode::Fx:     return "<muffle  >echo";
+        case JoyMode::Bend:   return "hold = vibrato";
+        case JoyMode::Body:   return "<snap  >slide";
         default:              return "off";
     }
 }
@@ -100,7 +119,7 @@ struct GlideConfig {
     bool tiltOn = true;       // tilt expression on by default
     bool tiltDual = true;     // roll axis (B) live by default — the 2D body
 #ifdef GLIDE_JOYSTICK
-    JoyMode joyMode = JoyMode::Filter;  // global rig setting, cycled by the
+    JoyMode joyMode = JoyMode::Wah;     // global rig setting, cycled by the
                                         // stick's own click — see JoyMode above
 #endif
     // Tilt->MORPH is a RIG setting, global like the G0 trigger action — not a

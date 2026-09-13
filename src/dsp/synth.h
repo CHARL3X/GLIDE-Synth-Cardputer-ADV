@@ -42,6 +42,20 @@ public:
         trigA_ = a;
         trigB_ = b;
     }
+#ifdef GLIDE_JOYSTICK
+    // The joystick's DSP-side controls (personal build). Its own publish, not
+    // SynthParams fields — see the note on joyXVal in params.h.
+    //   wahAmt  0..1 how much the stick's wah owns the filter (0 = patch)
+    //   wahHz   the pedal position, as the peak frequency
+    //   wahQ    the peak's resonance target (the G0 wah always uses 0.95)
+    //   vibRate multiplier on the 5.5 Hz vibrato LFO (1 = stock)
+    void setJoystick(float wahAmt, float wahHz, float wahQ, float vibRate) {
+        joyWahAmt_ = wahAmt < 0.f ? 0.f : (wahAmt > 1.f ? 1.f : wahAmt);
+        joyWahHz_ = wahHz;
+        joyWahQ_ = wahQ;
+        joyVibRate_ = vibRate;
+    }
+#endif
     void handleEvent(const NoteEvent& ev);
     void render(float* out, int n);
 
@@ -96,6 +110,9 @@ private:
     uint8_t trigKind_ = 0;
     float   trigAmt_ = 0.f, trigAmtSm_ = 0.f, trigPhase_ = 0.f;
     float   trigA_ = 0.f, trigB_ = 0.f;   // the macro's continuous control
+#ifdef GLIDE_JOYSTICK
+    float joyWahAmt_ = 0.f, joyWahHz_ = 1000.f, joyWahQ_ = 0.9f, joyVibRate_ = 1.f;
+#endif
     float backBuf_[kBlockMax] = {0.f};  // backing sub-mix before it joins the lead
     float sr_ = 32000.f;
     float lfoPhase_ = 0.f;       // the dedicated 5.5 Hz auto-vibrato LFO

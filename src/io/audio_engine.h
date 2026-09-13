@@ -28,6 +28,11 @@ void setParams(const dsp::SynthParams& p);  // convenience: lead == back
 // is performance state, it must never reach a saved patch, and the gate needs
 // sample-accurate edges the 30 fps UI frame cannot give it.
 void setTrigger(uint8_t kind, float amount, float ctlA = 0.f, float ctlB = 0.f);
+#ifdef GLIDE_JOYSTICK
+// The joystick's wah (amount, pedal Hz, peak Q) and vibrato rate multiplier —
+// personal build only; see dsp::Synth::setJoystick.
+void setJoystick(float wahAmt, float wahHz, float wahQ, float vibRate);
+#endif
 // The arpeggiator's chord + pattern, published by keys.cpp whenever the backing
 // chord changes or fn+a/z/x adjust it. Double-buffered like the params; the
 // render task steps dsp::Arp once per block and feeds its events to the synth

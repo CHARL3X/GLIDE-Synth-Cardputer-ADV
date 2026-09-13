@@ -161,78 +161,213 @@ void applyTilt() {
     s.metroLevel = c.metroVol;         // toggle and free-runs the beat)
 }
 
+inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
 #ifdef GLIDE_JOYSTICK
 // Unit JoyStick2 — a personal-build-only GLOBAL rig control, exactly like
-// tilt (store::JoyMode, dsp/params.h SynthParams::cutoffModOct/resonanceMod).
-// Never in the public build.
+// tilt: store::JoyMode is a rig setting cycled by the stick's click, and every
+// effect is recomputed each frame onto the LEAD COPY (or the synth's own
+// joystick publish), never stored in a patch. Its first build routed through
+// per-patch mod-matrix slots, and on hardware that vanished on a sound switch
+// and changed mid-morph. JoyX/JoyY stay available as optional matrix sources.
 //
-// This was per-patch mod-matrix data first (ModSource::JoyX/Y routed through
-// a couple of s.slots[] entries) and that broke on real hardware two ways:
-// switching sounds silently dropped it (a new patch's slots[] just doesn't
-// carry it) and it appeared to change mid-morph (slots[] is patch data, so
-// morphParams blends/switches it with the patch at t=0.5). A global rig
-// setting computed fresh every frame — the same treatment tilt's own route
-// already gets — can't suffer either problem: it's added on top of whatever
-// patch is loaded or mid-blend, never stored inside one.
+// What earns a mode (from a week of play, then a round of try-and-cut): the
+// stick is the one CONTINUOUS, spring-return control on an instrument whose
+// keys have no velocity or aftertouch. A mode must be playable blind with a
+// middle finger mid-phrase, must be the plain patch at rest, and must do what
+// keys/tilt/G0 can't. A trill/gate mode failed the last test (a button does
+// on/off better, and a held threshold was hard to play) and was cut; a
+// "hold at the rim to bend a second degree" tier read as happening by itself
+// and became vibrato that blooms instead.
 //
-// JoyX/JoyY (raw axes) are still published to the matrix as optional EXTRA
-// per-patch sources, same as TiltA/TiltB sit alongside tilt's own hardwired
-// route — nothing here removes that, it's just no longer what auto-maps.
+// Mode map (the HUD toast mirrors it — store::joyModeLabel/joyModeName):
+//   WAH   up/down = the pedal (dark..bright), how far = how much wah,
+//         left = softer peak, right = sharper. The synth's wah OWNS the
+//         filter, so it reads as a wah on every patch, not just acid.
+//   FX    up = reverb swell, down = drive grit, left = muffle, right = echo
+//         throw. Four unlike things, and a diagonal mixes two of them.
+//   BEND  up/down bend to the next scale degree, glided at the bend keys'
+//         own rate, so the pitch only ever comes to rest in key. Hold the
+//         bend and vibrato blooms in, the way a guitarist shakes a held bend.
+//         left/right = vibrato by hand (slow and wide .. fast). Tilt is never
+//         pitch bend — this is not tilt.
+//   BODY  up = wide (chorus + fat-saw detune), down = sub octave, left = snap
+//         between notes, right = long slides between notes.
 //
-// The click (now on the case back — too fiddly to hold mid-phrase two-
-// handed) cycles JoyMode instead of holding to freeze an axis: a deliberate
-// press between phrases, not a gesture you ride during a note.
-void applyJoystick() {
-    auto& c = store::get();
-    auto& s = c.synth;
-    joystick::poll();  // always poll, even while absent — that's how a hotplug is caught
-    const bool isAvailable = joystick::available();
+// Effects ride joystick::ex()/ey() (glided, rim-push scaled); thresholds ride
+// the instant x()/y(). State lives here as a handful of scalars.
+struct JoyOut {
+    // lead-copy edits, 0..1 each
+    float reverb, grit, muffle, echo;  // FX
+    float wide, sub, snap, slide;      // BODY
+    float bendCents, vibCents;         // BEND
+    // synth publish
+    float wahAmt, wahHz, wahQ, vibRate;
+};
 
-    const float jx = isAvailable ? joystick::x() : 0.f;
-    const float jy = isAvailable ? joystick::y() : 0.f;
-    s.joyXVal = jx;  // raw axes, for anyone who wants them as extra matrix sources
-    s.joyYVal = jy;
+namespace joy {
+uint32_t lastMs = 0;
+float wahAmt = 0.f, wahPos = 0.5f;
+float bendCur = 0.f, bendTarget = 0.f, bloom = 0.f;
+int8_t bendTier = 0;
+}  // namespace joy
 
-    float radius = sqrtf(jx * jx + jy * jy);
-    if (radius > 1.f) radius = 1.f;
-
-    float cutOct = 0.f, resOct = 0.f;
-    if (isAvailable) {
-        switch (c.joyMode) {
-            case store::JoyMode::Filter:  // the wah pedal's two knobs, always live
-                cutOct += jx * 2.f;     // ±2 oct, matches tilt's own cutoff swing
-                resOct += jy * 0.4f;    // ±0.4, a musical range short of self-oscillation
-                break;
-            case store::JoyMode::Wah:    // push-any-direction = pedal down
-                cutOct += radius * 2.5f;
-                resOct += jx * 0.25f;   // a little character riding on left/right
-                break;
-            default: break;  // Off: stick still polled (for the click), no effect
+// The interval `steps` scale degrees from the highest held note, found the way
+// the TRILL macro finds its partner (the grid is isomorphic: column+1 is the
+// next degree in any scale). false = nothing held.
+bool degreeInterval(const dsp::Layout& l, int steps, float& semis) {
+    int bs = -1, bc = 0;
+    float best = -1.f;
+    for (int str = 0; str < dsp::kGridStrings; ++str)
+        for (int col = 0; col < dsp::kGridCols; ++col) {
+            if (!keys::noteHeld(str, col)) continue;
+            const float m = dsp::gridToMidi(l, str, col, false);
+            if (m > best) { best = m; bs = str; bc = col; }
         }
+    if (bs < 0) return false;
+    // below the grid's first degree the scale walk has no negative octave:
+    // mirror the upward interval instead (the lowest key only)
+    if (l.scaleLock && bs * dsp::rowDegrees(l) + bc + steps < 0) {
+        semis = -(dsp::gridToMidi(l, bs, bc - steps, false) - best);
+        return true;
     }
-    s.cutoffModOct += cutOct;  // ADDS to tilt's own contribution (applyTilt ran first)
-    s.resonanceMod = resOct;   // resonanceMod has no other writer, so this can assign
+    semis = dsp::gridToMidi(l, bs, bc + steps, false) - best;
+    if (fabsf(semis) < 0.5f) semis = 2.f * (float)steps;  // degenerate layout
+    return true;
+}
 
-    if (isAvailable && joystick::pressed()) {
+JoyOut applyJoystick(uint32_t nowMs) {
+    auto& c = store::get();
+    JoyOut o = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 1000.f, 0.9f, 1.f};
+    float dtMs = (float)(nowMs - joy::lastMs);
+    joy::lastMs = nowMs;
+    if (dtMs > 100.f) dtMs = 100.f;
+
+    joystick::poll();  // always poll, even while absent — that's how a hotplug is caught
+    const bool live = joystick::available();
+    const float yi = live ? joystick::y() : 0.f;
+    const float ex = live ? joystick::ex() : 0.f, ey = live ? joystick::ey() : 0.f;
+    c.synth.joyXVal = live ? joystick::x() : 0.f;  // for anyone wiring JoyX/JoyY
+    c.synth.joyYVal = yi;                          // into the mod matrix
+
+    if (live && joystick::pressed()) {
         c.joyMode = (store::JoyMode)(((int)c.joyMode + 1) % (int)store::JoyMode::Count);
         store::markDirty();
-        hud::show("JOYSTICK", store::joyModeName(c.joyMode), -1.f);
+        hud::show(store::joyModeLabel(c.joyMode), store::joyModeName(c.joyMode), -1.f);
+    }
+    const store::JoyMode mode = live ? c.joyMode : store::JoyMode::Off;
+    const float up = ey > 0.f ? ey : 0.f, dn = ey < 0.f ? -ey : 0.f;
+    const float lf = ex < 0.f ? -ex : 0.f, rt = ex > 0.f ? ex : 0.f;
+    const float radius = clampf(sqrtf(ex * ex + ey * ey), 0.f, 1.f);
+
+    // ---- WAH: amount rises fast and falls slow, so a flick from heel to toe
+    // stays a wah the whole way across instead of dropping out at the centre
+    {
+        const float target = mode == store::JoyMode::Wah ? clampf(radius / 0.45f, 0.f, 1.f) : 0.f;
+        const float tau = target > joy::wahAmt ? 30.f : 350.f;
+        joy::wahAmt += (target - joy::wahAmt) * (1.f - exp(-dtMs / tau));
+        // the pedal holds its last position through the release tail
+        if (mode == store::JoyMode::Wah && radius > 0.06f)
+            joy::wahPos = clampf(0.5f + 0.5f * ey / 0.7f, -0.25f, 1.25f);  // rim: past the ends
+        o.wahAmt = joy::wahAmt < 0.002f ? 0.f : joy::wahAmt;
+        o.wahHz = 340.f * pow(2.f, joy::wahPos * 2.9f);  // 340 Hz..2.5 kHz, ~200..3.9k at the rim
+        o.wahQ = clampf(0.86f + (ex < 0.f ? ex * 0.30f : ex * 0.13f), 0.5f, 0.95f);
     }
 
-    // The unit's own WS2812: color names the MODE (glanceable even back-
-    // mounted, in peripheral view), brightness rides how far you've pushed
-    // it — center is a dim idle glow, a full push is the mode's full color.
-    // setLed() smooths internally, so a mode-switch color jump still glides.
-    const float br = 0.12f + radius * 0.88f;
-    switch (c.joyMode) {
-        case store::JoyMode::Filter: joystick::setLed(0.05f * br, 0.55f * br, 1.0f * br); break;  // cool cyan
-        case store::JoyMode::Wah:    joystick::setLed(1.0f * br, 0.42f * br, 0.02f * br); break;  // pedal amber
-        default:                     joystick::setLed(0.02f, 0.02f, 0.02f); break;                 // Off: near-dark
+    // ---- FX: four unlike throws, one per direction
+    if (mode == store::JoyMode::Fx) {
+        o.reverb = up;
+        o.grit = dn;
+        o.muffle = lf;
+        o.echo = rt;
     }
+
+    // ---- BODY: full at the normal throw (these are timbre, not throws)
+    if (mode == store::JoyMode::Body) {
+        o.wide = clampf(up / 0.7f, 0.f, 1.f);
+        o.sub = clampf(dn / 0.7f, 0.f, 1.f);
+        o.snap = clampf(lf / 0.7f, 0.f, 1.f);
+        o.slide = clampf(rt / 0.7f, 0.f, 1.f);
+    }
+
+    // ---- BEND: one snapped degree each way, glided like the bend keys
+    {
+        int8_t& t = joy::bendTier;
+        if (mode != store::JoyMode::Bend) t = 0;
+        else if (t == 0 && yi > 0.40f) t = 1;
+        else if (t == 0 && yi < -0.40f) t = -1;
+        else if (t == 1 && yi < 0.28f) t = yi < -0.40f ? -1 : 0;
+        else if (t == -1 && yi > -0.28f) t = yi > 0.40f ? 1 : 0;
+        float semis;
+        if (t == 0) joy::bendTarget = 0.f;
+        else if (degreeInterval(c.layout, t, semis)) joy::bendTarget = semis * 100.f;
+        // (nothing held: keep the last target, so a release tail doesn't lurch)
+        const float span = c.bendRange * 100.f > 1.f ? c.bendRange * 100.f : 100.f;
+        const float dist = fabsf(joy::bendTarget - joy::bendCur);
+        const bool home = fabsf(joy::bendTarget) < fabsf(joy::bendCur);
+        // bendMs covers the player's bend range; home is twice as quick
+        float rate = span / (float)(c.bendMs ? c.bendMs : 1) * (home ? 2.f : 1.f);
+        if (fabsf(joy::bendTarget) > span) rate *= fabsf(joy::bendTarget) / span;
+        const float step = rate * dtMs;
+        joy::bendCur = dist <= step ? joy::bendTarget
+                     : joy::bendCur + (joy::bendTarget > joy::bendCur ? step : -step);
+        o.bendCents = joy::bendCur;
+
+        // The bloom: once the bend has LANDED, vibrato grows in over ~2 s and
+        // eases (squared) so the first moment is a clean held note; letting go
+        // drains it quickly with the bend's return.
+        const bool landed = t != 0 && fabsf(joy::bendTarget - joy::bendCur) < 15.f;
+        joy::bloom += landed ? dtMs / 2000.f : -dtMs / 150.f;
+        joy::bloom = clampf(joy::bloom, 0.f, 1.f);
+        if (mode == store::JoyMode::Bend) {
+            const float b = joy::bloom * joy::bloom;
+            o.vibCents = b * 25.f + fabsf(ex) * 40.f;
+            // a singer's vibrato quickens a touch as it opens up
+            o.vibRate = 1.f + b * 0.2f - lf * 0.35f + rt * 1.3f;  // ~4 Hz wide .. ~10 Hz nervy
+        }
+    }
+
+    // the unit's own LED names the mode (written only when it changes)
+    switch (c.joyMode) {
+        case store::JoyMode::Wah:  joystick::setLed(1.00f, 0.42f, 0.02f); break;  // pedal amber
+        case store::JoyMode::Fx:   joystick::setLed(0.80f, 0.05f, 0.90f); break;  // magenta
+        case store::JoyMode::Bend: joystick::setLed(0.10f, 0.90f, 0.20f); break;  // green
+        case store::JoyMode::Body: joystick::setLed(0.05f, 0.55f, 1.00f); break;  // cyan
+        default:                   joystick::setLed(0.02f, 0.02f, 0.02f); break;
+    }
+    return o;
+}
+
+// The per-frame edits onto the LEAD copy (never cf.synth: drive, the sends and
+// the voice params are real patch params, and this must never bake into a
+// saved sound).
+void applyJoystickToLead(dsp::SynthParams& lead, const JoyOut& o) {
+    if (o.reverb > 0.f) {  // FX up: the room swells and lengthens
+        lead.reverbMix = clampf(lead.reverbMix + o.reverb * 0.75f, 0.f, 1.f);
+        lead.reverbSize += (0.92f - lead.reverbSize) * o.reverb;
+    }
+    if (o.grit > 0.f) lead.drive = clampf(lead.drive + o.grit * 6.f, 1.f, 8.f);  // FX down
+    if (o.muffle > 0.f) lead.cutoffModOct -= o.muffle * 5.f;                     // FX left
+    if (o.echo > 0.f) {  // FX right: a dub throw — more send, more regeneration
+        lead.delayMix = clampf(lead.delayMix + o.echo * 0.7f, 0.f, 1.f);
+        if (lead.delayFb < 0.78f) lead.delayFb += (0.78f - lead.delayFb) * o.echo;
+    }
+    // BODY up: wide. Detune only exists on fat-saw patches, so the chorus is
+    // what makes it land on every sound; the detune rides along where it can.
+    if (o.wide > 0.f) {
+        if (lead.chorusDepth < 0.85f) lead.chorusDepth += (0.85f - lead.chorusDepth) * o.wide;
+        if (lead.detuneCents < 38.f) lead.detuneCents += (38.f - lead.detuneCents) * o.wide;
+    }
+    if (o.sub > 0.f && lead.subLevel < 0.9f)  // BODY down: the octave below
+        lead.subLevel += (0.9f - lead.subLevel) * o.sub;
+    if (o.snap > 0.f) lead.glideS += (0.002f - lead.glideS) * o.snap;    // BODY left
+    if (o.slide > 0.f && lead.glideS < 0.45f)                           // BODY right
+        lead.glideS += (0.45f - lead.glideS) * o.slide;
+    lead.bendCents += o.bendCents;
+    lead.vibratoCents += o.vibCents;
+    audio::setJoystick(o.wahAmt, o.wahHz, o.wahQ, o.vibRate);
 }
 #endif  // GLIDE_JOYSTICK
-
-inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 // The G0 trigger macro. Engaged is decided by the caller (momentary vs latch);
 // here we just drive the chosen action into the live param copies by `depth`
@@ -1990,7 +2125,7 @@ void run() {
 
         applyTilt();
 #ifdef GLIDE_JOYSTICK
-        applyJoystick();
+        const JoyOut joyOut = applyJoystick(frameStart);
 #endif
 
         // G0 trigger macro: momentary reads the level; latch toggles on each
@@ -2056,6 +2191,9 @@ void run() {
             leadParams = dsp::morphParams(leadParams, store::morphSource(), morph::pos());
         if (trigEngaged && !trigMorph && trigMod == dsp::TrigMod::None)
             applyTrigger(leadParams, backParams, cf.triggerAction, cf.triggerDepth);
+#ifdef GLIDE_JOYSTICK
+        applyJoystickToLead(leadParams, joyOut);
+#endif
         audio::setParams(leadParams, backParams);
         // NVS flushes happen only at a quiet moment: hands off for a few
         // seconds and no backing being scheduled from this loop. On a crowded

@@ -259,14 +259,10 @@ struct SynthParams {
     float joyYVal      = 0.f;  // held at center) — personal build only. Raw
                                // axes, published for anyone who wants to wire
                                // JoyX/JoyY into a per-patch matrix slot.
-    // The GLOBAL hardwired route (store::JoyMode, perform_screen.cpp
-    // applyJoystick) lands here, added on TOP of cutoffModOct/resonanceMod —
-    // same live-mod treatment as tilt's cutoff route, and for the same
-    // reason: it must survive a patch switch and a morph blend unchanged,
-    // which a per-patch mod-matrix slot cannot (measured on hardware: the
-    // routing "disappeared" after switching sounds, and appeared to change
-    // mid-morph, because slots[] is patch data that gets replaced/blended).
-    float resonanceMod = 0.f;  // joystick(/future)->resonance offset, bipolar
+    // Nothing else joystick lives here: SynthParams rides the 32-deep undo
+    // history, so every byte is ~41 bytes of .bss (rule 7). The global route
+    // either edits the per-frame lead COPY (perform_screen.cpp) or rides its
+    // own lock-free publish into the synth (audio::setJoystick).
 #endif
     // Metronome — performance state like tempoBpm, published each frame, never
     // a patch field (no codec tag; default off = bit-identical render, so the

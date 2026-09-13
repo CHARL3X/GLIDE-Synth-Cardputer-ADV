@@ -40,6 +40,12 @@ std::atomic<uint32_t> gTrig{0};   // G0 motion macro: kind<<16 | amount*1000
 // semitones; unused by wah/gate). A second atomic, not a wider struct, so the
 // render task still never sees a torn value.
 std::atomic<uint32_t> gTrigCtl{0};
+#ifdef GLIDE_JOYSTICK
+// The joystick's DSP-side controls (personal build), same one-word-per-pair
+// scheme: A = wahAmt*1000 << 16 | vibRate*1000, B = wahHz << 16 | wahQ*1000.
+std::atomic<uint32_t> gJoyA{1000};
+std::atomic<uint32_t> gJoyB{(1000u << 16) | 900u};
+#endif
 
 // The arpeggiator: its chord/pattern double-buffered like the params, its
 // clock on this thread (a 30 fps UI frame cannot place sixteenths).
@@ -134,6 +140,12 @@ void renderTask(void*) {
             gSynth.setTrigger((uint8_t)(t >> 16), (float)(t & 0xFFFF) * 0.001f,
                               (float)(int16_t)(c >> 16) * 0.001f,
                               (float)(int16_t)(c & 0xFFFF) * 0.001f);
+#ifdef GLIDE_JOYSTICK
+            const uint32_t ja = gJoyA.load(std::memory_order_relaxed);
+            const uint32_t jb = gJoyB.load(std::memory_order_relaxed);
+            gSynth.setJoystick((float)(ja >> 16) * 0.001f, (float)(jb >> 16),
+                               (float)(jb & 0xFFFF) * 0.001f, (float)(ja & 0xFFFF) * 0.001f);
+#endif
         }
 
         // scheduled (loop playback) events that have come due
@@ -306,6 +318,20 @@ void setTrigger(uint8_t kind, float amount, float ctlA, float ctlB) {
     };
     gTrigCtl.store((q(ctlA) << 16) | q(ctlB), std::memory_order_relaxed);
 }
+
+#ifdef GLIDE_JOYSTICK
+void setJoystick(float wahAmt, float wahHz, float wahQ, float vibRate) {
+    auto u16 = [](float v, float lo, float hi) {
+        if (v < lo) v = lo;
+        if (v > hi) v = hi;
+        return (uint32_t)(v + 0.5f);
+    };
+    gJoyA.store((u16(wahAmt * 1000.f, 0.f, 1000.f) << 16) | u16(vibRate * 1000.f, 0.f, 8000.f),
+                std::memory_order_relaxed);
+    gJoyB.store((u16(wahHz, 60.f, 14000.f) << 16) | u16(wahQ * 1000.f, 0.f, 950.f),
+                std::memory_order_relaxed);
+}
+#endif
 
 Lead lead() {
     Lead l;

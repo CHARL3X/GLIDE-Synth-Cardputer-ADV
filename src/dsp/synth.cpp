@@ -391,7 +391,11 @@ void Synth::render(float* out, int n) {
     // dedicated 5.5 Hz auto-vibrato LFO (unchanged): the patch's own vibrato.
     // The lead sums patch + tilt vibrato, the backing only the patch's own —
     // drones/loop ignore the bend keys and tilt.
+#ifdef GLIDE_JOYSTICK
+    lfoPhase_ += kTwoPi * kVibratoHz * joyVibRate_ * n / sr_;  // stick: faster shake
+#else
     lfoPhase_ += kTwoPi * kVibratoHz * n / sr_;
+#endif
     if (lfoPhase_ > kTwoPi) lfoPhase_ -= kTwoPi;
     const float lfo = sinf(lfoPhase_);
     const float backCents = pBack_.autoVibCents * lfo;
@@ -502,6 +506,23 @@ void Synth::render(float* out, int n) {
         wahHz = 350.f * exp2f(t * 2.778f);                          // 350 Hz .. 2.4 kHz
     }
 
+    float wahQ = 0.95f;  // the peak IS the effect
+    const float wahAmtBack = wahAmt, wahHzBack = wahHz;  // the bed hears G0's wah only
+#ifdef GLIDE_JOYSTICK
+    // The stick's wah: the same "owns the filter" treatment as the G0 wah
+    // above, with the player's finger as the pedal instead of a tempo sweep.
+    // Its first build ADDED cutoff octaves to the patch instead, and that was
+    // the exact relative-offset trap documented above: glorious on the acid
+    // patch (dark, resonant, lots of room to open), nearly inert or just
+    // tinny on anything already bright, which pinned at the 14 kHz clamp.
+    // Lead only, like tilt; the stronger of the two wahs wins the filter.
+    if (joyWahAmt_ > wahAmt) {
+        wahAmt = joyWahAmt_;
+        wahHz = joyWahHz_;
+        wahQ = joyWahQ_;
+    }
+#endif
+
     // lead filter: base * (tilt + matrix) octaves * (env + matrix) env octaves
     float cutL = p_.cutoffHz * exp2f(p_.cutoffModOct + modCutOct + (p_.fenvOct + modFenvOct) * fenv_);
     if (wahAmt > 0.f) cutL += (wahHz - cutL) * wahAmt;   // depth blends toward the pedal
@@ -515,11 +536,8 @@ void Synth::render(float* out, int n) {
         leadBright_ = b < 0.f ? 0.f : (b > 1.f ? 1.f : b);
     }
     float resL = p_.resonance + modRes;  // matrix can push resonance
-#ifdef GLIDE_JOYSTICK
-    resL += p_.resonanceMod;  // global joystick route — see dsp/params.h
-#endif
     // ...and the wah takes the Q all the way up: the peak IS the effect.
-    if (wahAmt > 0.f) resL += (0.95f - resL) * wahAmt;
+    if (wahAmt > 0.f) resL += (wahQ - resL) * wahAmt;
     if (resL < 0.f) resL = 0.f;
     if (resL > 0.95f) resL = 0.95f;
     // A wah OWNS the filter -- and that has to include the RESPONSE, not just
@@ -536,13 +554,13 @@ void Synth::render(float* out, int n) {
     // whole-instrument gesture — muffle already moves both layers, and a wah
     // that left the drone flat would only half-happen.
     float cutB = pBack_.cutoffHz * exp2f(pBack_.fenvOct * fenvBack_);
-    if (wahAmt > 0.f) cutB += (wahHz - cutB) * wahAmt;
+    if (wahAmtBack > 0.f) cutB += (wahHzBack - cutB) * wahAmtBack;
     if (cutB < 60.f) cutB = 60.f;
     if (cutB > 14000.f) cutB = 14000.f;
     cutoffSmBack_ += (cutB - cutoffSmBack_) * 0.2f;
     float resB = pBack_.resonance;
-    if (wahAmt > 0.f) resB += (0.95f - resB) * wahAmt;
-    svfBack_.set(cutoffSmBack_, resB, pBack_.filterMode, wahAmt);
+    if (wahAmtBack > 0.f) resB += (0.95f - resB) * wahAmtBack;
+    svfBack_.set(cutoffSmBack_, resB, pBack_.filterMode, wahAmtBack);
 
     // per-bus volume ramps (no zipper). Tilt swell only touches the lead.
     auto rampVol = [n](float target, float& sm, float& step) {
