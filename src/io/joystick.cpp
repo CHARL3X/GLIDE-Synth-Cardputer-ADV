@@ -19,6 +19,8 @@ constexpr uint8_t kRegRgbG = 0x31;
 constexpr uint8_t kRegRgbR = 0x32;
 
 constexpr uint32_t kRetryMs = 500;  // reconnect probe cadence while absent
+constexpr uint32_t kWakeGapMs = 250;    // a polling gap this long gets a wake-up write
+constexpr uint32_t kKeepaliveMs = 500;  // ...and one every this often regardless
 
 // ---- feel tuning (see joystick.h) — every constant a hardware test may move
 constexpr float kStretch     = 1.12f;  // full scale lands a little short of the
@@ -34,7 +36,7 @@ constexpr float kNormalReach = 0.70f;  // share of the effect the normal throw c
 constexpr float kZeroTrack   = 0.02f;  // per-poll centre drift correction, deadzone only
 
 bool gAvailable = false;
-uint32_t gLastAttempt = 0, gLastPoll = 0;
+uint32_t gLastAttempt = 0, gLastPoll = 0, gLastLedWrite = 0;
 float gCx = 0.f, gCy = 0.f;     // tracked centre (raw units, -1..1)
 float gX = 0.f, gY = 0.f;       // shaped, instant
 float gGx = 0.f, gGy = 0.f;     // glided
@@ -53,6 +55,7 @@ void writeLed() {
     i2c.writeRegister8(kAddr, kRegRgbG, gLed[1], kFreq);
     i2c.writeRegister8(kAddr, kRegRgbR, gLed[0], kFreq);
     gLedDirty = false;
+    gLastLedWrite = millis();
 }
 
 // One poll attempt: two bounded I2C transactions, no blocking retry. Returns
@@ -123,9 +126,21 @@ bool available() { return gAvailable; }
 
 void poll() {
     const uint32_t now = millis();
-    float dtMs = (float)(now - gLastPoll);
+    const uint32_t gapMs = now - gLastPoll;
+    float dtMs = (float)gapMs;
     gLastPoll = now;
     if (dtMs > 100.f) dtMs = 100.f;  // a long modal away must not jump the glide
+    // Wake-up write. Seen on hardware once the LED went write-on-change: after
+    // a sound change or a settings trip (both leave the stick unpolled for a
+    // while — a modal loop, or the 1.5-2 s flash save) the stick stopped
+    // moving anything while its click still worked, and any one click revived
+    // it. The click's only I2C difference is the mode's LED write, and the
+    // earlier build that wrote the LED every frame never showed this. So:
+    // rewrite the LED after any gap in polling, before reading, and as a slow
+    // keepalive besides. Three register writes; nothing audible.
+    if (gAvailable && (gapMs > kWakeGapMs || now - gLastLedWrite > kKeepaliveMs))
+        gLedDirty = true;
+    if (gAvailable && gLedDirty) writeLed();
     if (!gAvailable) {
         if (now - gLastAttempt < kRetryMs) return;
         gLastAttempt = now;
@@ -140,7 +155,7 @@ void poll() {
         gHeld = false;
         return;
     }
-    if (gLedDirty) writeLed();
+    if (gLedDirty) writeLed();  // a mode change requested this frame
 }
 
 float x() { return gX; }
