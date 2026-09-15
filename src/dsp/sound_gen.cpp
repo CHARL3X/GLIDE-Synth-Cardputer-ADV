@@ -977,103 +977,114 @@ void applyStyleV5(GenPatch& g, Archetype a, int style) {
         case Archetype::Pluck:
             if (s1) {  // kalimba: soft, woody, quick and close
                 s.wave = Waveform::Triangle;
-                s.cutoffHz *= 0.7f;  hi(s.cutoffHz, 500.f);
-                s.decayS *= 0.75f;   s.fenvOct *= 0.6f;
-                s.chorusDepth = 0.f; hi(s.reverbMix, 0.15f);
+                s.cutoffHz *= 0.55f;  hi(s.cutoffHz, 500.f);
+                s.decayS *= 0.65f;    s.fenvOct *= 0.5f;
+                s.chorusDepth = 0.f;  hi(s.reverbMix, 0.18f);
             } else {   // muted funk: choked, driven, midrange
-                lo(s.cutoffHz, 900.f); hi(s.cutoffHz, 500.f);
-                s.sustain *= 0.5f;   s.decayS *= 0.6f;
-                s.drive += 1.0f;     s.delayMix *= 0.5f;
+                lo(s.cutoffHz, 800.f); hi(s.cutoffHz, 450.f);
+                s.sustain *= 0.4f;   s.decayS *= 0.5f;
+                s.drive += 1.6f;     s.delayMix *= 0.4f;
             }
             break;
         case Archetype::Bell:
-            if (s1) {  // music box: small, bright, close
-                s.cutoffHz *= 1.3f;  s.decayS *= 0.7f;  s.releaseS *= 0.7f;
-                hi(s.reverbMix, 0.2f);
+            if (s1) {  // music box: small, bright, close — decay floored at
+                       // 0.5 so it stays a BELL to the frozen classifier
+                       // (< 0.45 s of pure-wave decay reads as a pluck)
+                s.cutoffHz *= 1.5f;  s.decayS *= 0.55f;  hi(s.decayS, 0.5f);
+                s.releaseS *= 0.6f;
+                hi(s.reverbMix, 0.22f);
             } else {   // gong: long, dark, a little dirty
-                hi(s.decayS, 1.2f);  hi(s.releaseS, 1.0f);
-                s.cutoffHz *= 0.75f; s.drive += 0.4f;  hi(s.chorusDepth, 0.15f);
+                hi(s.decayS, 1.35f);  hi(s.releaseS, 1.2f);
+                s.cutoffHz *= 0.65f; s.drive += 0.8f;  hi(s.chorusDepth, 0.25f);
             }
             break;
         case Archetype::Pad:
             if (s1) {  // glass: open, still, precise
-                s.cutoffHz *= 1.4f;  s.resonance += 0.1f;
-                s.chorusDepth *= 0.6f; s.detuneCents *= 0.5f;
+                s.cutoffHz *= 1.6f;  s.resonance += 0.15f;
+                s.chorusDepth *= 0.4f; s.detuneCents *= 0.35f;
             } else {   // dark cinema: low, wide, cavernous
-                s.cutoffHz *= 0.6f;  s.subLevel += 0.2f;
-                hi(s.reverbSize, 0.8f); s.reverbMix += 0.1f;
+                s.cutoffHz *= 0.5f;  s.subLevel += 0.3f;
+                hi(s.reverbSize, 0.85f); s.reverbMix += 0.15f;
             }
             break;
         case Archetype::Bass:
             if (s1) {  // round sub: clean weight
-                s.drive *= 0.6f;  s.cutoffHz *= 0.7f;  hi(s.subLevel, 0.7f);
+                s.drive *= 0.5f;  s.cutoffHz *= 0.6f;  hi(s.subLevel, 0.75f);
             } else {   // growler
-                s.drive += 1.2f;  s.resonance += 0.15f;  s.fenvDecS *= 1.4f;
+                s.drive += 1.8f;  s.resonance += 0.2f;  s.fenvDecS *= 1.6f;
             }
             break;
         case Archetype::Acid:
             if (s1) {  // deep dub: low squelch swimming in echo
-                hi(s.delayMix, 0.3f);  hi(s.delayFb, 0.5f);  s.cutoffHz *= 0.8f;
+                hi(s.delayMix, 0.35f);  hi(s.delayFb, 0.55f);  s.cutoffHz *= 0.7f;
             } else {   // screamer (sanitize re-caps drive under the high Q)
-                hi(s.resonance, 0.75f);  hi(s.fenvOct, 3.0f);
+                hi(s.resonance, 0.8f);  hi(s.fenvOct, 3.2f);  s.fenvDecS *= 0.8f;
             }
             break;
         case Archetype::Lead:
             if (s1) {  // breath lead: softer, singier
-                s.drive *= 0.6f;  s.cutoffHz *= 0.8f;
-                s.autoVibCents += 3.f;  s.attackS += 0.03f;
+                s.drive *= 0.5f;  s.cutoffHz *= 0.7f;
+                s.autoVibCents += 4.f;  s.attackS += 0.05f;
             } else {   // biting lead
-                s.drive += 1.0f;  s.cutoffHz *= 1.25f;  s.glideS *= 1.3f;
+                s.drive += 1.5f;  s.cutoffHz *= 1.4f;  s.glideS *= 1.4f;
             }
             break;
         case Archetype::Brass:
             if (s1) {  // mellow horn
-                s.cutoffHz *= 0.75f;  s.drive *= 0.7f;  s.fenvOct *= 0.7f;
+                s.cutoffHz *= 0.6f;  s.drive *= 0.6f;  s.fenvOct *= 0.6f;
             } else {   // stab section
-                s.attackS *= 0.5f;  s.decayS *= 0.7f;
-                s.sustain *= 0.85f; s.drive += 0.8f;
+                s.attackS *= 0.4f;  s.decayS *= 0.6f;
+                s.sustain *= 0.8f;  s.drive += 1.2f;
             }
             break;
         case Archetype::Chip:
             if (s1) {  // lofi lull: rounded, echoing
-                s.cutoffHz *= 0.6f;  s.releaseS += 0.15f;  hi(s.delayMix, 0.2f);
+                s.cutoffHz *= 0.5f;  s.releaseS += 0.2f;  hi(s.delayMix, 0.25f);
             } else {   // arcade shrill
-                hi(s.cutoffHz, 6000.f);  s.noiseLevel += 0.05f;  hi(s.lfo1RateHz, 6.f);
+                hi(s.cutoffHz, 7000.f);  s.noiseLevel += 0.08f;  hi(s.lfo1RateHz, 6.5f);
             }
             break;
         case Archetype::Whistle:
-            if (s1) {  // airy: more breath, more open
-                s.noiseLevel += 0.05f;  s.cutoffHz *= 1.2f;
-            } else {   // dark flute
-                s.cutoffHz *= 0.6f;  s.autoVibCents *= 0.7f;
+            if (s1) {  // airy: more breath, more open, singier
+                s.noiseLevel += 0.04f;  s.cutoffHz *= 1.3f;  s.autoVibCents += 2.f;
+            } else {   // flutter flute: the breath shakes (was "dark flute" —
+                       // darkening a family the field already calls too quiet
+                       // was the wrong direction; see rollPolishV5)
+                s.lfo1Shape = (uint8_t)LfoShape::Sine;
+                hi(s.lfo1RateHz, 4.5f);
+                addMod(s, ModSource::LFO1, ModDest::Amp, 0.28f);
+                s.autoVibCents *= 1.4f;
             }
             break;
         case Archetype::Organ:  // fenvOct stays 0 — the flat face IS the organ
             if (s1) {  // cathedral: chorale spin in a huge nave
-                hi(s.reverbMix, 0.35f);  hi(s.reverbSize, 0.85f);  lo(s.lfo1RateHz, 1.2f);
+                hi(s.reverbMix, 0.4f);  hi(s.reverbSize, 0.9f);  lo(s.lfo1RateHz, 1.0f);
             } else {   // driven spin: the pushed rotary
-                s.drive += 0.8f;  hi(s.lfo1RateHz, 5.5f);  hi(s.chorusDepth, 0.15f);
+                s.drive += 1.4f;  hi(s.lfo1RateHz, 6.0f);  hi(s.chorusDepth, 0.25f);
             }
             break;
         case Archetype::Keys:
             if (s1) {  // dusty tape EP
-                s.cutoffHz *= 0.75f;  s.driftCents += 3.f;  hi(s.chorusDepth, 0.2f);
+                s.cutoffHz *= 0.65f;  s.driftCents += 4.f;  hi(s.chorusDepth, 0.3f);
             } else {   // glassy EP
-                s.cutoffHz *= 1.3f;  s.fenvOct *= 1.3f;  s.drive *= 0.8f;
+                s.cutoffHz *= 1.5f;  s.fenvOct *= 1.5f;  s.drive *= 0.7f;
             }
             break;
         case Archetype::Wobble:
             if (s1) {  // half-time swamp: the slow deep chop
-                s.lfo1Sync = 1;  hi(s.subLevel, 0.7f);  // 1 = the 1/4 division
+                s.lfo1Sync = 1;  hi(s.subLevel, 0.75f);  // 1 = the 1/4 division
+                s.cutoffHz *= 0.85f;
             } else {   // reso screech wob
-                hi(s.resonance, 0.55f);
+                hi(s.resonance, 0.6f);  s.drive += 0.8f;
             }
             break;
         case Archetype::Strings:
             if (s1) {  // chamber: smaller, drier, closer
-                s.chorusDepth *= 0.6f;  s.reverbMix *= 0.7f;  s.attackS *= 0.8f;
+                s.chorusDepth *= 0.45f;  s.reverbMix *= 0.55f;
+                s.attackS *= 0.7f;  s.cutoffHz *= 1.15f;
             } else {   // cinematic swell
-                hi(s.attackS, 0.22f);  hi(s.reverbSize, 0.8f);  s.detuneCents += 4.f;
+                hi(s.attackS, 0.24f);  hi(s.reverbSize, 0.85f);
+                s.detuneCents += 6.f;  s.cutoffHz *= 0.8f;
             }
             break;
         default: break;  // Wild / Drone / Gate: classic only (see above)
@@ -1086,6 +1097,36 @@ void applyStyleV5(GenPatch& g, Archetype a, int style) {
 void rollPolishV5(GenPatch& g, Archetype a) {
     rollPolish(g, a);
     SynthParams& s = g.synth;
+    // Whistle/bell audibility (field report, 2026-09-15): both families are
+    // PURE waves, and at playing pitch a lone sine partial sits mostly below
+    // the 1 W speaker's rolloff — measured with the speaker-weighted probe,
+    // bell's audition-lick presence was 8-10x under the saw families. Drive
+    // is the lever (harmonics land IN the speaker's band); whistle's breath
+    // noise gets capped (broadband hiss was masking an already-quiet tone);
+    // and both lose their glide excess so lick notes actually LAND (whistle
+    // rolled Always-glide 65% of the time at up to 160 ms — heard as smear).
+    // V5-only: the frozen V3/V4 paths still roll these families as they did.
+    if (a == Archetype::Whistle) {
+        // 3.2 is the drive TALK already found makes a pure tone carry
+        // (synth.cpp: "the drive is what actually manufactures the partials")
+        if (s.drive < 3.2f) s.drive = 3.2f;
+        if (s.noiseLevel > 0.05f) s.noiseLevel = 0.05f;
+        if (s.glideMode == GlideMode::Always && s.glideS > 0.09f) s.glideS = 0.09f;
+        if (s.glideS > 0.13f) s.glideS = 0.13f;
+    }
+    if (a == Archetype::Bell) {
+        if (s.drive < 2.8f) s.drive = 2.8f;
+        if (s.glideS > 0.08f) s.glideS = 0.08f;
+        // the strike ping is the bell's one in-band signature on this
+        // speaker: keep it bright, let it ring a beat longer, and give the
+        // hammer a real mallet clack (noise is broadband — always audible —
+        // and it gates with the envelope, so no sustained hiss; 0.035 stays
+        // under the 0.06 gritty-adjective gate so names keep their shimmer)
+        if (s.cutoffHz < 3000.f) s.cutoffHz = 3000.f;
+        if (s.fenvOct < 2.0f) s.fenvOct = 2.0f;
+        if (s.fenvDecS < 0.12f) s.fenvDecS = 0.12f;
+        if (s.noiseLevel < 0.035f) s.noiseLevel = 0.035f;
+    }
     if (a == Archetype::Drone) {  // a drone that lets go isn't a drone
         if (s.sustain < 0.85f) s.sustain = 0.85f;
         if (s.releaseS < 0.9f) s.releaseS = 0.9f;
@@ -1109,9 +1150,12 @@ void rollPolishV5(GenPatch& g, Archetype a) {
 
 int styleForSeedV5(uint32_t seed) {
     // Its own stream (the next pi word), so the style draw can never advance
-    // the paint's — the same isolation V4's drift roll established.
+    // the paint's — the same isolation V4's drift roll established. Classic
+    // takes a fifth of the rolls (field report: at a third, the styles read
+    // as too subtle to notice), the two recolors split the rest evenly.
     Rng r(seed ^ 0x03707344u);
-    return r.i(0, 2);
+    const int d = r.i(0, 9);
+    return d < 2 ? 0 : d < 6 ? 1 : 2;
 }
 
 GenPatch generateSoundV5(uint32_t seed) { return generateSoundV5(seed, archetypeForSeedV5(seed)); }

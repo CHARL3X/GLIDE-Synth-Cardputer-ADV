@@ -51,6 +51,38 @@ produced it.
    regenerated o/p slots bake their own provenance; `dsp::kGenVerNewest = 5`
    now stamps first-boot and re-roll genver (the only places genver moves).
 
+## Tuning round 1 (2026-09-15, same branch) — from the first field session
+
+The first on-device session reported: whistle previews poorly / plays quiet /
+over-glides; bell likewise (milder); styles too subtle. Measured with a
+speaker-weighted probe (4-pole highpass at 900 Hz over the audition lick —
+raw float peaks showed NOTHING wrong, because a lone sine partial at playing
+pitch is simply below the 1 W driver's band; the weighting is what matches
+the ear): bell's weighted presence was 8-10x under the saw families.
+
+Landed, all in the still-unfrozen V5 layer:
+- `rollPolishV5` whistle rules: drive floor 3.2 (TALK's proven
+  partial-manufacturing number, synth.cpp), breath-noise cap 0.05, glide
+  caps 0.09 s (Always) / 0.13 s.
+- `rollPolishV5` bell rules: drive floor 2.8, glide cap 0.08 s, strike kept
+  bright + ringing (cutoff ≥ 3 kHz, fenvOct ≥ 2, fenvDec ≥ 0.12 s), mallet
+  clack (noise ≥ 0.035 — under the 0.06 gritty-naming gate).
+- Style recolors ~1.5-2x bolder across every family; whistle style 2
+  re-aimed from "dark flute" (wrong direction for a too-quiet family) to
+  "flutter flute" (tremolo + wider vibrato); classic's share cut from 1/3
+  to 1/5 in `styleForSeedV5`.
+- Consequence, accepted: the classic==V4 bit-exact test now EXEMPTS whistle
+  and bell — V5 deliberately re-tunes them. The suite instead pins the
+  audibility levers directly (drive/noise/glide/ping floors and caps), plus
+  classifier stability for both families.
+
+Weighted-presence movement (median / p10 / min, 60 rolls each):
+bell 0.0079/0.0024/0.0021 → 0.0123/0.0071/0.0062; whistle
+0.0164/0.0112/0.0063 → 0.0229/0.0155/0.0123. The worst-case rolls — the
+ones a player actually complains about — moved 2-3x. Keys shares the
+pure-wave physics (0.0086 median, un-flagged so untouched) — a watch item
+for the bad-roll harvest.
+
 ## Phase 3 — the tuning loop (OPEN, gated on field data)
 
 V5 freezes the moment a release ships (genver-5 devices re-derive o/p through
