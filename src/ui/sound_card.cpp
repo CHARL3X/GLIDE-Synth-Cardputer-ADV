@@ -46,6 +46,8 @@ constexpr uint16_t kArchColor[(int)dsp::Archetype::Count] = {
     rgb(255, 200, 160),  // keys   - cream (felt)
     rgb(50, 220, 120),   // wobble - dub green
     rgb(255, 120, 140),  // strings- rosin rose
+    rgb(70, 110, 210),   // drone  - twilight slate
+    rgb(0, 215, 185),    // gate   - strobe teal
 };
 }  // namespace
 

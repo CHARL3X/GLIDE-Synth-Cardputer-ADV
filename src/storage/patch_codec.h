@@ -34,6 +34,17 @@ struct PatchData {
                               // caller derives one from the sound's hash (status
                               // quo). When set, it's what shows in the slot/status
                               // bar and what Save-to-SD names the file.
+
+    // Roll PROVENANCE — which generator minted this sound: the seed, the
+    // archetype window that painted it, and the generator version (genver).
+    // Deliberately kept through edits and mutates (it answers "where did this
+    // come from", not "what is this now") — the range-tuning workflow reads it
+    // off saved .gpat files to map a bad roll back to its paint window.
+    // rollVer 0 = not a roll / predates provenance; then the other two are
+    // meaningless. Never part of the sound's identity or its hashes.
+    uint32_t rollSeed = 0;
+    uint8_t  rollArch = 0xFF;   // dsp::Archetype under that version's pool
+    uint8_t  rollVer  = 0;      // dsp generator version (genver) that rolled it
 };
 
 // Encode `in` into buf as a tagged stream. Returns bytes written, or 0 if the

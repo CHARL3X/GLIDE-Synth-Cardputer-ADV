@@ -146,6 +146,16 @@ char gSlotNames[dsp::kPatchCount][24] = {};
 // holds by construction — no per-surface recompute that could drift.
 char gLiveName[24] = {};
 
+// The live sound's roll PROVENANCE (see PatchData): which generator minted
+// it, from which seed, through which archetype window. Mirrors the PatchData
+// fields through every apply/snapshot, persists as ONE packed NVS entry
+// ("rollid" — one key, not three: the shared partition is critically full,
+// debt D1) and rides saved patches as the T_rollProv record. rollVer 0 = the
+// live sound isn't a roll (or predates provenance).
+uint32_t gRollSeed = 0;
+uint8_t gRollArch = 0xFF;
+uint8_t gRollVer = 0;
+
 // Content hash of the CURRENT slot's stored sound — the "saved reference" the
 // live sound is compared against to tell whether there are UNSAVED edits
 // (liveDirty()). Recomputed only when the reference changes (load a slot, save
@@ -238,11 +248,16 @@ bool loadBlob(const char* key, PatchBlob& out) {
     return false;
 }
 
-// legacyName: derive the baked name with the frozen legacy word tables — used
-// only for genver-1 slot regeneration, so an update never relabels a device's
-// o/p slots. Everything newly minted names itself with the character-aware
-// namer (default).
-void genToPatchData(const dsp::GenPatch& g, PatchData& pd, bool legacyName = false);
+// Which word engine derives the baked name. The rule is always the same —
+// re-derivation must never relabel, fresh mints use the newest words:
+//   Legacy — the frozen legacy tables (genver-1 o/p slot regeneration only);
+//   V1     — the frozen character-aware namer (genver 2..4 regeneration:
+//            those devices re-derive names every boot, so their words are
+//            pinned exactly like their sounds);
+//   V2     — the versioned namer (fresh rolls/mutates + genver>=5 regen): it
+//            can reach the second- and third-wave noun rows.
+enum class NameVer : uint8_t { Legacy, V1, V2 };
+void genToPatchData(const dsp::GenPatch& g, PatchData& pd, NameVer nv = NameVer::V2);
 uint32_t slotSeed(uint32_t seed, int slot);  // defined below
 
 // Load a slot into a PatchData. Order: a USER override blob wins; else the
@@ -317,8 +332,18 @@ bool loadPatchData(int slot, PatchData& out) {
         const dsp::GenPatch rolled = legacy       ? dsp::generateSoundLegacy(sv)
                                      : gGenVer < 3 ? dsp::generateSound(sv)    // frozen v2 pool
                                      : gGenVer < 4 ? dsp::generateSoundV3(sv)  // expanded pool
-                                                   : dsp::generateSoundV4(sv); // + rolled drift
-        genToPatchData(rolled, out, legacy);
+                                     : gGenVer < 5 ? dsp::generateSoundV4(sv)  // + rolled drift
+                                                   : dsp::generateSoundV5(sv); // widest pool + styles
+        genToPatchData(rolled, out,
+                       legacy ? NameVer::Legacy
+                              : gGenVer < 5 ? NameVer::V1 : NameVer::V2);
+        // a regenerated slot knows exactly where it came from — bake it in
+        out.rollSeed = sv;
+        out.rollArch = legacy ? 0xFF
+                       : gGenVer < 3 ? (uint8_t)dsp::archetypeForSeed(sv)
+                       : gGenVer < 5 ? (uint8_t)dsp::archetypeForSeedV3(sv)
+                                     : (uint8_t)dsp::archetypeForSeedV5(sv);
+        out.rollVer = gGenVer;
     }
     return false;  // q..i keep their curated factory patch (already seeded above)
 }
@@ -460,19 +485,23 @@ void applyPatchData(const PatchData& pd) {
     gCfg.synth.voiceCount =
         (uint8_t)clampT<int>(gCfg.synth.voiceCount, 1, dsp::kMaxVoices);  // blob hygiene
     setLiveNameFromPatch(pd);  // the live sound carries its name everywhere
+    gRollSeed = pd.rollSeed;   // ...and its roll provenance (absent = cleared,
+    gRollArch = pd.rollArch;   // so loading a hand-built patch never wears a
+    gRollVer = pd.rollVer;     // roll's pedigree)
 }
 
 // Map a pure-dsp GenPatch onto a storage PatchData (the dsp/storage seam).
-void genToPatchData(const dsp::GenPatch& g, PatchData& pd, bool legacyName) {
+void genToPatchData(const dsp::GenPatch& g, PatchData& pd, NameVer nv) {
     pd.synth = g.synth;
     pd.tiltRoute = g.tiltRoute;
     pd.tiltDepth = g.tiltDepth;
     pd.tiltRouteB = g.tiltRouteB;
     pd.tiltDepthB = g.tiltDepthB;
-    if (legacyName)  // genver-1 o/p slots: keep deriving the label they always had
-        dsp::soundName(dsp::patchHash(g), pd.name, sizeof pd.name);
-    else             // everything new: the name follows the sound's character
-        dsp::soundNameForPatch(g, pd.name, sizeof pd.name);
+    switch (nv) {  // see the NameVer contract at the declaration
+        case NameVer::Legacy: dsp::soundName(dsp::patchHash(g), pd.name, sizeof pd.name); break;
+        case NameVer::V1:     dsp::soundNameForPatch(g, pd.name, sizeof pd.name); break;
+        default:              dsp::soundNameForPatchV2(g, pd.name, sizeof pd.name); break;
+    }
 }
 
 // Per-slot generation seed: the device seed scrambled by the slot index, so a
@@ -555,6 +584,9 @@ void snapshotLive(PatchData& pd) {
     int i = 0;  // carry the live sound's name -> history + slot saves keep it
     for (; gLiveName[i] && i < (int)sizeof pd.name - 1; ++i) pd.name[i] = gLiveName[i];
     pd.name[i] = '\0';
+    pd.rollSeed = gRollSeed;  // provenance travels with the sound: history,
+    pd.rollArch = gRollArch;  // slot saves and SD saves all keep it
+    pd.rollVer = gRollVer;
 }
 
 // Content stamp for the lvpat blob's skip-if-unchanged gate: the full sound
@@ -961,7 +993,7 @@ void begin() {
     if (gSeed == 0) {
         gSeed = esp_random();
         if (gSeed == 0) gSeed = 0x9E3779B9u;  // vanishingly unlikely, but never 0
-        gGenVer = 4;  // a brand-new seed rolls with the current pool (+ drift)
+        gGenVer = dsp::kGenVerNewest;  // a brand-new seed rolls with the current pool
         if (gNvsOk) {
             gPrefs.putUInt("seed", gSeed);
             gPrefs.putUChar("genver", gGenVer);
@@ -1364,6 +1396,13 @@ void begin() {
         PatchData sp;
         loadPatchData(gCfg.currentPatch, sp);
         gCurSlotHash = patchDirtyHash(sp);
+        // the live roll provenance rides its packed key (absent = none, which
+        // is also what devices from before the key correctly report)
+        const uint64_t rid = gPrefs.getULong64("rollid", 0);
+        gRollSeed = (uint32_t)rid;
+        gRollArch = (uint8_t)(rid >> 32);
+        gRollVer = (uint8_t)(rid >> 40);
+        if (gRollVer == 0) gRollArch = 0xFF;
         char nm[sizeof gLiveName] = {};
         gPrefs.getString(kLiveNameKey, nm, sizeof nm);
         if (nm[0]) {
@@ -1612,6 +1651,10 @@ void persistNow() {
     // here so they land in the SAME flush as the sound they describe.
     gPrefs.putString(kLiveNameKey, gLiveName);
     gPrefs.putBool(kLiveCleanKey, liveHash() == gCurSlotHash);
+    // Roll provenance, packed into ONE entry (debt D1: the shared partition is
+    // critically full — one key, not three). NVS skips unchanged values.
+    gPrefs.putULong64("rollid", ((uint64_t)gRollVer << 40) |
+                                    ((uint64_t)gRollArch << 32) | gRollSeed);
     // Odometer rides along on every ordinary flush (NVS skips unchanged values).
     gPrefs.putUInt("odonotes", gOdoNotes);
     gPrefs.putUInt("odosecs", gOdoSecs);
@@ -1946,10 +1989,30 @@ void refreshLiveName() {
 uint32_t deviceSeed() { return gSeed; }
 
 void applyGenerated(const dsp::GenPatch& g) {
+    // No provenance argument = KEEP the live sound's (a Mutate descends from
+    // the roll it evolved; provenance answers "where did this come from").
+    applyGenerated(g, gRollSeed, gRollArch, gRollVer);
+}
+
+void applyGenerated(const dsp::GenPatch& g, uint32_t rollSeed, uint8_t rollArch,
+                    uint8_t rollVer) {
     PatchData pd;
     genToPatchData(g, pd);
+    pd.rollSeed = rollSeed;
+    pd.rollArch = rollArch;
+    pd.rollVer = rollVer;
     applyPatchData(pd);  // keeps master vol, neutralises live-mods, clamps voices
     markDirty();         // the live sound changed — persist the flat keys
+}
+
+void clearRollProvenance() {
+    // For paths that REPLACE the live sound without passing through
+    // applyPatchData (Init sound) — a blank slate must not wear the previous
+    // roll's pedigree. Ordinary edits never call this: provenance survives
+    // sculpting by design.
+    gRollSeed = 0;
+    gRollArch = 0xFF;
+    gRollVer = 0;
 }
 
 const dsp::SynthParams& morphSource() { return gMorphSrc; }
@@ -1971,7 +2034,7 @@ void reRollBank() {
     // regenerate on demand), so this also FREES whatever NVS the old saves held.
     gSeed = esp_random();
     if (gSeed == 0) gSeed = 0x9E3779B9u;
-    gGenVer = 4;  // a re-roll is the player's opt-in to the current pool (+ drift)
+    gGenVer = dsp::kGenVerNewest;  // a re-roll is the player's opt-in to the current pool
     if (gNvsOk) {
         gPrefs.putUInt("seed", gSeed);
         gPrefs.putUChar("genver", gGenVer);

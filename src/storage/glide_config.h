@@ -308,7 +308,18 @@ void reRollBank();                     // reset the bank to the curated presets 
 void applyStoredPatch(const PatchData& pd);   // load an SD-library patch -> live
 void applyGenerated(const dsp::GenPatch& g);  // load a rolled/mutated sound ->
                                        // live working sound (keeps master vol;
-                                       // not a slot until you save it)
+                                       // not a slot until you save it). This
+                                       // form KEEPS the live roll provenance
+                                       // (a Mutate descends from its roll).
+// Same, stamping fresh roll provenance — the Randomize path: which generator
+// version rolled it (rollVer = dsp::kGenVerNewest), from which seed, through
+// which archetype. Provenance sticks to the sound from here on (history, NVS,
+// slot saves, .gpat files) so a saved roll can be traced to its paint window.
+void applyGenerated(const dsp::GenPatch& g, uint32_t rollSeed, uint8_t rollArch,
+                    uint8_t rollVer);
+void clearRollProvenance();            // for paths that replace the live sound
+                                       // without applyPatchData (Init sound):
+                                       // a blank slate wears no roll pedigree
 
 // ---- synth morph source --------------------------------------------------
 // Every sound change (slot switch, roll, SD load, undo...) snapshots the
