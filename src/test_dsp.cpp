@@ -1320,7 +1320,7 @@ int main() {
             // the whistle/bell audibility contract (field report 2026-09-15):
             // pure waves are physically quiet on the 1 W speaker, so V5 pins
             // the levers that keep them present — drive manufactures in-band
-            // partials (3.2 is TALK's proven number), breath noise stops
+            // partials (3.2: the measured carries-the-speaker floor), breath noise stops
             // masking the whistle's tone, glide is short enough that the lick
             // lands, and the bell keeps a bright, ringing, clacking strike.
             for (uint32_t k = 1; k <= 40; ++k) {

@@ -1107,8 +1107,9 @@ void rollPolishV5(GenPatch& g, Archetype a) {
     // rolled Always-glide 65% of the time at up to 160 ms — heard as smear).
     // V5-only: the frozen V3/V4 paths still roll these families as they did.
     if (a == Archetype::Whistle) {
-        // 3.2 is the drive TALK already found makes a pure tone carry
-        // (synth.cpp: "the drive is what actually manufactures the partials")
+        // 3.2 came out of the v3.2-era vocal-tract experiment: the drive
+        // stage is what manufactures a pure tone's audible partials, and
+        // ~3.2 was the measured floor for a sine that CARRIES the speaker
         if (s.drive < 3.2f) s.drive = 3.2f;
         if (s.noiseLevel > 0.05f) s.noiseLevel = 0.05f;
         if (s.glideMode == GlideMode::Always && s.glideS > 0.09f) s.glideS = 0.09f;

@@ -61,8 +61,9 @@ pitch is simply below the 1 W driver's band; the weighting is what matches
 the ear): bell's weighted presence was 8-10x under the saw families.
 
 Landed, all in the still-unfrozen V5 layer:
-- `rollPolishV5` whistle rules: drive floor 3.2 (TALK's proven
-  partial-manufacturing number, synth.cpp), breath-noise cap 0.05, glide
+- `rollPolishV5` whistle rules: drive floor 3.2 (the measured floor at
+  which a pure tone carries the speaker — first found by the v3.2-era
+  vocal-tract experiment), breath-noise cap 0.05, glide
   caps 0.09 s (Always) / 0.13 s.
 - `rollPolishV5` bell rules: drive floor 2.8, glide cap 0.08 s, strike kept
   bright + ringing (cutoff ≥ 3 kHz, fenvOct ≥ 2, fenvDec ≥ 0.12 s), mallet
