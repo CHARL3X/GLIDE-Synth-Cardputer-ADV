@@ -14,7 +14,7 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 | 04 | [jam-sessions](04-jam-sessions.md) | Save the whole jam (progression + loop + sounds) to SD as `.gjam` | L | med | 2 rows ⚠ (mirrors sound save/load pair) |
 | 05 | [wav-bounce](05-wav-bounce.md) | Record the master bus to WAV on SD — takes leave the device | M | med | 1 row |
 | 06 | [usb-midi](06-usb-midi.md) | USB MIDI out, MPE-lite: chord slides arrive bent in a DAW | L | high (HW-gated) | 1 row (phase 2) |
-| 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows |
+| 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows | ⛔ **owner veto 2026-09-15** — he does not want this; it kept getting re-pitched as a warm-up. Do not build, do not re-suggest |
 | 08 | [breed](08-breed.md) | Crossover two sounds — the third generative verb, lineage for patches | S-M | low | 1 row |
 | 09 | [fx-freeze](09-fx-freeze.md) | Reverb freeze as a G0 trigger action — solo dry over your own frozen wash | S | low | 0 rows | ⛔ **built + cut on hardware** |
 | 10 | [guide-tones](10-guide-tones.md) | Grid marks the current chord's tones while the progression walks | S | very low | 0 rows | ✅ **landed** |
@@ -55,7 +55,7 @@ found shipped-but-unmarked and a session proposed rebuilding 22 from scratch.)
 
 ## Suggested order
 
-- **Warm-ups / immediate wins:** **07 is the only one left.** This list read 11 → 09 → 07 → 03 → 10; 11, 03 and 10 have since landed and 09 was built and cut on hardware, so four fifths of it was pointing at finished work. 07 (microtonal) is still a day or less and still high felt-value.
+- **Warm-ups / immediate wins: none left.** This list read 11 → 09 → 07 → 03 → 10; 11, 03 and 10 landed, 09 was built and cut on hardware, and 07 (microtonal) was **vetoed by the owner 2026-09-15** — it had been re-pitched as "the last warm-up" across several sessions and he does not want it. The lane is empty; new quick wins come from field reports, not this list.
 - **Core instrument depth:** 01 → 02 (02 lists 01's Pluck interaction) → 08.
 - **The session layer:** 03 has landed, so 04 (jam sessions) is unblocked — quantized jams are worth saving; 05 anytime.
 - **Ecosystem:** 12 early if development velocity matters (it makes every later DSP doc audible without hardware, and adds CI); 06 and 13 start with go/no-go hardware probes — run the probes cheap and early, build only on evidence.

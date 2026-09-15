@@ -804,7 +804,10 @@ void aRandomize(int) {
     store::applyGenerated(dsp::generateSoundV5(sd, arch), sd, (uint8_t)arch,
                           dsp::kGenVerNewest);
     audition::start();
-    soundcard::showRolled((uint8_t)arch, audition::lengthMs());  // see the roll — and its character, in colour
+    // see the roll — its character in colour, and WHICH style painted it
+    // ("gong bell", "glass pad"), so a tester's ear gets a label to hold
+    soundcard::showRolled((uint8_t)arch, (uint8_t)dsp::styleForSeedV5(sd),
+                          audition::lengthMs());
     coach::notify(coach::Ev::Randomize);
 }
 

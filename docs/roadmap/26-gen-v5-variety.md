@@ -84,6 +84,14 @@ ones a player actually complains about — moved 2-3x. Keys shares the
 pure-wave physics (0.0086 median, un-flagged so untouched) — a watch item
 for the bad-roll harvest.
 
+**Test-phase addition (2026-09-15):** the roll card's character tag now
+prints the STYLE with the family — "gong bell", "glass pad"; bare family =
+classic — so the tester's ear gets a label to hang differences on and a
+bad-roll report can name the exact window+style. `showRolled` gained the
+style argument; display words live in `ui/sound_card.cpp` `kStyleWord`
+(Count-indexed like `kArchColor`: a future archetype append adds a row here
+too). Zero gestures, zero rows.
+
 ## Phase 3 — the tuning loop (OPEN, gated on field data)
 
 V5 freezes the moment a release ships (genver-5 devices re-derive o/p through
