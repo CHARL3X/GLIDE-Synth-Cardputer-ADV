@@ -23,6 +23,11 @@ public:
     // `pitch`; the envelope keeps running (no re-attack) — hammer-on feel.
     void legatoTo(uint8_t id, uint8_t lane, float pitch);
 
+    // Same hand-off, but the pitch LANDS instantly — no slew. For sequenced
+    // re-use of a still-ringing tail (the arp's two ids), where a glide
+    // across a chord interval reads as smear, not phrasing.
+    void snapTo(uint8_t id, uint8_t lane, float pitch);
+
     // Re-aim the pitch with an explicit glide (octave sweeps, pull-offs).
     void retarget(float pitch);
 

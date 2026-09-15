@@ -1288,7 +1288,11 @@ int main() {
 
             // style 0 ("classic") is bit-identical to the V4 roll of the same
             // (seed, archetype) — the same non-perturbation contract V4 made
-            // with V3, one layer up. Styled rolls must actually MOVE.
+            // with V3, one layer up. Whistle and bell are EXEMPT by design:
+            // V5 deliberately re-tunes them for audibility (rollPolishV5's
+            // drive/noise/glide/ping rules — the 2026-09-15 field report), so
+            // even their classic rolls diverge from V4. Styled rolls must
+            // actually MOVE.
             {
                 int classic = 0, styled = 0, moved = 0;
                 for (uint32_t i = 1; i <= 400u; ++i) {
@@ -1297,6 +1301,7 @@ int main() {
                     const int st = styleForSeedV5(sd);
                     const uint32_t h5 = patchHashFull(generateSoundV5(sd, a));
                     const uint32_t h4 = patchHashFull(generateSoundV4(sd, a));
+                    if (a == Archetype::Whistle || a == Archetype::Bell) continue;
                     if (st == 0) {
                         ++classic;
                         CHECK(h5 == h4, "a classic (style-0) V5 roll IS the V4 roll");
@@ -1306,10 +1311,40 @@ int main() {
                         if (h5 != h4) ++moved;
                     }
                 }
-                CHECK(classic > 80, "the classic style actually occurs");
-                CHECK(styled > 100, "styled rolls actually occur");
+                CHECK(classic > 40, "the classic style actually occurs (~1/5 of rolls)");
+                CHECK(styled > 150, "styled rolls actually occur");
                 CHECK(moved * 10 >= styled * 9,
                       "a style recolor moves the sound (>=90% of styled rolls differ from V4)");
+            }
+
+            // the whistle/bell audibility contract (field report 2026-09-15):
+            // pure waves are physically quiet on the 1 W speaker, so V5 pins
+            // the levers that keep them present — drive manufactures in-band
+            // partials (3.2 is TALK's proven number), breath noise stops
+            // masking the whistle's tone, glide is short enough that the lick
+            // lands, and the bell keeps a bright, ringing, clacking strike.
+            for (uint32_t k = 1; k <= 40; ++k) {
+                const uint32_t sd = k * 747796405u + 77u;
+                {
+                    const SynthParams& s = generateSoundV5(sd, Archetype::Whistle).synth;
+                    CHECK(s.drive >= 3.19f, "V5 whistle carries (drive floor 3.2)");
+                    CHECK(s.noiseLevel <= 0.051f, "V5 whistle breath never masks the tone");
+                    if (s.glideMode == GlideMode::Always)
+                        CHECK(s.glideS <= 0.091f, "V5 whistle always-glide lands the lick");
+                    CHECK(s.glideS <= 0.131f, "V5 whistle glide stays bounded");
+                    CHECK(classifySoundV2(s) == Archetype::Whistle,
+                          "the audibility polish never costs the whistle its name");
+                }
+                {
+                    const SynthParams& s = generateSoundV5(sd, Archetype::Bell).synth;
+                    CHECK(s.drive >= 2.79f, "V5 bell carries (drive floor 2.8)");
+                    CHECK(s.glideS <= 0.081f, "V5 bell glide stays a grace note");
+                    CHECK(s.cutoffHz >= 2999.f && s.fenvOct >= 1.99f && s.fenvDecS >= 0.119f,
+                          "V5 bell keeps its bright ringing strike");
+                    CHECK(s.noiseLevel >= 0.034f, "V5 bell hammer actually clacks");
+                    CHECK(classifySound(s) == Archetype::Bell,
+                          "the audibility polish never costs the bell its name");
+                }
             }
 
             // sweep the widest pool: all sixteen archetypes occur, every roll
@@ -3074,6 +3109,67 @@ int main() {
         }
         CHECK(strcmp(arpPatternName(2), "up/down") == 0 && strcmp(arpPatternName(7), "up") == 0,
               "pattern names, with a safe fallback");
+
+        // ---- the arp-tail glide snap (field report 2026-09-15) -----------
+        // The arp alternates two ids so a release tail rings under the next
+        // attack — which meant a fast arp re-pressed a still-active tail and
+        // legatoTo'd it a whole chord interval at the patch's glideS: audible
+        // smear past ~10-15 ms of glide. A reused ARP tail now snaps to its
+        // new pitch; a player's own re-pressed key keeps its glide exactly.
+        // Measured by zero-crossing rate over an 80 ms window: MIDI 69
+        // (440 Hz) lands ~35 rising crossings, while a glide still
+        // travelling up from MIDI 45 averages ~130 Hz (~10) — a wide
+        // separation that survives the other id's decaying tail.
+        {
+            auto risingCrossings = [](Synth& sp, int ms) {
+                float buf[128];
+                int n = 0;
+                float prev = 0.f;
+                for (int b = 0; b < ms / 4; ++b) {
+                    sp.render(buf, 128);
+                    for (int i = 0; i < 128; ++i) {
+                        if (prev <= 0.f && buf[i] > 0.f) ++n;
+                        prev = buf[i];
+                    }
+                }
+                return n;
+            };
+            SynthParams p;  // neutral defaults, then a maximally glidey sine
+            p.wave = Waveform::Sine;
+            p.glideS = 0.35f;
+            p.attackS = 0.001f;
+            p.releaseS = 0.25f;
+            p.sustain = 1.f;
+            p.detuneCents = 0.f;
+            auto runSeq = [&](bool backing, uint8_t idA, uint8_t idB) {
+                Synth sp;
+                sp.init(kSr);
+                sp.setParams(p);
+                // NoteEvent::make has no backing param — set the flag the way
+                // the arp itself does (arp.cpp: `ev.backing = true`)
+                auto mk = [&](NoteEvent::Type t, uint8_t id, float pitch) {
+                    NoteEvent e = NoteEvent::make(t, id, 0, false, pitch);
+                    e.backing = backing;
+                    return e;
+                };
+                sp.handleEvent(mk(NoteEvent::On, idA, 45.f));
+                risingCrossings(sp, 60);
+                sp.handleEvent(mk(NoteEvent::Off, idA, 0.f));
+                sp.handleEvent(mk(NoteEvent::On, idB, 57.f));
+                risingCrossings(sp, 30);
+                sp.handleEvent(mk(NoteEvent::Off, idB, 0.f));
+                risingCrossings(sp, 90);  // idB's tail fades well down...
+                // ...while idA's (released 120 ms ago, 250 ms release) still
+                // rings: this re-press is exactly the fast-arp id-reuse moment
+                sp.handleEvent(mk(NoteEvent::On, idA, 69.f));
+                risingCrossings(sp, 12);  // settle the attack
+                return risingCrossings(sp, 80);
+            };
+            const int arpHz = runSeq(true, kArpIdA, kArpIdB);
+            CHECK(arpHz >= 26, "a reused arp tail SNAPS to its step's pitch (no smear)");
+            const int leadHz = runSeq(false, 7, 9);
+            CHECK(leadHz <= 18, "a player's re-pressed key still glides (unchanged feel)");
+        }
     }
 
     // ---- the custom palette (ui/theme.cpp) -------------------------------

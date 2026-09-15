@@ -45,6 +45,7 @@ longer safe. Read the generator-versions note below before touching either.
 | 24 | [intro-repeat](24-intro-repeat.md) | Intro card shows across a new player's first 3 startups instead of burning its one shot on the boxing play-test | S | low | 0 rows, 0 gestures |
 | 25 | [screen-real-estate](25-screen-real-estate.md) | Fresh units one octave lower; stabilize tutorial card reflow; consolidate overlapping indicators at visualizer top | M | low-med | 0 rows, 0 gestures |
 | 26 | [gen-v5-variety](26-gen-v5-variety.md) | Gen V5: drone+gate archetypes, style substreams, no-repeat Randomize, roll provenance + `gpat_stats` | M–L | low | 0 rows, 0 gestures | **built** (branch `gen-v5-variety`), hardware test pending; Phase-3 tuning open |
+| 27 | [arp-glide-snap](27-arp-glide-snap.md) | A reused arp tail snaps to its step's pitch instead of gliding a chord interval — fast arps stop smearing | S | low | 0 rows, 0 gestures | **built** (rides branch `gen-v5-variety`), hardware test pending |
 
 **Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
 **A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so
