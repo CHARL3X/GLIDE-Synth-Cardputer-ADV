@@ -57,12 +57,30 @@ struct GenPatch {
 //             synced cutoff movement.
 //   Strings — the bowed ensemble: fat-saw + heavy chorus + section vibrato,
 //             attack between pluck and pad. Brighter and quicker than a pad.
+// The third wave (genver 5) fills the two GESTURE holes left after the first
+// fourteen — not new timbres so much as new ways a note behaves in time:
+//   Drone   — the meditative held-forever voice: slow bloom, sustain pinned
+//             high, long release, sub weight, a big room, glacial motion.
+//             Nothing else rolls "holds indefinitely and barely moves."
+//   Gate    — the trance gate: a held tone whose VOLUME chops on a
+//             tempo-synced square LFO. Wobble moves the filter in time;
+//             nothing before this moved the amp in time.
 enum class Archetype : uint8_t {
     Pluck, Bell, Pad, Bass, Acid, Lead, Brass, Chip, Wild,
-    Whistle, Organ, Keys, Wobble, Strings, Count
+    Whistle, Organ, Keys, Wobble, Strings,
+    Drone, Gate, Count
 };
 // The v2 pool ends here: archetypeForSeed() (frozen) only ever returns these.
 constexpr int kArchetypeCountV2 = 9;
+// The v3 pool ends here: archetypeForSeedV3() (frozen) never rolls past it.
+constexpr int kArchetypeCountV3 = 14;
+
+// The newest generator version — what a brand-new seed (first boot, wiped
+// NVS, player re-roll) is stamped with, and the `rollVer` a fresh Randomize
+// press records. Storage gates o/p regeneration on the persisted copy of
+// this; bumping it here is only half a version — the dispatch ladder in
+// storage/glide_config.cpp's loadPatchData must gain the matching rung.
+constexpr uint8_t kGenVerNewest = 5;
 
 // Same freeze, same reason, for the other append-only enum the frozen
 // generators roll by range. GLIDE_JOYSTICK (personal-build only, never
@@ -90,6 +108,8 @@ inline const char* archetypeName(Archetype a) {
         case Archetype::Keys:    return "keys";
         case Archetype::Wobble:  return "wobble";
         case Archetype::Strings: return "strings";
+        case Archetype::Drone:   return "drone";
+        case Archetype::Gate:    return "gate";
         default:                 return "?";
     }
 }
@@ -138,6 +158,26 @@ GenPatch generateSoundV3(uint32_t seed, Archetype a);
 // genver>=4 seeds use.
 GenPatch generateSoundV4(uint32_t seed);
 GenPatch generateSoundV4(uint32_t seed, Archetype a);
+
+// The EXPANDED (genver-5) pool: everything archetypeForSeedV3 rolls plus the
+// third-wave archetypes (Drone, Gate), weighted so the core families still
+// dominate. Deterministic in seed; decorrelated from both earlier tables.
+Archetype archetypeForSeedV5(uint32_t seed);
+
+// The per-roll STYLE a genver-5 seed draws (0..2). Style 0 is "classic" — the
+// patch is bit-identical to the V4 roll — and styles 1/2 recolor the painted
+// patch inside its family (a kalimba pluck vs a muted funk pluck) with pure,
+// RNG-free field transforms. Exposed so tests and the provenance tooling can
+// see the draw; deterministic in seed, independent Rng stream.
+int styleForSeedV5(uint32_t seed);
+
+// The genver-5 roll: V4 (the frozen paint + polish + drift) over the widest
+// pool, then the style recolor and a V5-only polish layer (a superset of the
+// frozen rollPolish — that one is shared by V3/V4 and can never change).
+// This is what the Randomize button and genver>=5 seeds use. Deterministic:
+// generateSoundV5(seed) == generateSoundV5(seed, archetypeForSeedV5(seed)).
+GenPatch generateSoundV5(uint32_t seed);
+GenPatch generateSoundV5(uint32_t seed, Archetype a);
 
 // Same, but with the character chosen by the caller — the hook for a future
 // "roll me a pad" style picker. Deterministic in (seed, a).
@@ -204,6 +244,14 @@ void soundName(uint32_t seed, char* out, int cap);
 // (e.g. a family badge on the sound card).
 Archetype classifySound(const SynthParams& s);
 
+// The VERSIONED classifier (v2): recognises the second- and third-wave
+// families the frozen classifySound deliberately cannot return (whistle,
+// organ, keys, wobble, strings, drone, gate), falling back to the frozen
+// heuristics for everything else. Used ONLY where a name is minted fresh
+// (rolls, mutates, genver>=5 slot regen) — the frozen classifier keeps naming
+// everything that re-derives on older devices, so nobody is ever relabelled.
+Archetype classifySoundV2(const SynthParams& s);
+
 // The character-aware namer: the adjective follows the patch's timbre (texture,
 // then brightness), the noun its classified family — a bell gets bell words, a
 // bass gets weight words — with the word choice inside each bank drawn from
@@ -212,5 +260,11 @@ Archetype classifySound(const SynthParams& s);
 // genver>=2 slot regen, nameless-save fallbacks); genver-1 devices keep
 // deriving their o/p labels with soundName() so an update never relabels them.
 void soundNameForPatch(const GenPatch& g, char* out, int cap);
+
+// The v2 namer: identical word logic to soundNameForPatch, but the noun bank
+// follows classifySoundV2 — so a drone finally names like a drone ("dusky om")
+// and a gate like a gate, and the second wave's reserved noun rows become
+// reachable. Same freshly-minted-only rule as the classifier above.
+void soundNameForPatchV2(const GenPatch& g, char* out, int cap);
 
 }  // namespace dsp

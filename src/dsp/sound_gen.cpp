@@ -312,6 +312,34 @@ Archetype archetypeForSeedV3(uint32_t seed) {
     return kTable[r.i(0, 31)];
 }
 
+Archetype archetypeForSeedV5(uint32_t seed) {
+    // The widest (genver-5) pool: a 40-entry weighted table. The core nine
+    // keep their V3 proportions, the second wave firms up to a real quarter,
+    // and the third wave (drone, gate) lands about one roll in ten between
+    // them. Scramble constant: the next word of pi's fraction, so this table's
+    // picks decorrelate from both frozen pools.
+    static const Archetype kTable[40] = {
+        Archetype::Pluck,   Archetype::Pluck,   Archetype::Pluck,
+        Archetype::Bell,    Archetype::Bell,    Archetype::Bell,
+        Archetype::Pad,     Archetype::Pad,     Archetype::Pad,   Archetype::Pad,
+        Archetype::Bass,    Archetype::Bass,    Archetype::Bass,
+        Archetype::Acid,    Archetype::Acid,    Archetype::Acid,
+        Archetype::Lead,    Archetype::Lead,    Archetype::Lead,
+        Archetype::Brass,   Archetype::Brass,
+        Archetype::Chip,    Archetype::Chip,
+        Archetype::Wild,    Archetype::Wild,
+        Archetype::Whistle, Archetype::Whistle,
+        Archetype::Organ,   Archetype::Organ,
+        Archetype::Keys,    Archetype::Keys,    Archetype::Keys,
+        Archetype::Wobble,  Archetype::Wobble,
+        Archetype::Strings, Archetype::Strings,
+        Archetype::Drone,   Archetype::Drone,
+        Archetype::Gate,    Archetype::Gate,
+    };
+    Rng r(seed ^ 0x13198A2Eu);
+    return kTable[r.i(0, 39)];
+}
+
 GenPatch generateSound(uint32_t seed) {
     return generateSound(seed, archetypeForSeed(seed));
 }
@@ -746,6 +774,93 @@ GenPatch generateSound(uint32_t seed, Archetype a) {
             g.tiltDepth = uni(r, 0.45f, 0.85f);
             break;
         }
+        // ---- the third wave (genver 5) — reachable only via the V5 pool ----
+        // Same relabel-safety design as the second wave: each window lands in
+        // a family the FROZEN classifier names acceptably (drone swells ->
+        // pad words, gate holds bright -> chip/wild words); their OWN noun
+        // rows are reached only through the versioned classifySoundV2, which
+        // never names anything that re-derives on an older device.
+        case Archetype::Drone: {  // the meditative held-forever voice — slow
+                                  // bloom, sustain pinned, sub weight, a big
+                                  // room, glacial motion. Nothing else rolls
+                                  // "holds indefinitely and barely moves."
+            static const Waveform w[4] = {Waveform::FatSaw, Waveform::Saw,
+                                          Waveform::Sine, Waveform::Triangle};
+            s.wave = pickWave(r, w, 4);
+            s.attackS = uni(r, 0.30f, 0.55f);    // the bloom (audition holds for it)
+            s.decayS = uni(r, 0.5f, 1.0f);       // moot under the pinned sustain
+            s.sustain = uni(r, 0.90f, 1.f);      // it HOLDS — that is the character
+            s.releaseS = uni(r, 1.2f, 2.0f);     // and it takes its time leaving
+            s.glideS = 0.06f + r.f() * r.f() * 0.10f;
+            s.glideMode = r.chance(0.7f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            s.filterMode = (uint8_t)FilterMode::LP;
+            s.cutoffHz = uni(r, 500.f, 1800.f);  // dark by default — incense, not glare
+            s.resonance = uni(r, 0.05f, 0.4f);
+            if (r.chance(0.4f)) {                // a very slow inner filter tide
+                s.fenvAtkS = uni(r, 0.2f, 0.45f);
+                s.fenvOct = uni(r, 0.3f, 0.8f);
+                s.fenvDecS = uni(r, 0.8f, 1.2f);
+            }
+            s.subLevel = uni(r, 0.4f, 0.8f);     // the ground note under the cloud
+            if (s.wave == Waveform::FatSaw) s.detuneCents = uni(r, 12.f, 26.f);
+            if (r.chance(0.25f)) s.noiseLevel = uni(r, 0.01f, 0.04f);  // air
+            s.drive = uni(r, 1.f, 2.f);
+            if (r.chance(0.7f)) s.chorusDepth = uni(r, 0.3f, 0.6f);
+            if (r.chance(0.2f)) rollEcho(r, s, 0.08f, 0.2f, 0.25f, 0.5f);
+            rollRoom(r, s, 0.30f, 0.55f, 0.70f, 0.95f);  // the temple, always
+            if (r.chance(0.3f)) s.autoVibCents = uni(r, 0.5f, 3.f);
+            s.lfo1RateHz = uni(r, 0.1f, 0.3f);   // glacial breath
+            s.lfo1Shape = (uint8_t)(r.chance(0.6f) ? LfoShape::Sine : LfoShape::Tri);
+            addMod(s, ModSource::LFO1, ModDest::Cutoff,
+                   uni(r, 0.15f, 0.35f) * (r.chance(0.5f) ? 1.f : -1.f));
+            if (r.chance(0.4f)) {                // an even slower swell under it
+                s.lfo2RateHz = uni(r, 0.1f, 0.25f);
+                s.lfo2Shape = (uint8_t)LfoShape::Sine;
+                addMod(s, ModSource::LFO2, ModDest::Amp, uni(r, 0.10f, 0.22f));
+            }
+            g.tiltRoute = (uint8_t)(r.chance(0.55f) ? TiltRoute::Cutoff : TiltRoute::Volume);
+            g.tiltDepth = uni(r, 0.5f, 0.85f);
+            break;
+        }
+        case Archetype::Gate: {  // the trance gate — a held tone whose VOLUME
+                                 // chops on a tempo-synced square LFO, the way
+                                 // wobble's filter already breathes in time
+            static const Waveform w[3] = {Waveform::Saw, Waveform::Square, Waveform::FatSaw};
+            s.wave = pickWave(r, w, 3);
+            s.attackS = uni(r, 0.001f, 0.01f);
+            s.decayS = uni(r, 0.2f, 0.4f);
+            s.sustain = uni(r, 0.85f, 1.f);      // it must HOLD for the chop to show
+            s.releaseS = uni(r, 0.08f, 0.25f);
+            s.glideS = uni(r, 0.02f, 0.08f);
+            s.glideMode = r.chance(0.15f) ? GlideMode::Always : GlideMode::LegatoOnly;
+            s.filterMode = (uint8_t)FilterMode::LP;
+            s.cutoffHz = uni(r, 1200.f, 4000.f);
+            s.resonance = uni(r, 0.05f, 0.45f);  // (< the acid-classify gate)
+            if (r.chance(0.3f)) {                // a small strike ping, sometimes
+                s.fenvOct = uni(r, 0.3f, 0.9f);
+                s.fenvDecS = uni(r, 0.1f, 0.25f);
+            }
+            if (r.chance(0.5f)) s.subLevel = uni(r, 0.15f, 0.38f);  // (< the wobble gate)
+            if (s.wave == Waveform::FatSaw) s.detuneCents = uni(r, 8.f, 18.f);
+            s.drive = uni(r, 1.5f, 3.f);
+            // THE gate: synced square LFO1 chopping the amp. sanitize's ±0.60
+            // clamp keeps the troughs audible rather than gating to silence.
+            s.lfo1Sync = (uint8_t)r.i(1, kDelaySyncCount - 1);
+            s.lfo1Shape = (uint8_t)LfoShape::Square;
+            addMod(s, ModSource::LFO1, ModDest::Amp, uni(r, 0.40f, 0.60f));
+            if (r.chance(0.35f)) {               // slow free tide under the chop
+                s.lfo2RateHz = uni(r, 0.2f, 0.8f);
+                s.lfo2Shape = (uint8_t)LfoShape::Sine;
+                addMod(s, ModSource::LFO2, ModDest::Cutoff,
+                       uni(r, 0.10f, 0.25f) * (r.chance(0.5f) ? 1.f : -1.f));
+            }
+            if (r.chance(0.5f)) rollEcho(r, s, 0.15f, 0.30f, 0.2f, 0.45f);
+            if (r.chance(0.35f)) rollRoom(r, s, 0.08f, 0.25f, 0.4f, 0.7f);
+            if (r.chance(0.4f)) s.chorusDepth = uni(r, 0.2f, 0.4f);
+            g.tiltRoute = (uint8_t)TiltRoute::Cutoff;  // ride the filter over the chop
+            g.tiltDepth = uni(r, 0.6f, 0.95f);
+            break;
+        }
         case Archetype::Wild:
         default: {  // anything-goes chaos across the FULL Range table — the
                     // old spirit, kept in the pool; sanitize reels in the trash
@@ -841,6 +956,223 @@ GenPatch generateSoundV4(uint32_t seed, Archetype a) {
                          : roll < 0.85f ? uni(r, 1.5f, 5.f)     // the usual: alive
                                         : uni(r, 5.f, 11.f);    // seasick vintage
     sanitizePatch(g);
+    return g;
+}
+
+namespace {
+
+// The V5 style recolors — pure, RNG-free field transforms applied AFTER the
+// frozen paint, so the same family stops meaning the same personality: two
+// pluck rolls can now be a kalimba and a muted funk stab instead of two
+// shades of one preset. Style 0 is always "classic" (bit-identical to the V4
+// roll — asserted in the suite); every transform is loose on purpose because
+// sanitizePatch re-runs after it and re-imposes every coupling rule. Wild
+// keeps no styles (its identity IS the chaos), and the third-wave archetypes
+// keep none yet — their windows are brand new and Phase-3 range tuning from
+// the field data will shape them before this version freezes.
+void applyStyleV5(GenPatch& g, Archetype a, int style) {
+    if (style <= 0) return;
+    SynthParams& s = g.synth;
+    const bool s1 = style == 1;
+    auto hi = [](float& v, float f) { if (v < f) v = f; };
+    auto lo = [](float& v, float f) { if (v > f) v = f; };
+    switch (a) {
+        case Archetype::Pluck:
+            if (s1) {  // kalimba: soft, woody, quick and close
+                s.wave = Waveform::Triangle;
+                s.cutoffHz *= 0.55f;  hi(s.cutoffHz, 500.f);
+                s.decayS *= 0.65f;    s.fenvOct *= 0.5f;
+                s.chorusDepth = 0.f;  hi(s.reverbMix, 0.18f);
+            } else {   // muted funk: choked, driven, midrange
+                lo(s.cutoffHz, 800.f); hi(s.cutoffHz, 450.f);
+                s.sustain *= 0.4f;   s.decayS *= 0.5f;
+                s.drive += 1.6f;     s.delayMix *= 0.4f;
+            }
+            break;
+        case Archetype::Bell:
+            if (s1) {  // music box: small, bright, close — decay floored at
+                       // 0.5 so it stays a BELL to the frozen classifier
+                       // (< 0.45 s of pure-wave decay reads as a pluck)
+                s.cutoffHz *= 1.5f;  s.decayS *= 0.55f;  hi(s.decayS, 0.5f);
+                s.releaseS *= 0.6f;
+                hi(s.reverbMix, 0.22f);
+            } else {   // gong: long, dark, a little dirty
+                hi(s.decayS, 1.35f);  hi(s.releaseS, 1.2f);
+                s.cutoffHz *= 0.65f; s.drive += 0.8f;  hi(s.chorusDepth, 0.25f);
+            }
+            break;
+        case Archetype::Pad:
+            if (s1) {  // glass: open, still, precise
+                s.cutoffHz *= 1.6f;  s.resonance += 0.15f;
+                s.chorusDepth *= 0.4f; s.detuneCents *= 0.35f;
+            } else {   // dark cinema: low, wide, cavernous
+                s.cutoffHz *= 0.5f;  s.subLevel += 0.3f;
+                hi(s.reverbSize, 0.85f); s.reverbMix += 0.15f;
+            }
+            break;
+        case Archetype::Bass:
+            if (s1) {  // round sub: clean weight
+                s.drive *= 0.5f;  s.cutoffHz *= 0.6f;  hi(s.subLevel, 0.75f);
+            } else {   // growler
+                s.drive += 1.8f;  s.resonance += 0.2f;  s.fenvDecS *= 1.6f;
+            }
+            break;
+        case Archetype::Acid:
+            if (s1) {  // deep dub: low squelch swimming in echo
+                hi(s.delayMix, 0.35f);  hi(s.delayFb, 0.55f);  s.cutoffHz *= 0.7f;
+            } else {   // screamer (sanitize re-caps drive under the high Q)
+                hi(s.resonance, 0.8f);  hi(s.fenvOct, 3.2f);  s.fenvDecS *= 0.8f;
+            }
+            break;
+        case Archetype::Lead:
+            if (s1) {  // breath lead: softer, singier
+                s.drive *= 0.5f;  s.cutoffHz *= 0.7f;
+                s.autoVibCents += 4.f;  s.attackS += 0.05f;
+            } else {   // biting lead
+                s.drive += 1.5f;  s.cutoffHz *= 1.4f;  s.glideS *= 1.4f;
+            }
+            break;
+        case Archetype::Brass:
+            if (s1) {  // mellow horn
+                s.cutoffHz *= 0.6f;  s.drive *= 0.6f;  s.fenvOct *= 0.6f;
+            } else {   // stab section
+                s.attackS *= 0.4f;  s.decayS *= 0.6f;
+                s.sustain *= 0.8f;  s.drive += 1.2f;
+            }
+            break;
+        case Archetype::Chip:
+            if (s1) {  // lofi lull: rounded, echoing
+                s.cutoffHz *= 0.5f;  s.releaseS += 0.2f;  hi(s.delayMix, 0.25f);
+            } else {   // arcade shrill
+                hi(s.cutoffHz, 7000.f);  s.noiseLevel += 0.08f;  hi(s.lfo1RateHz, 6.5f);
+            }
+            break;
+        case Archetype::Whistle:
+            if (s1) {  // airy: more breath, more open, singier
+                s.noiseLevel += 0.04f;  s.cutoffHz *= 1.3f;  s.autoVibCents += 2.f;
+            } else {   // flutter flute: the breath shakes (was "dark flute" —
+                       // darkening a family the field already calls too quiet
+                       // was the wrong direction; see rollPolishV5)
+                s.lfo1Shape = (uint8_t)LfoShape::Sine;
+                hi(s.lfo1RateHz, 4.5f);
+                addMod(s, ModSource::LFO1, ModDest::Amp, 0.28f);
+                s.autoVibCents *= 1.4f;
+            }
+            break;
+        case Archetype::Organ:  // fenvOct stays 0 — the flat face IS the organ
+            if (s1) {  // cathedral: chorale spin in a huge nave
+                hi(s.reverbMix, 0.4f);  hi(s.reverbSize, 0.9f);  lo(s.lfo1RateHz, 1.0f);
+            } else {   // driven spin: the pushed rotary
+                s.drive += 1.4f;  hi(s.lfo1RateHz, 6.0f);  hi(s.chorusDepth, 0.25f);
+            }
+            break;
+        case Archetype::Keys:
+            if (s1) {  // dusty tape EP
+                s.cutoffHz *= 0.65f;  s.driftCents += 4.f;  hi(s.chorusDepth, 0.3f);
+            } else {   // glassy EP
+                s.cutoffHz *= 1.5f;  s.fenvOct *= 1.5f;  s.drive *= 0.7f;
+            }
+            break;
+        case Archetype::Wobble:
+            if (s1) {  // half-time swamp: the slow deep chop
+                s.lfo1Sync = 1;  hi(s.subLevel, 0.75f);  // 1 = the 1/4 division
+                s.cutoffHz *= 0.85f;
+            } else {   // reso screech wob
+                hi(s.resonance, 0.6f);  s.drive += 0.8f;
+            }
+            break;
+        case Archetype::Strings:
+            if (s1) {  // chamber: smaller, drier, closer
+                s.chorusDepth *= 0.45f;  s.reverbMix *= 0.55f;
+                s.attackS *= 0.7f;  s.cutoffHz *= 1.15f;
+            } else {   // cinematic swell
+                hi(s.attackS, 0.24f);  hi(s.reverbSize, 0.85f);
+                s.detuneCents += 6.f;  s.cutoffHz *= 0.8f;
+            }
+            break;
+        default: break;  // Wild / Drone / Gate: classic only (see above)
+    }
+}
+
+// The V5 polish — a SUPERSET of the frozen rollPolish (that one is shared by
+// V3 and V4 and can never change). Pure rules, no RNG, idempotent. New rules
+// guard the third wave's identities plus anything a style recolor could bend.
+void rollPolishV5(GenPatch& g, Archetype a) {
+    rollPolish(g, a);
+    SynthParams& s = g.synth;
+    // Whistle/bell audibility (field report, 2026-09-15): both families are
+    // PURE waves, and at playing pitch a lone sine partial sits mostly below
+    // the 1 W speaker's rolloff — measured with the speaker-weighted probe,
+    // bell's audition-lick presence was 8-10x under the saw families. Drive
+    // is the lever (harmonics land IN the speaker's band); whistle's breath
+    // noise gets capped (broadband hiss was masking an already-quiet tone);
+    // and both lose their glide excess so lick notes actually LAND (whistle
+    // rolled Always-glide 65% of the time at up to 160 ms — heard as smear).
+    // V5-only: the frozen V3/V4 paths still roll these families as they did.
+    if (a == Archetype::Whistle) {
+        // 3.2 came out of the v3.2-era vocal-tract experiment: the drive
+        // stage is what manufactures a pure tone's audible partials, and
+        // ~3.2 was the measured floor for a sine that CARRIES the speaker
+        if (s.drive < 3.2f) s.drive = 3.2f;
+        if (s.noiseLevel > 0.05f) s.noiseLevel = 0.05f;
+        if (s.glideMode == GlideMode::Always && s.glideS > 0.09f) s.glideS = 0.09f;
+        if (s.glideS > 0.13f) s.glideS = 0.13f;
+    }
+    if (a == Archetype::Bell) {
+        if (s.drive < 2.8f) s.drive = 2.8f;
+        if (s.glideS > 0.08f) s.glideS = 0.08f;
+        // the strike ping is the bell's one in-band signature on this
+        // speaker: keep it bright, let it ring a beat longer, and give the
+        // hammer a real mallet clack (noise is broadband — always audible —
+        // and it gates with the envelope, so no sustained hiss; 0.035 stays
+        // under the 0.06 gritty-adjective gate so names keep their shimmer)
+        if (s.cutoffHz < 3000.f) s.cutoffHz = 3000.f;
+        if (s.fenvOct < 2.0f) s.fenvOct = 2.0f;
+        if (s.fenvDecS < 0.12f) s.fenvDecS = 0.12f;
+        if (s.noiseLevel < 0.035f) s.noiseLevel = 0.035f;
+    }
+    if (a == Archetype::Drone) {  // a drone that lets go isn't a drone
+        if (s.sustain < 0.85f) s.sustain = 0.85f;
+        if (s.releaseS < 0.9f) s.releaseS = 0.9f;
+        if (s.filterMode == (uint8_t)FilterMode::HP)
+            s.filterMode = (uint8_t)FilterMode::LP;  // the sub carry, like wobble
+    }
+    if (a == Archetype::Gate) {  // the chop must exist, in time, and hold
+        if (s.lfo1Sync == 0) s.lfo1Sync = 3;  // 1/8 — the workhorse division
+        if (s.sustain < 0.7f) s.sustain = 0.7f;
+        bool chop = false;
+        for (int i = 0; i < kModSlots; ++i)
+            if (s.slots[i].src == (uint8_t)ModSource::LFO1 &&
+                s.slots[i].dest == (uint8_t)ModDest::Amp &&
+                s.slots[i].depth >= 0.35f)
+                chop = true;
+        if (!chop) addMod(s, ModSource::LFO1, ModDest::Amp, 0.5f);
+    }
+}
+
+}  // namespace
+
+int styleForSeedV5(uint32_t seed) {
+    // Its own stream (the next pi word), so the style draw can never advance
+    // the paint's — the same isolation V4's drift roll established. Classic
+    // takes a fifth of the rolls (field report: at a third, the styles read
+    // as too subtle to notice), the two recolors split the rest evenly.
+    Rng r(seed ^ 0x03707344u);
+    const int d = r.i(0, 9);
+    return d < 2 ? 0 : d < 6 ? 1 : 2;
+}
+
+GenPatch generateSoundV5(uint32_t seed) { return generateSoundV5(seed, archetypeForSeedV5(seed)); }
+
+GenPatch generateSoundV5(uint32_t seed, Archetype a) {
+    // V5 = V4 over the widest pool, then the style recolor and the V5 polish.
+    // V4's paint/polish/drift are called, never copied — so the frozen goldens
+    // hold by construction, and a style-0 ("classic") V5 roll is bit-identical
+    // to the V4 roll of the same (seed, archetype), which the suite asserts.
+    GenPatch g = generateSoundV4(seed, a);
+    applyStyleV5(g, a, styleForSeedV5(seed));
+    rollPolishV5(g, a);
+    sanitizePatch(g);  // RNG-free: re-imposes every coupling rule on the recolor
     return g;
 }
 
@@ -992,7 +1324,13 @@ const char* const kFamNouns[(int)Archetype::Count][8] = {
     {"organ", "abbey", "nave", "pipe", "psalm", "rotor", "chapel", "vesper"},// organ
     {"tine", "keys", "felt", "lounge", "amber", "ivory", "mallet", "suede"}, // keys
     {"wub", "dub", "swamp", "bog", "tremor", "surge", "riddim", "quake"},    // wobble
-    {"bow", "rosin", "cello", "sonata", "velour", "arco", "viola", "octet"}  // strings
+    {"bow", "rosin", "cello", "sonata", "velour", "arco", "viola", "octet"}, // strings
+    // Third-wave rows: reachable ONLY through classifySoundV2 (the versioned
+    // classifier), exactly like the second-wave rows above — the frozen
+    // classifySound never returns these values, so nothing that re-derives on
+    // an older device can ever land here. Append-only, like every bank.
+    {"om", "hum", "monk", "aura", "altar", "abyss", "eon", "mantra"},        // drone
+    {"gate", "chop", "strobe", "slicer", "tick", "blinds", "morse", "relay"} // gate
 };
 }  // namespace
 
@@ -1131,6 +1469,64 @@ void soundNameForPatch(const GenPatch& g, char* out, int cap) {
     else if (s.cutoffHz > 4000.f)                adjs = kAdjBright;
     else                                         adjs = kAdjWarm;
     const char* const* nouns = kFamNouns[(int)classifySound(s)];
+    const char* adj = adjs[(h >> 16) & 7];
+    const char* noun = nouns[(h >> 20) & 7];
+    int n = 0;
+    auto put = [&](const char* p) { for (; *p && n < cap - 1; ++p) out[n++] = *p; };
+    put(adj); put("-"); put(noun);
+    out[n] = '\0';
+}
+
+Archetype classifySoundV2(const SynthParams& s) {
+    // The families the frozen classifier cannot see, strongest identity first.
+    // Order is load-bearing: wobble (synced CUTOFF chop over sub) is checked
+    // before gate so a spiced wobble that also gained an amp routing keeps its
+    // wobble words, and everything third/second-wave is checked before the
+    // frozen fallback so a drone doesn't dissolve into "pad".
+    const bool pure = (s.wave == Waveform::Sine || s.wave == Waveform::Triangle);
+    bool syncedCutoff = false, syncedAmpChop = false, ampMove = false;
+    for (int i = 0; i < kModSlots; ++i) {
+        const ModSlot& m = s.slots[i];
+        if (m.src != (uint8_t)ModSource::LFO1 && m.src != (uint8_t)ModSource::LFO2)
+            continue;
+        const bool synced = (m.src == (uint8_t)ModSource::LFO1 ? s.lfo1Sync : s.lfo2Sync) != 0;
+        const float mag = m.depth < 0.f ? -m.depth : m.depth;
+        if (m.dest == (uint8_t)ModDest::Cutoff && synced && mag >= 0.22f) syncedCutoff = true;
+        if (m.dest == (uint8_t)ModDest::Amp) {
+            ampMove = true;
+            if (synced && mag >= 0.35f) syncedAmpChop = true;
+        }
+    }
+    if (syncedCutoff && s.subLevel >= 0.4f) return Archetype::Wobble;
+    if (syncedAmpChop && s.sustain >= 0.6f) return Archetype::Gate;
+    if (s.attackS <= 0.01f && s.sustain >= 0.85f && s.fenvOct < 0.05f &&
+        s.subLevel >= 0.35f && ampMove)
+        return Archetype::Organ;
+    if (pure && s.sustain >= 0.7f && s.noiseLevel >= 0.02f && s.autoVibCents >= 3.5f)
+        return Archetype::Whistle;
+    if (s.attackS >= 0.28f && s.sustain >= 0.85f && s.releaseS >= 0.9f &&
+        s.subLevel >= 0.38f)
+        return Archetype::Drone;
+    if (s.attackS >= 0.09f && s.attackS <= 0.27f && s.autoVibCents >= 2.f &&
+        s.chorusDepth >= 0.4f)
+        return Archetype::Strings;
+    if (s.attackS <= 0.01f && s.sustain >= 0.25f && s.sustain <= 0.5f &&
+        s.decayS >= 0.45f && s.fenvOct >= 0.4f)
+        return Archetype::Keys;
+    return classifySound(s);
+}
+
+void soundNameForPatchV2(const GenPatch& g, char* out, int cap) {
+    if (cap <= 0) return;
+    const SynthParams& s = g.synth;
+    const uint32_t h = patchHash(g);
+    // same adjective logic as the frozen namer — only the noun's FAMILY moves
+    const char* const* adjs;
+    if (s.drive >= 3.f || s.noiseLevel >= 0.06f) adjs = kAdjGritty;
+    else if (s.cutoffHz < 900.f)                 adjs = kAdjDark;
+    else if (s.cutoffHz > 4000.f)                adjs = kAdjBright;
+    else                                         adjs = kAdjWarm;
+    const char* const* nouns = kFamNouns[(int)classifySoundV2(s)];
     const char* adj = adjs[(h >> 16) & 7];
     const char* noun = nouns[(h >> 20) & 7];
     int n = 0;

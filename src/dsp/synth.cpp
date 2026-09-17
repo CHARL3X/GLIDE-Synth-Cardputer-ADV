@@ -3,6 +3,7 @@
 #include "synth.h"
 #include <cmath>
 #include <cstring>
+#include "arp.h"  // kArpIdA/B: the arp-tail snap in noteOn keys on them
 #include "wavetables.h"
 
 namespace dsp {
@@ -153,7 +154,18 @@ void Synth::noteOn(const NoteEvent& ev) {
     // release tail): retrigger that voice in place. The voice adopts the
     // event's role — a re-pressed ex-drone key becomes a normal lead voice.
     if (Voice* v = findActiveById(ev.id)) {
-        v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
+        // The arpeggiator alternates exactly TWO ids so a release tail rings
+        // under the next attack (arp.h) — which means at fast rates every
+        // other step re-presses a still-active tail and lands HERE, where a
+        // legatoTo would slide it a chord interval at the patch's full
+        // glideS. Field report (2026-09-15): any sound past ~10-15 ms of
+        // glide smears at speed. An arp is articulated steps, so a reused
+        // ARP tail snaps to its new pitch (the retrigger's attack masks it);
+        // player legato, drones and loop playback keep their glides exactly.
+        const bool arpTail = ev.backing && !v->held() &&
+                             (ev.id == kArpIdA || ev.id == kArpIdB);
+        if (arpTail) v->snapTo(ev.id, ev.lane, ev.pitchMidi);
+        else         v->legatoTo(ev.id, ev.lane, ev.pitchMidi);
         v->retrigger();
         v->setDrone(ev.drone);
         v->setBacking(ev.backing);

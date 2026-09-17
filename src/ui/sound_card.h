@@ -16,7 +16,11 @@ void show(uint32_t holdMs = 2600);  // default rides the audition phrase length
 // the roll's provenance, which the sound's name alone can't tell you. Takes
 // the dsp::Archetype as a uint8_t so this header stays M5-only. Plain show()
 // clears the tag, so a mutate/load/init never wears a stale character.
-void showRolled(uint8_t archetype, uint32_t holdMs = 2600);
+// style: dsp::styleForSeedV5's draw for this roll (0 = classic — no style
+// word shown; the family alone IS the classic look). The card prints
+// "style family" ("gong bell", "glass pad") so a tester's ear gets a label
+// to hang differences on — and a bad-roll report can name the exact window.
+void showRolled(uint8_t archetype, uint8_t style, uint32_t holdMs = 2600);
 void dismiss();                     // e.g. the player started playing — yield
 bool active(uint32_t nowMs);
 void draw(M5Canvas& c, uint32_t nowMs);  // reads the live sound from store::

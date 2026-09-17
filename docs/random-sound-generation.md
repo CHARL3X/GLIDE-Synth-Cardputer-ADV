@@ -298,6 +298,33 @@ device-independent and host-tested.
 Keep a sound the fast way with `fn+shift+q..p` (onto a slot); keep it the
 unlimited way with Save to SD.
 
+## The third wave (2026-09): genver 5 — new gestures, styles, provenance
+
+Two additions to the pool and two to the machinery, shipped as
+`generateSoundV5` under the same freeze mechanics as every version before it
+(the frozen paint is *called*, never edited; the style draw rides its own
+`Rng(seed ^ k)` stream, so a style-0 "classic" V5 roll is bit-identical to
+the V4 roll — the suite asserts it):
+
+- **Drone** and **Gate** — the two GESTURE holes: a held-forever meditative
+  voice, and a held tone whose volume chops on a tempo-synced square LFO.
+- **Style substreams** — each family draws one of three styles; 1 and 2 are
+  pure RNG-free recolors (kalimba vs muted-funk pluck, glass vs dark-cinema
+  pad…), so same-family rolls stop being two shades of one preset.
+- **No-repeat Randomize** — the button re-draws its fresh hardware seed until
+  the archetype differs from the previous press (UI-side, session-only).
+- **Roll provenance** — every roll's seed / archetype / generator version now
+  sticks to the sound (codec tag 111, NVS `rollid`), and
+  `support/gpat_stats/` turns a card full of saved rolls into a CSV. This is
+  the data path for range tuning: save the bad rolls, map each one back to
+  the exact paint window and style that produced it.
+- **The versioned namer** — `classifySoundV2`/`soundNameForPatchV2` finally
+  reach the reserved second-wave noun rows plus new drone/gate banks, for
+  freshly-minted names only; every re-derived name keeps its frozen words.
+
+Full plan, ledger claims, and the Phase-3 tuning loop:
+[roadmap/26-gen-v5-variety.md](roadmap/26-gen-v5-variety.md).
+
 ## Possible next steps (not in this branch)
 
 - A text-entry rename for SD patches (the Cardputer has a full keyboard; today

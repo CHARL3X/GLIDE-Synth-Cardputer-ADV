@@ -58,6 +58,13 @@ void Voice::legatoTo(uint8_t id, uint8_t lane, float pitch) {
     if (env_ == Env::Release) env_ = Env::Attack;  // grabbed during its tail
 }
 
+void Voice::snapTo(uint8_t id, uint8_t lane, float pitch) {
+    id_ = id;
+    lane_ = lane;
+    curPitch_ = startPitch_ = tgtPitch_ = pitch;  // lands NOW — no slew
+    if (env_ == Env::Release) env_ = Env::Attack;  // grabbed during its tail
+}
+
 void Voice::retarget(float pitch) {
     startPitch_ = curPitch_;
     tgtPitch_ = pitch;

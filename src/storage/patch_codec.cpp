@@ -46,6 +46,11 @@ enum Tag : uint16_t {
 
     T_tiltRoute = 100, T_tiltDepth, T_tiltRouteB, T_tiltDepthB,
     T_name = 110,  // human name (T_STR). Emitted LAST in the stream — see below.
+    T_rollProv = 111,  // roll provenance (T_STR, 6 bytes: seed LE32 + arch +
+                       // genver). Emitted after T_name: a pre-T_STR decoder
+                       // stops at the FIRST T_STR record, so the name must
+                       // come first or those units would lose it; newer
+                       // decoders skip either record by its length byte.
 };
 constexpr uint16_t kSlotTagBase = 50;
 
@@ -145,6 +150,21 @@ size_t encodePatch(const PatchData& in, uint8_t* buf, size_t cap) {
         memcpy(buf + pos, in.name, nameLen);
         pos += nameLen;
     }
+    // Roll provenance, after the name (see the Tag enum note: a pre-T_STR
+    // decoder stops at the first T_STR record, and it must lose only the
+    // trailing metadata, never the name). Written only when there IS any.
+    if (in.rollVer != 0 && pos + 4u + 6u <= cap) {
+        buf[pos++] = (uint8_t)(T_rollProv & 0xFF);
+        buf[pos++] = (uint8_t)(T_rollProv >> 8);
+        buf[pos++] = T_STR;
+        buf[pos++] = 6;
+        buf[pos++] = (uint8_t)(in.rollSeed & 0xFF);
+        buf[pos++] = (uint8_t)((in.rollSeed >> 8) & 0xFF);
+        buf[pos++] = (uint8_t)((in.rollSeed >> 16) & 0xFF);
+        buf[pos++] = (uint8_t)((in.rollSeed >> 24) & 0xFF);
+        buf[pos++] = in.rollArch;
+        buf[pos++] = in.rollVer;
+    }
     return pos;
 }
 
@@ -167,6 +187,12 @@ bool decodePatch(const uint8_t* buf, size_t len, PatchData& out) {
                                         ? slen : (uint8_t)(sizeof out.name - 1);
                 memcpy(out.name, buf + pos, cpy);
                 out.name[cpy] = '\0';
+            } else if (tag == T_rollProv && slen >= 6) {
+                out.rollSeed = (uint32_t)buf[pos] | ((uint32_t)buf[pos + 1] << 8) |
+                               ((uint32_t)buf[pos + 2] << 16) |
+                               ((uint32_t)buf[pos + 3] << 24);
+                out.rollArch = buf[pos + 4];
+                out.rollVer = buf[pos + 5];
             }
             // unknown T_STR tag: skipped by its length (forward-compat)
             pos += slen;

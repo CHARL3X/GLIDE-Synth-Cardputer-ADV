@@ -14,7 +14,7 @@ Designed-and-planned work, written so any capable agent can pick one up cold and
 | 04 | [jam-sessions](04-jam-sessions.md) | Save the whole jam (progression + loop + sounds) to SD as `.gjam` | L | med | 2 rows ⚠ (mirrors sound save/load pair) |
 | 05 | [wav-bounce](05-wav-bounce.md) | Record the master bus to WAV on SD — takes leave the device | M | med | 1 row |
 | 06 | [usb-midi](06-usb-midi.md) | USB MIDI out, MPE-lite: chord slides arrive bent in a DAW | L | high (HW-gated) | 1 row (phase 2) |
-| 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows |
+| 07 | [microtonal](07-microtonal.md) | Just intonation + Rast/Bayati as ordinary scale entries | S | very low | 0 rows | ⛔ **owner veto 2026-09-15** — he does not want this; it kept getting re-pitched as a warm-up. Do not build, do not re-suggest |
 | 08 | [breed](08-breed.md) | Crossover two sounds — the third generative verb, lineage for patches | S-M | low | 1 row |
 | 09 | [fx-freeze](09-fx-freeze.md) | Reverb freeze as a G0 trigger action — solo dry over your own frozen wash | S | low | 0 rows | ⛔ **built + cut on hardware** |
 | 10 | [guide-tones](10-guide-tones.md) | Grid marks the current chord's tones while the progression walks | S | very low | 0 rows | ✅ **landed** |
@@ -44,6 +44,8 @@ longer safe. Read the generator-versions note below before touching either.
 | 23 | [poly-stutter](23-poly-stutter.md) | Dense chords reportedly break up on the headphone jack — measure first, then fix the thing it actually is | S–M | low (diagnosis-gated) | 0 rows to diagnose, 1 if the trim remedy wins |
 | 24 | [intro-repeat](24-intro-repeat.md) | Intro card shows across a new player's first 3 startups instead of burning its one shot on the boxing play-test | S | low | 0 rows, 0 gestures |
 | 25 | [screen-real-estate](25-screen-real-estate.md) | Fresh units one octave lower; stabilize tutorial card reflow; consolidate overlapping indicators at visualizer top | M | low-med | 0 rows, 0 gestures |
+| 26 | [gen-v5-variety](26-gen-v5-variety.md) | Gen V5: drone+gate archetypes, style substreams, no-repeat Randomize, roll provenance + `gpat_stats` | M–L | low | 0 rows, 0 gestures | **built** (branch `gen-v5-variety`), hardware test pending; Phase-3 tuning open |
+| 27 | [arp-glide-snap](27-arp-glide-snap.md) | A reused arp tail snaps to its step's pitch instead of gliding a chord interval — fast arps stop smearing | S | low | 0 rows, 0 gestures | **built** (rides branch `gen-v5-variety`), hardware test pending |
 
 **Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
 **A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so
@@ -53,7 +55,7 @@ found shipped-but-unmarked and a session proposed rebuilding 22 from scratch.)
 
 ## Suggested order
 
-- **Warm-ups / immediate wins:** **07 is the only one left.** This list read 11 → 09 → 07 → 03 → 10; 11, 03 and 10 have since landed and 09 was built and cut on hardware, so four fifths of it was pointing at finished work. 07 (microtonal) is still a day or less and still high felt-value.
+- **Warm-ups / immediate wins: none left.** This list read 11 → 09 → 07 → 03 → 10; 11, 03 and 10 landed, 09 was built and cut on hardware, and 07 (microtonal) was **vetoed by the owner 2026-09-15** — it had been re-pitched as "the last warm-up" across several sessions and he does not want it. The lane is empty; new quick wins come from field reports, not this list.
 - **Core instrument depth:** 01 → 02 (02 lists 01's Pluck interaction) → 08.
 - **The session layer:** 03 has landed, so 04 (jam sessions) is unblocked — quantized jams are worth saving; 05 anytime.
 - **Ecosystem:** 12 early if development velocity matters (it makes every later DSP doc audible without hardware, and adds CI); 06 and 13 start with go/no-go hardware probes — run the probes cheap and early, build only on evidence.
@@ -73,6 +75,7 @@ These plans are written to land **in any order**. That only stays true if these 
 | 28 | `T_waveB` | doc 02 |
 | 29 | `T_oscBlend` | doc 02 |
 | 30 | `T_driftCents` | doc 11 — **LANDED**, explicit value in the enum |
+| 111 | `T_rollProv` (T_STR, 6 B: seed LE32 + arch + genver) | doc 26 — **LANDED**, emitted after `T_name` (ordering is load-bearing: pre-T_STR decoders stop at the first T_STR record and must keep the name) |
 | 119 | `T_userWaveMeta` (T_U8) | doc 20 |
 | 120–127 | `T_userWaveChunk0..7` (T_STR, 256 B each) | doc 20 |
 | next free scalar: 31 | — | future docs claim here first |
@@ -84,18 +87,29 @@ If doc 11 lands before doc 02, it still uses tag 30; 28–29 stay reserved. Upda
 - `dsp::ModSource` + `Const`, `dsp::ModDest` + `Blend` — doc 02
 - `TriggerAction` + `Freeze` (glide_config.h) — doc 09
 - `dsp::kScales` + 4 rows (Just major, Just minor, Rast, Bayati) — doc 07
+- `dsp::Archetype` + `Drone = 14`, `Gate = 15` — doc 26, **LANDED** (append-only
+  like every persisted enum; `kFamNouns` and soundcard `kArchColor` are both
+  Count-indexed, so any future archetype append must add a noun row and a
+  colour row in the same commit)
 
 **New NVS keys** (namespace "glide", ≤15 chars): `waveb`, `oscblend` (02) · `loopsnap` (03) · `driftcents` (11) · `usbmidi` (06 phase 2; doc 19 upgrades it from bool to u8 mode 0–3) · `lineout` (15) · `deepbass` (16) · `groove`, `swing` (18) · `outtrim` (23, **only** if its remedy 4a wins — and it shares the output row with 15's `lineout`, so whichever lands first owns both) · `batwarn` (22, an explicitly *not recommended* trim; reserved so nobody reuses the name) · `intron` (24, one-shot migration guard for the `seenIntro` → `introShown` counter — follows the `trigv3` pattern, never widen `intro` in place) · `look` (**TAKEN** — the custom palette's five dials packed into one u32; `themeid` gained index 10 = custom, appended, and its load clamp widened to 0..10 at `glide_config.cpp` load and rig-apply. Deliberately ONE primitive entry: debt D1 means blob-sized writes fail first, so a palette is stored as a recipe, never as eleven colours).
 
 **Rig mirror version** (`kRigVer`, `glide_config.cpp`): now **2** — v2 appended `themeLook` after `themeId`. Any doc adding a rig field bumps it again and ignores older mirrors (defaults win), which is the designed behaviour, not a loss: NVS is intact and the mirror rewrites at the next quiet moment.
 
 **Generator versions** (`genver`, NVS): 1 = `generateSoundLegacy`, 2 = frozen
-v2 `generateSound`, 3 = `generateSoundV3` (expanded pool + polish), **4 =
-`generateSoundV4`** (V3 + a rolled `driftCents`, doc 11). Each is frozen the
-moment a device is born under it, because o/p slots re-derive through it on
-every boot — so a new ingredient means a NEW version, never an edit to an
-existing one. V4's drift roll uses its own `Rng(seed ^ k)` so V3's output is
-bit-identical; the suite asserts exactly that.
+v2 `generateSound`, 3 = `generateSoundV3` (expanded pool + polish), 4 =
+`generateSoundV4` (V3 + a rolled `driftCents`, doc 11), **5 =
+`generateSoundV5`** (widest pool + third wave + style substreams, doc 26 —
+**NOT yet frozen**: it freezes the moment a release ships, and until then its
+style/polish/new-window layers are the legal home for the Phase-3 range
+tuning). Each is frozen the moment a device is born under it, because o/p
+slots re-derive through it on every boot — so a new ingredient means a NEW
+version, never an edit to an existing one. V4's drift roll and V5's style
+draw each use their own `Rng(seed ^ k)` so the layer below stays
+bit-identical; the suite asserts exactly that. `dsp::kGenVerNewest` is the
+single source of "newest" for first-boot/re-roll stamping and the Randomize
+provenance. New NVS key claimed by doc 26: **`rollid`** (u64, the live
+sound's packed roll provenance).
 
 **New file formats:** `.gjam` (doc 04, magic `'G','J'`, introduces `T_BLOB=6` wire type in its own codec — the `.gpat` codec is untouched by every doc except tag appends) · `.mid` export (doc 17, write-only) · `.wav` import (doc 20, read-only single cycles).
 

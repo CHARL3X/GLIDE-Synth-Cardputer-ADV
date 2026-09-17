@@ -16,7 +16,31 @@ namespace soundcard {
 namespace {
 uint32_t gUntil = 0;
 uint32_t gShownAt = 0;
-int gTagArch = -1;  // rolled-character tag (dsp::Archetype); -1 = none
+int gTagArch = -1;   // rolled-character tag (dsp::Archetype); -1 = none
+int gTagStyle = 0;   // the roll's style draw; 0 = classic (family word alone)
+
+// Display words for the V5 style recolors, indexed [archetype][style-1].
+// Empty = the archetype has no styles (wild, and the third wave for now), so
+// the tag stays the bare family word. ≤7 chars each — the header truncates
+// the sound's NAME to make room, never the tag. Kept in flash (.rodata).
+constexpr const char* kStyleWord[(int)dsp::Archetype::Count][2] = {
+    {"kalimba", "funk"},   // pluck
+    {"box", "gong"},       // bell
+    {"glass", "cinema"},   // pad
+    {"round", "growl"},    // bass
+    {"dub", "scream"},     // acid
+    {"breath", "bite"},    // lead
+    {"mellow", "stab"},    // brass
+    {"lofi", "arcade"},    // chip
+    {"", ""},              // wild — its identity IS the chaos
+    {"airy", "flutter"},   // whistle
+    {"nave", "driven"},    // organ
+    {"tape", "glassy"},    // keys
+    {"swamp", "reso"},     // wobble
+    {"chamber", "cinema"}, // strings
+    {"", ""},              // drone — classic only until Phase-3 tuning
+    {"", ""},              // gate  — same
+};
 
 // card geometry — sized to sit inside the scope area, hint line stays clear
 constexpr int kW = 204, kH = 88;
@@ -46,6 +70,8 @@ constexpr uint16_t kArchColor[(int)dsp::Archetype::Count] = {
     rgb(255, 200, 160),  // keys   - cream (felt)
     rgb(50, 220, 120),   // wobble - dub green
     rgb(255, 120, 140),  // strings- rosin rose
+    rgb(70, 110, 210),   // drone  - twilight slate
+    rgb(0, 215, 185),    // gate   - strobe teal
 };
 }  // namespace
 
@@ -53,11 +79,16 @@ void show(uint32_t holdMs) {
     gShownAt = millis();
     gUntil = gShownAt + holdMs;
     gTagArch = -1;  // only a fresh roll carries a character tag
+    gTagStyle = 0;
 }
 
-void showRolled(uint8_t archetype, uint32_t holdMs) {
+void showRolled(uint8_t archetype, uint8_t style, uint32_t holdMs) {
     show(holdMs);
-    if (archetype < (uint8_t)dsp::Archetype::Count) gTagArch = archetype;
+    if (archetype < (uint8_t)dsp::Archetype::Count) {
+        gTagArch = archetype;
+        if (style >= 1 && style <= 2 && kStyleWord[archetype][style - 1][0])
+            gTagStyle = style;
+    }
 }
 
 void dismiss() { gUntil = 0; }
@@ -82,13 +113,29 @@ void draw(M5Canvas& c, uint32_t nowMs) {
     c.fillRoundRect(kX, kY, kW, kH, 5, panel);
     c.drawRoundRect(kX, kY, kW, kH, 5, frame);
 
+    // the rolled-character tag, composed first: "style family" when the roll
+    // drew a style ("gong bell", "glass pad"), the bare family when classic —
+    // the header then truncates the NAME around however wide the tag came out
+    char tag[24] = "";
+    int tagW = 0;
+    if (gTagArch >= 0) {
+        if (gTagStyle >= 1)
+            snprintf(tag, sizeof tag, "%s %s", kStyleWord[gTagArch][gTagStyle - 1],
+                     dsp::archetypeName((dsp::Archetype)gTagArch));
+        else
+            snprintf(tag, sizeof tag, "%s", dsp::archetypeName((dsp::Archetype)gTagArch));
+        c.setFont(&fonts::Font0);
+        tagW = c.textWidth(tag);
+    }
+
     // header: the sound's name (exactly what Save writes) + unsaved-edit star
     char buf[32];
     snprintf(buf, sizeof buf, "%s%s", store::liveName(), store::liveDirty() ? "*" : "");
     c.setFont(&fonts::Font2);
     c.setTextDatum(top_left);
     // the right zone must fit the SOLO badge and/or the rolled-character tag
-    while (buf[0] && c.textWidth(buf) > kW - (gTagArch >= 0 ? 96 : 60)) buf[strlen(buf) - 1] = '\0';
+    const int reserve = gTagArch >= 0 ? 20 + tagW + (store::backingLocked() ? 36 : 0) : 60;
+    while (buf[0] && c.textWidth(buf) > kW - reserve) buf[strlen(buf) - 1] = '\0';
     c.setTextColor(frame, panel);
     c.drawString(buf, kX + 8, kY + 3);
     if (store::backingLocked()) {  // the bed holds its own sound — this is the solo
@@ -106,8 +153,7 @@ void draw(M5Canvas& c, uint32_t nowMs) {
         c.setFont(&fonts::Font0);
         c.setTextDatum(top_right);
         c.setTextColor(theme::blend(tagC, theme::kBg, fade), panel);
-        c.drawString(dsp::archetypeName((dsp::Archetype)gTagArch),
-                     kX + kW - (store::backingLocked() ? 40 : 8), kY + 6);
+        c.drawString(tag, kX + kW - (store::backingLocked() ? 40 : 8), kY + 6);
         c.setTextDatum(top_left);
         c.setFont(&fonts::Font2);
     }

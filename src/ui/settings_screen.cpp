@@ -773,6 +773,7 @@ void aInitSound(int) {
     const float vol = g.synth.masterVol;       // keep the player's level
     g.synth = dsp::SynthParams();              // neutral: plain saw, no FX, no mod
     g.synth.masterVol = vol;
+    store::clearRollProvenance();              // a blank slate wears no roll pedigree
     store::refreshLiveName();                  // the blank sound gets its own name
     pushLiveSound();
     soundcard::show();                         // the blank face, seen
@@ -785,14 +786,28 @@ void fRandomize(char* o, int c) { snprintf(o, c, "surprise me%c", kLRtag); }
 void aRandomize(int) {
     store::historyCheckpoint();
     keys::soundSwitchBegin();  // over a jam: freeze the backing so the roll is solo-only
-    // The expanded archetype pool — Randomize always rolls with the newest
+    // The widest archetype pool — Randomize always rolls with the newest
     // engine (a fresh hardware seed each press: no stored-seed continuity to
-    // preserve). The character is drawn explicitly so the card can NAME it.
-    const uint32_t sd = esp_random();
-    const dsp::Archetype arch = dsp::archetypeForSeedV3(sd);
-    store::applyGenerated(dsp::generateSoundV4(sd, arch));
+    // preserve). The character is drawn explicitly so the card can NAME it —
+    // and so consecutive presses can refuse to repeat it: a re-drawn seed is
+    // as fresh as the first, and "every press sounds like a different
+    // instrument" is most of what variety FEELS like. Bounded (a same-family
+    // run after four re-draws is luck we accept, ~0.01%), session-only.
+    static uint8_t lastArch = 0xFF;
+    uint32_t sd = esp_random();
+    dsp::Archetype arch = dsp::archetypeForSeedV5(sd);
+    for (int tries = 0; (uint8_t)arch == lastArch && tries < 4; ++tries) {
+        sd = esp_random();
+        arch = dsp::archetypeForSeedV5(sd);
+    }
+    lastArch = (uint8_t)arch;
+    store::applyGenerated(dsp::generateSoundV5(sd, arch), sd, (uint8_t)arch,
+                          dsp::kGenVerNewest);
     audition::start();
-    soundcard::showRolled((uint8_t)arch, audition::lengthMs());  // see the roll — and its character, in colour
+    // see the roll — its character in colour, and WHICH style painted it
+    // ("gong bell", "glass pad"), so a tester's ear gets a label to hold
+    soundcard::showRolled((uint8_t)arch, (uint8_t)dsp::styleForSeedV5(sd),
+                          audition::lengthMs());
     coach::notify(coach::Ev::Randomize);
 }
 
