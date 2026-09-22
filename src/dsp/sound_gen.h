@@ -80,7 +80,7 @@ constexpr int kArchetypeCountV3 = 14;
 // press records. Storage gates o/p regeneration on the persisted copy of
 // this; bumping it here is only half a version — the dispatch ladder in
 // storage/glide_config.cpp's loadPatchData must gain the matching rung.
-constexpr uint8_t kGenVerNewest = 5;
+constexpr uint8_t kGenVerNewest = 6;
 
 inline const char* archetypeName(Archetype a) {
     switch (a) {
@@ -168,6 +168,29 @@ int styleForSeedV5(uint32_t seed);
 // generateSoundV5(seed) == generateSoundV5(seed, archetypeForSeedV5(seed)).
 GenPatch generateSoundV5(uint32_t seed);
 GenPatch generateSoundV5(uint32_t seed, Archetype a);
+
+// The genver-6 pool: the same sixteen archetypes as V5, reweighted from the
+// first field rating session (202 rated rolls, 2026-09-22): lead and keys —
+// the families the ear kept calling good — gain a row each, chip and wild —
+// the families it kept calling bad — drop to one row each (still in the
+// pool: variety is the point, and their WINDOWS are what V6 fixes).
+// Deterministic in seed; its own scramble word, decorrelated from V3/V5.
+Archetype archetypeForSeedV6(uint32_t seed);
+
+// The per-roll style a genver-6 seed draws (0..2). V6 inherits V5's draw
+// exactly — same stream, same split — so the card's style word and the
+// gpat_stats column mean the same thing across both versions.
+int styleForSeedV6(uint32_t seed);
+
+// The genver-6 roll: the V5 roll (frozen since v3.3 shipped — genver-5
+// devices re-derive their o/p slots through it every boot) plus a V6 style
+// correction and a V6 polish, each rule traced to a row of the rating data
+// (docs/roadmap/28-field-data-round-1.md). Families the data called healthy
+// are passed through bit-identical (asserted). This is what the Randomize
+// button and genver>=6 seeds use. Deterministic:
+// generateSoundV6(seed) == generateSoundV6(seed, archetypeForSeedV6(seed)).
+GenPatch generateSoundV6(uint32_t seed);
+GenPatch generateSoundV6(uint32_t seed, Archetype a);
 
 // Same, but with the character chosen by the caller — the hook for a future
 // "roll me a pad" style picker. Deterministic in (seed, a).

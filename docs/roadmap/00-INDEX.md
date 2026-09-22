@@ -46,7 +46,7 @@ longer safe. Read the generator-versions note below before touching either.
 | 25 | [screen-real-estate](25-screen-real-estate.md) | Fresh units one octave lower; stabilize tutorial card reflow; consolidate overlapping indicators at visualizer top | M | low-med | 0 rows, 0 gestures |
 | 26 | [gen-v5-variety](26-gen-v5-variety.md) | Gen V5: drone+gate archetypes, style substreams, no-repeat Randomize, roll provenance + `gpat_stats` | M–L | low | 0 rows, 0 gestures | **built** (branch `gen-v5-variety`), hardware test pending; Phase-3 tuning open |
 | 27 | [arp-glide-snap](27-arp-glide-snap.md) | A reused arp tail snaps to its step's pitch instead of gliding a chord interval — fast arps stop smearing | S | low | 0 rows, 0 gestures | **built** (rides branch `gen-v5-variety`), hardware test pending |
-| 28 | [field-data-round-1](28-field-data-round-1.md) | Jordan's 202 rated rolls + 47 labelled chromas: LISTEN lands the song not the scale you were in (czar + reordered `space` walk), Gen V6 clamps the sink families | M | low (host-scored before flash) | 0 rows, 0 gestures | **planned 2026-09-22**, local beta bins only, no release |
+| 28 | [field-data-round-1](28-field-data-round-1.md) | Jordan's 202 rated rolls + 47 labelled chromas: LISTEN lands the song not the scale you were in (czar + reordered `space` walk), Gen V6 clamps the sink families | M | low (host-scored before flash) | 0 rows, 0 gestures | **built 2026-09-22** (both parts, local), beta bin awaiting the owner's hardware verdict; no release |
 
 **Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
 **A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so
@@ -99,11 +99,15 @@ If doc 11 lands before doc 02, it still uses tag 30; 28–29 stay reserved. Upda
 
 **Generator versions** (`genver`, NVS): 1 = `generateSoundLegacy`, 2 = frozen
 v2 `generateSound`, 3 = `generateSoundV3` (expanded pool + polish), 4 =
-`generateSoundV4` (V3 + a rolled `driftCents`, doc 11), **5 =
-`generateSoundV5`** (widest pool + third wave + style substreams, doc 26 —
-**NOT yet frozen**: it freezes the moment a release ships, and until then its
-style/polish/new-window layers are the legal home for the Phase-3 range
-tuning). Each is frozen the moment a device is born under it, because o/p
+`generateSoundV4` (V3 + a rolled `driftCents`, doc 11), 5 = `generateSoundV5`
+(widest pool + third wave + style substreams, doc 26 — **FROZEN since v3.3
+shipped on 2026-09-16**, pinned by eight golden hashes in the suite), **6 =
+`generateSoundV6`** (doc 28 — V5 called, never copied, plus a style
+correction and a polish layer, every rule traced to a row of the first
+field rating session; the healthy families pass through bit-identical.
+**NOT yet frozen**: it freezes the moment a release ships, and until then
+`applyStyleV6` / `rollPolishV6` / the V6 pool table are the legal home for
+rating-driven tuning). Each is frozen the moment a device is born under it, because o/p
 slots re-derive through it on every boot — so a new ingredient means a NEW
 version, never an edit to an existing one. V4's drift roll and V5's style
 draw each use their own `Rng(seed ^ k)` so the layer below stays

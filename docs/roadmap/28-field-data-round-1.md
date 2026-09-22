@@ -1,8 +1,9 @@
 # 28 — Field data round 1: LISTEN becomes the czar, Gen V6 learns from 202 ratings
 
-**Status: Part A BUILT 2026-09-22 (local, unreleased) — beta bin awaiting the
-owner's hardware verdict. Part B not started. No release from this doc — local
-beta bins only, owner feedback gates everything.**
+**Status: Parts A and B BUILT 2026-09-22 (local, unreleased, native gate green,
+RAM unchanged) — one beta bin awaiting the owner's hardware verdict. Part C is
+a request to Jordan. No release from this doc — local beta bins only, owner
+feedback gates everything.**
 
 **UI cost: zero new gestures, zero new settings rows.** Every change rides the
 existing `fn`+`k` hold, the result card's `space` walk, and the Randomize
@@ -378,6 +379,34 @@ roll he called great must not change at all.
 - [ ] Run it; paste the summary line into this doc ("15/15 bad rolls moved,
   3/3 great unchanged, N meh rolls moved").
 - [ ] Commit: `roll_diff: the rated rolls audit V6`.
+
+### Task B4 result (2026-09-22)
+
+`roll_diff` over the 203 rated rolls, V5 → V6:
+
+```
+rolls=203 moved=90 | bad moved 15/15 | great unchanged 3/3 | meh moved 50/87 | good moved 25/98
+```
+
+What moved on the fifteen bad rolls (every one on a field its family's data
+row named): four chips lost the 7 kHz top and gained a release; two wilds
+lost their 0.5-0.8 s attack, 1.6-1.9 s release and 5.x drive; two cinema pads
+came up in cutoff and down in sub, drive and hall; two drones gained an LFO
+above 0.3 Hz and a little vibrato (one left the bare sine); the kalimba pluck
+went from 580 Hz / 0.29 s to 900 Hz / 0.37 s; the acid gained filter-envelope
+depth; the airy whistle darkened from 5.2 kHz to 4.4 kHz; the music box rings
+0.7 s; the cathedral organ halved its wash. The three great rolls (two leads,
+one wobble) are bit-identical. Twenty-five good rolls moved: all in touched
+families, all by a clamp toward that family's good median.
+
+Two rules changed while building against the suite: the kalimba's decay
+boost is capped at 0.44 s because the frozen classifier names a pure-wave
+decay of 0.45 s or more a bell (the V5 music-box comment records the same
+line), and organ gained a cathedral-style wash cap — the one bad roll V6 had
+left untouched was a cathedral organ, and the pool-wide reverb finding
+supports it. The naming test is "V6 never names a family wrong more often
+than V5 did", per family, rather than 100 % agreement, because V5 itself
+names 123 of 700 plucks as bells and 21 of 700 basses as acids.
 
 ### Task B5 — the beta bin and round two
 

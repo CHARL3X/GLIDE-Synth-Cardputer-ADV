@@ -333,7 +333,8 @@ bool loadPatchData(int slot, PatchData& out) {
                                      : gGenVer < 3 ? dsp::generateSound(sv)    // frozen v2 pool
                                      : gGenVer < 4 ? dsp::generateSoundV3(sv)  // expanded pool
                                      : gGenVer < 5 ? dsp::generateSoundV4(sv)  // + rolled drift
-                                                   : dsp::generateSoundV5(sv); // widest pool + styles
+                                     : gGenVer < 6 ? dsp::generateSoundV5(sv)  // widest pool + styles
+                                                   : dsp::generateSoundV6(sv); // + the field-rated tune
         genToPatchData(rolled, out,
                        legacy ? NameVer::Legacy
                               : gGenVer < 5 ? NameVer::V1 : NameVer::V2);
@@ -342,7 +343,8 @@ bool loadPatchData(int slot, PatchData& out) {
         out.rollArch = legacy ? 0xFF
                        : gGenVer < 3 ? (uint8_t)dsp::archetypeForSeed(sv)
                        : gGenVer < 5 ? (uint8_t)dsp::archetypeForSeedV3(sv)
-                                     : (uint8_t)dsp::archetypeForSeedV5(sv);
+                       : gGenVer < 6 ? (uint8_t)dsp::archetypeForSeedV5(sv)
+                                     : (uint8_t)dsp::archetypeForSeedV6(sv);
         out.rollVer = gGenVer;
     }
     return false;  // q..i keep their curated factory patch (already seeded above)

@@ -49,8 +49,9 @@ void printRow(const char* file, const store::PatchData& pd) {
                    ? dsp::archetypeName((dsp::Archetype)pd.rollArch)
                    : "?",
                pd.rollVer);
-        // genver-5 rolls also expose which style recolored them
-        if (pd.rollVer >= 5) printf("%d,", dsp::styleForSeedV5(pd.rollSeed));
+        // genver>=5 rolls also expose which style recolored them
+        if (pd.rollVer >= 6) printf("%d,", dsp::styleForSeedV6(pd.rollSeed));
+        else if (pd.rollVer >= 5) printf("%d,", dsp::styleForSeedV5(pd.rollSeed));
         else printf(",");
     } else {
         printf(",,,,");  // no provenance (hand-built, or predates the record)

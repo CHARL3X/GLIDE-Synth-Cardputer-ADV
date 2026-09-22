@@ -143,7 +143,12 @@ The randomizer is a first-class engine feature, not a UI gimmick. It lives in
 Storage (`storage/glide_config.cpp`): a per-unit `seed` (NVS) plus a `genver`
 flag: 1 (or absent) = the o/p slots regenerate with `generateSoundLegacy`,
 2 = with the frozen v2 archetype engine (`generateSound`), 3 = with the
-expanded pool (`generateSoundV3`). `genver` moves forward ONLY when the seed
+expanded pool (`generateSoundV3`), 4 = V3 + rolled drift (`generateSoundV4`),
+5 = the widest pool + styles (`generateSoundV5`, frozen since v3.3 shipped),
+6 = V5 + the field-rated corrections (`generateSoundV6`, the current tuning
+layer — see docs/roadmap/28). Every version below the newest is frozen and
+pinned by goldens; a tuning idea always goes in a NEW version, and
+`kGenVerNewest` + the two ladders in `loadPatchData` move together. `genver` moves forward ONLY when the seed
 itself is new (first boot, wiped NVS, or the player's own Re-roll bank) — never
 as a side effect of a firmware update. The Randomize button always uses the
 newest engine (fresh random seed each press; no continuity to preserve). The bank is

@@ -795,18 +795,18 @@ void aRandomize(int) {
     // run after four re-draws is luck we accept, ~0.01%), session-only.
     static uint8_t lastArch = 0xFF;
     uint32_t sd = esp_random();
-    dsp::Archetype arch = dsp::archetypeForSeedV5(sd);
+    dsp::Archetype arch = dsp::archetypeForSeedV6(sd);
     for (int tries = 0; (uint8_t)arch == lastArch && tries < 4; ++tries) {
         sd = esp_random();
-        arch = dsp::archetypeForSeedV5(sd);
+        arch = dsp::archetypeForSeedV6(sd);
     }
     lastArch = (uint8_t)arch;
-    store::applyGenerated(dsp::generateSoundV5(sd, arch), sd, (uint8_t)arch,
+    store::applyGenerated(dsp::generateSoundV6(sd, arch), sd, (uint8_t)arch,
                           dsp::kGenVerNewest);
     audition::start();
     // see the roll — its character in colour, and WHICH style painted it
     // ("gong bell", "glass pad"), so a tester's ear gets a label to hold
-    soundcard::showRolled((uint8_t)arch, (uint8_t)dsp::styleForSeedV5(sd),
+    soundcard::showRolled((uint8_t)arch, (uint8_t)dsp::styleForSeedV6(sd),
                           audition::lengthMs());
     coach::notify(coach::Ev::Randomize);
 }

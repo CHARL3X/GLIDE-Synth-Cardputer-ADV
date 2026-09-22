@@ -1270,6 +1270,160 @@ int main() {
             }
         }
 
+        // ---- genver 6: the pool learns from 202 rated rolls -----------------
+        // V6 = the frozen V5 roll plus a style correction and a polish, every
+        // rule traced to a row of the first field rating session
+        // (docs/roadmap/28-field-data-round-1.md). Properties: determinism,
+        // the picker contract, the healthy families pass through bit-exact,
+        // each data-driven clamp holds after sanitize, the touched families
+        // keep their names, the pool still covers all sixteen, every V5
+        // guardrail still holds, and a sample renders finite & bounded.
+        {
+            CHECK(patchHashFull(generateSoundV6(0xB0BA7EAu)) ==
+                      patchHashFull(generateSoundV6(0xB0BA7EAu)),
+                  "generateSoundV6 deterministic");
+            const uint32_t sd0 = 0x0DDBA115u;
+            CHECK(patchHashFull(generateSoundV6(sd0)) ==
+                      patchHashFull(generateSoundV6(sd0, archetypeForSeedV6(sd0))),
+                  "generateSoundV6(seed) == generateSoundV6(seed, archetypeForSeedV6(seed))");
+            CHECK(styleForSeedV6(sd0) == styleForSeedV5(sd0) &&
+                      styleForSeedV6(0xC0FFEEu) == styleForSeedV5(0xC0FFEEu),
+                  "V6 inherits V5's style draw (the card's style word means the same thing)");
+
+            // the healthy families (lead, wobble, keys, gate, strings, brass,
+            // and organ outside its cathedral style) are untouched:
+            // bit-identical to V5
+            {
+                static const Archetype kHealthy[7] = {
+                    Archetype::Lead,  Archetype::Wobble,  Archetype::Keys, Archetype::Gate,
+                    Archetype::Strings, Archetype::Organ, Archetype::Brass};
+                int same = 0, total = 0;
+                for (uint32_t i = 1; i <= 120u; ++i) {
+                    const uint32_t sd = i * 2654435761u + 909u;
+                    for (int h = 0; h < 7; ++h) {
+                        if (kHealthy[h] == Archetype::Organ && styleForSeedV6(sd) == 1) continue;
+                        ++total;
+                        if (patchHashFull(generateSoundV6(sd, kHealthy[h])) ==
+                            patchHashFull(generateSoundV5(sd, kHealthy[h])))
+                            ++same;
+                    }
+                }
+                CHECK(same == total, "V6 passes the healthy families through bit-identical to V5");
+            }
+
+            // the pool: reweighted (lead/keys up, chip/wild down), every
+            // family still reachable, and the shares are what the table says
+            {
+                int count[(int)Archetype::Count] = {0};
+                for (uint32_t i = 1; i <= 4000u; ++i)
+                    ++count[(int)archetypeForSeedV6(i * 2654435761u + 17u)];
+                for (int a = 0; a < (int)Archetype::Count; ++a)
+                    CHECK(count[a] > 0, "every archetype appears in the V6 pool");
+                CHECK(count[(int)Archetype::Lead] > count[(int)Archetype::Chip] * 2 &&
+                          count[(int)Archetype::Keys] > count[(int)Archetype::Wild] * 2,
+                      "V6 pool: lead and keys out-roll chip and wild by the table's ratio");
+                CHECK(count[(int)Archetype::Chip] < 4000 / 20 &&
+                          count[(int)Archetype::Wild] < 4000 / 20,
+                      "V6 pool: chip and wild are each about one roll in forty");
+            }
+
+            // the data-driven rules hold on every roll, AFTER sanitize, and
+            // no touched family loses its name to its own correction
+            Synth s6;
+            s6.init(kSr);
+            int rolls = 0;
+            // a correction must never cost a family its NAME more often than
+            // V5 already did: per family, V6's classifier agreement >= V5's
+            int agree5[(int)Archetype::Count] = {0};
+            int agree6[(int)Archetype::Count] = {0};
+            for (uint32_t k = 1; k <= 700; ++k) {
+                const uint32_t sd = k * 2654435761u + 4242u;
+                for (int ai = 0; ai < (int)Archetype::Count; ++ai) {
+                    const Archetype a = (Archetype)ai;
+                    const GenPatch g = generateSoundV6(sd, a);
+                    const SynthParams& s = g.synth;
+                    const int st = styleForSeedV6(sd);
+                    ++rolls;
+                    if (classifySoundV2(generateSoundV5(sd, a).synth) == a) ++agree5[ai];
+                    if (classifySoundV2(s) == a) ++agree6[ai];
+                    switch (a) {
+                        case Archetype::Chip:
+                            CHECK(s.cutoffHz <= 5000.5f, "V6 chip: never the open 7 kHz the ear rejected");
+                            CHECK(s.releaseS >= 0.219f, "V6 chip: keeps a release (good chip 0.38 s, bad 0.15 s)");
+                            CHECK(s.lfo1RateHz <= 6.01f, "V6 chip: the wobble stays under 6 Hz");
+                            if (st == 2) CHECK(s.cutoffHz <= 4000.5f && s.lfo1RateHz <= 5.01f,
+                                               "V6 chip arcade: capped at 4 kHz / 5 Hz");
+                            break;
+                        case Archetype::Wild:
+                            CHECK(s.attackS <= 0.151f && s.releaseS <= 0.801f && s.drive <= 3.51f,
+                                  "V6 wild: never the slow mushy driven pad the ear rejected");
+                            break;
+                        case Archetype::Pad:
+                            CHECK(s.drive <= 1.61f && s.subLevel <= 0.251f,
+                                  "V6 pad: drive and sub stay at the good pads' levels");
+                            if (st == 2) CHECK(s.reverbSize <= 0.701f,
+                                               "V6 pad cinema: the hall is capped at 0.70");
+                            break;
+                        case Archetype::Pluck:
+                            CHECK(s.cutoffHz >= 799.5f && s.decayS >= 0.349f,
+                                  "V6 pluck: never the dull short pluck the ear rejected");
+                            if (st == 1) CHECK(s.cutoffHz >= 899.5f, "V6 kalimba keeps its brightness floor");
+                            break;
+                        case Archetype::Bass:
+                            CHECK(s.cutoffHz >= 449.5f, "V6 bass: never the buried 339 Hz roll");
+                            break;
+                        case Archetype::Whistle:
+                            CHECK(s.cutoffHz <= 5000.5f && s.autoVibCents >= 4.99f,
+                                  "V6 whistle: sits where the good ones sat and always sings");
+                            CHECK(s.drive >= 3.19f, "V6 whistle keeps V5's speaker floor");
+                            break;
+                        case Archetype::Drone:
+                            CHECK(s.lfo1RateHz >= 0.59f && s.autoVibCents >= 1.99f,
+                                  "V6 drone: always moves a little");
+                            CHECK(s.wave != Waveform::Sine, "V6 drone: never a bare sine");
+                            CHECK(s.sustain >= 0.85f && s.releaseS >= 0.9f, "V6 drone keeps V5's hold");
+                            break;
+                        case Archetype::Acid:
+                            CHECK(s.fenvOct >= 2.59f, "V6 acid: the filter envelope bites");
+                            break;
+                        case Archetype::Bell:
+                            if (st == 1) CHECK(s.decayS >= 0.699f, "V6 music box rings at least 0.7 s");
+                            CHECK(classifySound(s) == Archetype::Bell, "V6 bell still names as a bell");
+                            break;
+                        case Archetype::Organ:
+                            if (st == 1) CHECK(s.reverbMix <= 0.301f && s.reverbSize <= 0.801f,
+                                               "V6 cathedral: half the wash, the nave kept");
+                            break;
+                        default: break;
+                    }
+                    // every V5 guardrail still holds on the corrected roll
+                    if (s.filterMode == (uint8_t)FilterMode::HP)
+                        CHECK(s.cutoffHz <= 1800.5f, "V6: no whisper rolls (HP keeps a body)");
+                    if (s.resonance > 0.7f)
+                        CHECK(s.drive <= 3.51f, "V6: screaming reso never stacks on heavy drive");
+                    CHECK(s.delayMix + s.reverbMix <= 0.81f, "V6: echo+hall can't wash out jointly");
+                    if (s.sustain < 0.1f)
+                        CHECK(s.decayS >= 0.249f, "V6: struck sounds keep a decay body");
+                    if (s.attackS > 0.5f)
+                        CHECK(s.sustain >= 0.499f && s.releaseS >= 0.399f, "V6: slow swells hold");
+                    if (s.glideMode == GlideMode::Always)
+                        CHECK(s.glideS <= 0.161f, "V6: always-glide rolls stay quick enough to land");
+                    if (k <= 8) {
+                        s6.setParams(s);
+                        s6.handleEvent(NoteEvent::make(NoteEvent::On, (uint8_t)(k & 0x7F), 0, false, 62.f));
+                        const float pk = peakOf(s6, 24);
+                        CHECK(pk >= 0.f && pk < 1.6f, "V6 roll renders finite & bounded");
+                        s6.handleEvent(NoteEvent::make(NoteEvent::AllOff, 0, 0xFF, false, 0.f));
+                        peakOf(s6, 40);
+                    }
+                }
+            }
+            CHECK(rolls == 700 * (int)Archetype::Count, "V6 sweep covered every family");
+            for (int ai = 0; ai < (int)Archetype::Count; ++ai)
+                CHECK(agree6[ai] >= agree5[ai],
+                      "V6 never names a family wrong more often than V5 did");
+        }
+
         // ---- the widest (genver-5) pool: the third wave + styles ------------
         // Two new gesture archetypes (drone, gate) join via archetypeForSeedV5,
         // and every family gains style substreams — pure post-paint recolors
@@ -1285,6 +1439,28 @@ int main() {
             CHECK(patchHashFull(generateSoundV5(sd0)) ==
                       patchHashFull(generateSoundV5(sd0, archetypeForSeedV5(sd0))),
                   "generateSoundV5(seed) == generateSoundV5(seed, archetypeForSeedV5(seed))");
+
+            // FROZEN: V5 shipped in v3.3 (2026-09-16). genver-5 devices
+            // re-derive their o/p slots through it every boot, so any drift
+            // here silently changes sounds players already own. Pinned the
+            // way legacy and v2 are; captured on the v3.3 tree. Tuning from
+            // field data goes in V6 (docs/roadmap/28), never here.
+            {
+                struct Golden { uint32_t seed, hash; };
+                static const Golden kV5[8] = {
+                    {0x00000001u, 2709341965u},  // strings, style 1
+                    {0xdeadbeefu, 3029545729u},  // whistle, style 2
+                    {0x0d11779eu, 3219912069u},  // bell, style 0
+                    {0x9394a234u, 3848124383u},  // drone, style 1
+                    {0xf25b11e8u, 2298918780u},  // lead, style 1
+                    {0x855c3c69u, 633852910u},   // lead, style 1
+                    {0x13198a2eu, 864383200u},   // bass, style 2
+                    {0x7fffffffu, 2773208718u},  // bell, style 1
+                };
+                for (int i = 0; i < 8; ++i)
+                    CHECK(patchHashFull(generateSoundV5(kV5[i].seed)) == kV5[i].hash,
+                          "V5 generator frozen (the v3.3 pool never drifts)");
+            }
 
             // style 0 ("classic") is bit-identical to the V4 roll of the same
             // (seed, archetype) — the same non-perturbation contract V4 made

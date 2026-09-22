@@ -339,6 +339,37 @@ Archetype archetypeForSeedV5(uint32_t seed) {
     return kTable[r.i(0, 39)];
 }
 
+Archetype archetypeForSeedV6(uint32_t seed) {
+    // The genver-6 pool: V5's sixteen families, reweighted from 202 rated
+    // rolls (2026-09-22). Lead rated 17/19 good and held two of the three
+    // "great" rolls, keys 7/9 — each gains a row. Chip rated 1/13 good and
+    // wild 0/5 — each drops to one row; both stay (variety), and their
+    // windows are what rollPolishV6 fixes. Everything else keeps its V5
+    // share. Scramble constant: the next word of pi's fraction after the
+    // style stream's, so this table's picks decorrelate from every earlier
+    // pool and from the style draw.
+    static const Archetype kTable[40] = {
+        Archetype::Pluck,   Archetype::Pluck,   Archetype::Pluck,
+        Archetype::Bell,    Archetype::Bell,    Archetype::Bell,
+        Archetype::Pad,     Archetype::Pad,     Archetype::Pad,   Archetype::Pad,
+        Archetype::Bass,    Archetype::Bass,    Archetype::Bass,
+        Archetype::Acid,    Archetype::Acid,    Archetype::Acid,
+        Archetype::Lead,    Archetype::Lead,    Archetype::Lead,  Archetype::Lead,
+        Archetype::Brass,   Archetype::Brass,
+        Archetype::Chip,
+        Archetype::Wild,
+        Archetype::Whistle, Archetype::Whistle,
+        Archetype::Organ,   Archetype::Organ,
+        Archetype::Keys,    Archetype::Keys,    Archetype::Keys,  Archetype::Keys,
+        Archetype::Wobble,  Archetype::Wobble,
+        Archetype::Strings, Archetype::Strings,
+        Archetype::Drone,   Archetype::Drone,
+        Archetype::Gate,    Archetype::Gate,
+    };
+    Rng r(seed ^ 0xA4093822u);
+    return kTable[r.i(0, 39)];
+}
+
 GenPatch generateSound(uint32_t seed) {
     return generateSound(seed, archetypeForSeed(seed));
 }
@@ -1147,6 +1178,144 @@ void rollPolishV5(GenPatch& g, Archetype a) {
     }
 }
 
+// ---- V6: what 202 rated rolls said -------------------------------------
+// The first field rating session (2026-09-22, docs/roadmap/28) rated every
+// Randomize press 1bad..4great and saved the patch. Every rule below is one
+// measured signal from that data — a style whose mean sat under its family's
+// classic, or a parameter whose good and bad medians sat far apart within
+// one family — turned into one correction or one clamp. Both layers run on
+// the FINISHED V5 roll (V5 shipped in v3.3 and is frozen), so a family with
+// no rule here passes through bit-identical; the suite asserts that for the
+// families the ear called healthy (lead, wobble, keys, gate, strings,
+// organ, brass). Pure, RNG-free, idempotent; sanitizePatch re-runs after.
+
+// Style corrections — applied after V5's recolor, so each undoes part of a
+// V5 recolor the ratings said went too far.
+void applyStyleV6(GenPatch& g, Archetype a, int style) {
+    if (style <= 0) return;
+    SynthParams& s = g.synth;
+    const bool s1 = style == 1;
+    switch (a) {
+        case Archetype::Pad:
+            if (!s1) {  // "cinema" rated 1.90 (n=10): V5 halved the cutoff,
+                        // added 0.3 of sub and forced a 0.85 hall — the bad
+                        // pads had reverbSize 0.85 and sub 0.30 against the
+                        // good pads' 0.62 and 0.10. Net: cutoff x0.7, sub
+                        // +0.15, hall capped at 0.70, mix +0.08.
+                s.cutoffHz *= 1.4f;
+                s.subLevel -= 0.15f;
+                if (s.subLevel < 0.f) s.subLevel = 0.f;
+                if (s.reverbSize > 0.70f) s.reverbSize = 0.70f;
+                s.reverbMix -= 0.07f;
+                if (s.reverbMix < 0.f) s.reverbMix = 0.f;
+            }
+            break;
+        case Archetype::Pluck:
+            if (s1) {  // "kalimba" rated 2.33 against classic 3.00 (n=12):
+                       // good plucks had cutoff 1440 Hz and decay 0.50 s,
+                       // bad ones 616 Hz and 0.31 s — V5's x0.55 / x0.65 cut
+                       // straight into the bad window. Net: x0.8 (floor
+                       // 900) and x0.85.
+                s.cutoffHz *= 1.45f;
+                if (s.cutoffHz < 900.f) s.cutoffHz = 900.f;
+                s.decayS *= 1.3f;
+                // ...but under the frozen classifier's bell line: a pure-wave
+                // decay of 0.45 s or more names as a bell, and a kalimba that
+                // rolls as "pluck" must keep naming like one.
+                if (s.decayS > 0.44f) s.decayS = 0.44f;
+            }
+            break;
+        case Archetype::Bass:
+            if (s1) {  // "round" rated 2.64 against classic 3.00 (n=11):
+                       // bad basses had cutoff 339 Hz and drive 1.4, good
+                       // ones 729 Hz and 2.14. Net: cutoff x0.8, drive x0.75.
+                s.cutoffHz *= 1.33f;
+                s.drive *= 1.5f;
+            }
+            break;
+        case Archetype::Chip:
+            if (!s1) {  // "arcade" rated 1.50 (n=6): V5 forced the cutoff to
+                        // 7 kHz and the LFO to 6.5 Hz; every bad chip sat at
+                        // 7 kHz with a 5-9 Hz wobble, the one good chip at
+                        // 1.9 kHz.
+                if (s.cutoffHz > 4000.f) s.cutoffHz = 4000.f;
+                if (s.lfo1RateHz > 5.f) s.lfo1RateHz = 5.f;
+            }
+            break;
+        case Archetype::Whistle:
+            if (s1) {  // "airy" rated 2.00 (n=6): bad whistles were the
+                       // brighter ones (6.1 kHz vs 4.0 kHz). Net: x1.1.
+                s.cutoffHz *= 0.85f;
+            }
+            break;
+        case Archetype::Bell:
+            if (s1) {  // "music box" rated 1.75 (n=4 — light touch only):
+                       // let it ring a little longer than the 0.5 s floor.
+                if (s.decayS < 0.7f) s.decayS = 0.7f;
+            }
+            break;
+        case Archetype::Organ:
+            if (s1) {  // "cathedral" rated 2.00 against classic 2.40 and
+                       // "driven" 2.80 (n=2 — light touch): V5 forces a 0.4
+                       // mix into a 0.9 hall, and pool-wide the bad rolls
+                       // carried twice the reverb of the good ones on this
+                       // one-watt speaker. Half the wash, keep the nave.
+                if (s.reverbMix > 0.30f) s.reverbMix = 0.30f;
+                if (s.reverbSize > 0.80f) s.reverbSize = 0.80f;
+            }
+            break;
+        default: break;  // no rating signal: the V5 style stands
+    }
+}
+
+// Family-wide clamps toward each family's GOOD median — never a new window,
+// so the worst case is a family sounding a little more like its rolls the
+// ear liked. Data rows in docs/roadmap/28-field-data-round-1.md, Part B.
+void rollPolishV6(GenPatch& g, Archetype a) {
+    SynthParams& s = g.synth;
+    switch (a) {
+        case Archetype::Chip:  // 1/13 good: open 7 kHz, ~0.15 s release, fast LFO
+            if (s.cutoffHz > 5000.f) s.cutoffHz = 5000.f;
+            if (s.releaseS < 0.22f) s.releaseS = 0.22f;
+            if (s.lfo1RateHz > 6.f) s.lfo1RateHz = 6.f;
+            break;
+        case Archetype::Wild:  // 0/5 good: both bad ones were slow-attack,
+                               // long-release, hard-driven — mushy pads by
+                               // the classifier's own verdict
+            if (s.attackS > 0.15f) s.attackS = 0.15f;
+            if (s.releaseS > 0.8f) s.releaseS = 0.8f;
+            if (s.drive > 3.5f) s.drive = 3.5f;
+            break;
+        case Archetype::Pad:  // good 1.5 drive / 0.10 sub, bad 1.84 / 0.30
+            if (s.drive > 1.6f) s.drive = 1.6f;
+            if (s.subLevel > 0.25f) s.subLevel = 0.25f;
+            break;
+        case Archetype::Pluck:  // good 1440 Hz / 0.50 s, bad 616 Hz / 0.31 s
+            if (s.cutoffHz < 800.f) s.cutoffHz = 800.f;
+            if (s.decayS < 0.35f) s.decayS = 0.35f;
+            break;
+        case Archetype::Bass:  // good 729 Hz, bad 339 Hz
+            if (s.cutoffHz < 450.f) s.cutoffHz = 450.f;
+            break;
+        case Archetype::Whistle:  // good ones had vibrato and sat at 4 kHz
+            if (s.cutoffHz > 5000.f) s.cutoffHz = 5000.f;
+            if (s.autoVibCents < 5.f) s.autoVibCents = 5.f;
+            break;
+        case Archetype::Drone:  // bad drones: sine, 0.30 Hz LFO, no vibrato
+            if (s.lfo1RateHz < 0.6f) s.lfo1RateHz = 0.6f;
+            if (s.autoVibCents < 2.f) s.autoVibCents = 2.f;
+            if (s.wave == Waveform::Sine) s.wave = Waveform::Triangle;
+            break;
+        case Archetype::Acid:  // good 3.24 oct of filter env, bad 2.43
+            if (s.fenvOct < 2.6f) s.fenvOct = 2.6f;
+            break;
+        default: break;  // lead, brass, organ, keys, wobble, strings, gate,
+                         // bell: the data called them healthy — untouched
+                         // (organ's cathedral style is the one exception,
+                         // handled in applyStyleV6)
+    }
+}
+
 }  // namespace
 
 int styleForSeedV5(uint32_t seed) {
@@ -1170,6 +1339,22 @@ GenPatch generateSoundV5(uint32_t seed, Archetype a) {
     applyStyleV5(g, a, styleForSeedV5(seed));
     rollPolishV5(g, a);
     sanitizePatch(g);  // RNG-free: re-imposes every coupling rule on the recolor
+    return g;
+}
+
+int styleForSeedV6(uint32_t seed) { return styleForSeedV5(seed); }  // inherited draw
+
+GenPatch generateSoundV6(uint32_t seed) { return generateSoundV6(seed, archetypeForSeedV6(seed)); }
+
+GenPatch generateSoundV6(uint32_t seed, Archetype a) {
+    // V6 = the finished V5 roll, then the rating-driven style correction and
+    // polish. V5 is called, never copied — it froze when v3.3 shipped — so
+    // its goldens hold by construction and a family with no V6 rule is
+    // bit-identical to its V5 roll (asserted in the suite).
+    GenPatch g = generateSoundV5(seed, a);
+    applyStyleV6(g, a, styleForSeedV6(seed));
+    rollPolishV6(g, a);
+    sanitizePatch(g);  // RNG-free: re-imposes every coupling rule on the corrections
     return g;
 }
 
