@@ -47,6 +47,7 @@ longer safe. Read the generator-versions note below before touching either.
 | 26 | [gen-v5-variety](26-gen-v5-variety.md) | Gen V5: drone+gate archetypes, style substreams, no-repeat Randomize, roll provenance + `gpat_stats` | M–L | low | 0 rows, 0 gestures | **built** (branch `gen-v5-variety`), hardware test pending; Phase-3 tuning open |
 | 27 | [arp-glide-snap](27-arp-glide-snap.md) | A reused arp tail snaps to its step's pitch instead of gliding a chord interval — fast arps stop smearing | S | low | 0 rows, 0 gestures | **built** (rides branch `gen-v5-variety`), hardware test pending |
 | 28 | [field-data-round-1](28-field-data-round-1.md) | Jordan's 202 rated rolls + 47 labelled chromas: LISTEN lands the song not the scale you were in (czar + reordered `space` walk), Gen V6 clamps the sink families | M | low (host-scored before flash) | 0 rows, 0 gestures | **built 2026-09-22** (both parts, local), beta bin awaiting the owner's hardware verdict; no release |
+| 29 | [diagnostic-build](29-diagnostic-build.md) | Spec for the tester's lab fork: rate V6 the way V5 was rated, and log every LISTEN round as WAV + chroma so the front end becomes host-tunable | S (in a fork) | none to GLIDE | n/a (never ships) | **spec 2026-09-22**, awaiting the fork build |
 
 **Status marks.** ✅ **landed** = shipped; ⛔ = built and deliberately cut. Anything unmarked is open.
 **A landed doc keeps its `- [ ]` checkboxes unticked** — the boxes were never maintained past the work, so

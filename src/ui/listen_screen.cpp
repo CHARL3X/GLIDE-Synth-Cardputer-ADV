@@ -218,7 +218,20 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
     char st[32];
     uint16_t stCol = theme::kDim;
     if (altIdx > 0) {
-        snprintf(st, sizeof st, "2nd guess %d/%d", altIdx + 1, altCount);
+        // Name the KIND of second guess, not just its number: each slot of
+        // the walk means something (the twin, another key, fewer notes,
+        // the blues), and the player deciding whether to keep it should
+        // know which question this press answered.
+        const bool pent = sel.scaleIdx == dsp::SC_MAJ_PENT || sel.scaleIdx == dsp::SC_MIN_PENT;
+        const bool canvasHome = !pent && sel.scaleIdx != dsp::SC_BLUES;
+        const bool minorSide = ap.mode == dsp::LM_AEO || ap.mode == dsp::LM_DOR;
+        const int twinRoot = (ap.tonicPc + (minorSide ? 3 : 9)) % 12;
+        const char* kind = sel.scaleIdx == dsp::SC_BLUES ? "blues"
+                           : pent                        ? "fewer notes"
+                           : (canvasHome && sel.rootPc == twinRoot) ? "relative twin"
+                           : (canvasHome && sel.rootPc == ap.tonicPc) ? "full scale"
+                                                                       : "other key";
+        snprintf(st, sizeof st, "2nd guess %d/%d: %s", altIdx + 1, altCount, kind);
         stCol = theme::kAmber;
     } else if (sel.safe) {
         snprintf(st, sizeof st, "clash heard - safe pent");
