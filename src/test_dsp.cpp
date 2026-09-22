@@ -1311,20 +1311,21 @@ int main() {
                 CHECK(same == total, "V6 passes the healthy families through bit-identical to V5");
             }
 
-            // the pool: reweighted (lead/keys up, chip/wild down), every
-            // family still reachable, and the shares are what the table says
+            // the pool: V5's shares exactly (V6 fixes windows, never odds —
+            // the owner cut a reweighted draft on hardware: fewer chips and
+            // wilds read as less diverse, not better), every family reachable
             {
                 int count[(int)Archetype::Count] = {0};
-                for (uint32_t i = 1; i <= 4000u; ++i)
+                for (uint32_t i = 1; i <= 8000u; ++i)
                     ++count[(int)archetypeForSeedV6(i * 2654435761u + 17u)];
                 for (int a = 0; a < (int)Archetype::Count; ++a)
                     CHECK(count[a] > 0, "every archetype appears in the V6 pool");
-                CHECK(count[(int)Archetype::Lead] > count[(int)Archetype::Chip] * 2 &&
-                          count[(int)Archetype::Keys] > count[(int)Archetype::Wild] * 2,
-                      "V6 pool: lead and keys out-roll chip and wild by the table's ratio");
-                CHECK(count[(int)Archetype::Chip] < 4000 / 20 &&
-                          count[(int)Archetype::Wild] < 4000 / 20,
-                      "V6 pool: chip and wild are each about one roll in forty");
+                // 2/40 each = 400 of 8000; a binomial 3-sigma band is ~ +-60
+                CHECK(count[(int)Archetype::Chip] > 320 && count[(int)Archetype::Chip] < 480 &&
+                          count[(int)Archetype::Wild] > 320 && count[(int)Archetype::Wild] < 480,
+                      "V6 pool: chip and wild keep V5's one-in-twenty share");
+                CHECK(count[(int)Archetype::Lead] > 480 && count[(int)Archetype::Lead] < 720,
+                      "V6 pool: lead keeps V5's three-in-forty share");
             }
 
             // the data-driven rules hold on every roll, AFTER sanitize, and

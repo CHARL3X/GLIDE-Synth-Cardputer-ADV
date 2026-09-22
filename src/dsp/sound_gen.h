@@ -169,12 +169,11 @@ int styleForSeedV5(uint32_t seed);
 GenPatch generateSoundV5(uint32_t seed);
 GenPatch generateSoundV5(uint32_t seed, Archetype a);
 
-// The genver-6 pool: the same sixteen archetypes as V5, reweighted from the
-// first field rating session (202 rated rolls, 2026-09-22): lead and keys —
-// the families the ear kept calling good — gain a row each, chip and wild —
-// the families it kept calling bad — drop to one row each (still in the
-// pool: variety is the point, and their WINDOWS are what V6 fixes).
-// Deterministic in seed; its own scramble word, decorrelated from V3/V5.
+// The genver-6 pool: the same sixteen archetypes at the same shares as V5.
+// V6 fixes WINDOWS, never odds — a reweighted draft was cut on hardware
+// because thinning chip and wild made the instrument less diverse instead
+// of making their bad rolls better. Deterministic in seed; its own scramble
+// word, so a seed's family decorrelates from its V5 pick.
 Archetype archetypeForSeedV6(uint32_t seed);
 
 // The per-roll style a genver-6 seed draws (0..2). V6 inherits V5's draw

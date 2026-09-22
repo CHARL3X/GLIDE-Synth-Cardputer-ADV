@@ -325,13 +325,13 @@ V5 already applied its style), so a family without a V6 rule is untouched.
 **Files:** `src/dsp/sound_gen.cpp` (`archetypeForSeedV6`, `applyStyleV6`,
 `rollPolishV6`), `src/test_dsp.cpp` (a 700-seed V6 sweep block; each rule is a CHECK).
 
-Pool table V6 (40 entries; V5 counts in brackets): pluck 3, bell 3, pad 4,
-bass 3, acid 3, **lead 4 [3]**, brass 2, **chip 1 [2]**, **wild 1 [2]**,
-whistle 2, organ 2, **keys 4 [3]**, wobble 2, strings 2, drone 2, gate 2.
-Why: lead is 17/19 good and holds two of the three "great" rolls; keys 7/9;
-chip and wild are the sinks. Both stay in the pool — variety is the point —
-at half weight. Scramble constant: the next word of pi's fraction after
-`0x03707344` (look it up; do not reuse a V3/V5 constant).
+Pool table V6: **V5's shares exactly** (40 entries, same counts). The first
+build reweighted it — lead and keys up a row, chip and wild down to one —
+and the owner cut that on hardware the same afternoon: chip and wild are
+sounds he likes meeting, and thinning them made the instrument feel less
+diverse rather than making their bad rolls better. V6 fixes windows, never
+odds. Scramble constant: `0xA4093822`, the next word of pi's fraction after
+the style stream's.
 
 `rollPolishV6` clamps (after `rollPolishV5`), each with its data row:
 

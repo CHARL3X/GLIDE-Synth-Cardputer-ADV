@@ -340,27 +340,28 @@ Archetype archetypeForSeedV5(uint32_t seed) {
 }
 
 Archetype archetypeForSeedV6(uint32_t seed) {
-    // The genver-6 pool: V5's sixteen families, reweighted from 202 rated
-    // rolls (2026-09-22). Lead rated 17/19 good and held two of the three
-    // "great" rolls, keys 7/9 — each gains a row. Chip rated 1/13 good and
-    // wild 0/5 — each drops to one row; both stay (variety), and their
-    // windows are what rollPolishV6 fixes. Everything else keeps its V5
-    // share. Scramble constant: the next word of pi's fraction after the
-    // style stream's, so this table's picks decorrelate from every earlier
-    // pool and from the style draw.
+    // The genver-6 pool: V5's sixteen families at V5's exact shares. The
+    // first draft reweighted it from the ratings (lead and keys up, chip and
+    // wild down) and the owner cut that on hardware the same day: chip and
+    // wild are sounds he LIKES meeting, and thinning the pool makes the
+    // instrument less diverse rather than making the bad rolls better. V6's
+    // job is the windows (rollPolishV6 / applyStyleV6), never the odds.
+    // Scramble constant: the next word of pi's fraction after the style
+    // stream's, so a genver-6 seed's family still decorrelates from the
+    // V5 pick for the same seed and from the style draw.
     static const Archetype kTable[40] = {
         Archetype::Pluck,   Archetype::Pluck,   Archetype::Pluck,
         Archetype::Bell,    Archetype::Bell,    Archetype::Bell,
         Archetype::Pad,     Archetype::Pad,     Archetype::Pad,   Archetype::Pad,
         Archetype::Bass,    Archetype::Bass,    Archetype::Bass,
         Archetype::Acid,    Archetype::Acid,    Archetype::Acid,
-        Archetype::Lead,    Archetype::Lead,    Archetype::Lead,  Archetype::Lead,
+        Archetype::Lead,    Archetype::Lead,    Archetype::Lead,
         Archetype::Brass,   Archetype::Brass,
-        Archetype::Chip,
-        Archetype::Wild,
+        Archetype::Chip,    Archetype::Chip,
+        Archetype::Wild,    Archetype::Wild,
         Archetype::Whistle, Archetype::Whistle,
         Archetype::Organ,   Archetype::Organ,
-        Archetype::Keys,    Archetype::Keys,    Archetype::Keys,  Archetype::Keys,
+        Archetype::Keys,    Archetype::Keys,    Archetype::Keys,
         Archetype::Wobble,  Archetype::Wobble,
         Archetype::Strings, Archetype::Strings,
         Archetype::Drone,   Archetype::Drone,
