@@ -65,7 +65,17 @@ anyway: it is the proof, and `support/gpat_stats` reads it.
 **Files:** `/glide/lab2/` on the card.
 
 - `lab2.csv`, one row per press, header:
-  `rating,verdict,preview_ok,played,seed,genver,arch,arch_name,style,style_word,name,classify_v2,note`
+  `session,rating,verdict,reason,preview_ok,played,seed,genver,arch,arch_name,style,style_word,name,classify_v2,note`
+  - `session` = the `boot_time_ms` of the session row this boot wrote
+    (Part 3), so every row joins to the heap, volume and firmware it ran
+    under.
+  - `reason`, for any rating of 1 or 2, one letter from a fixed vocabulary
+    so it can be counted (free text can't): `q` too quiet, `h` harsh or
+    shrill, `m` muddy or washed out, `b` boring or generic, `d` dead (no
+    sustain, clicks, or silent), `w` wrong for its family (a "pluck" that
+    is a pad), `o` other (say what in `note`). One key each after the
+    rating key; empty for 3 and 4. Round one made us infer these from
+    parameters, which only works for the ones parameters explain.
   - `rating` 1..4 = bad / meh / good / great, `verdict` the word.
   - `preview_ok` 1 if the audition lick represented the sound, 0 if it
     played silent or misleading (the bell/whistle complaint from v3.2).
@@ -117,10 +127,19 @@ sitting at the bottom while lead stays where it was.
 **Files:** `/glide/keylab2/`.
 
 - `keylab2.csv`, one row per listen, header:
-  `song,section,true_key,true_bpm,note,rounds,audible_rounds,heard_s,round_len_s,conf,raw_key,raw_minor,tonic,mode,modal,tiebreak,safe,land_scale,land_root,g1,g2,g3,g4,g5,g6,picked,tempo_bpm,tempo_conf,tempo_applied,C,C#,D,D#,E,F,F#,G,G#,A,A#,B,title`
+  `session,song,section,true_key,true_bpm,note,felt,rounds,audible_rounds,heard_s,round_len_s,conf,raw_key,raw_minor,tonic,mode,modal,tiebreak,safe,land_scale,land_root,g1,g2,g3,g4,g5,g6,g7,g8,picked,tempo_bpm,tempo_conf,tempo_applied,C,C#,D,D#,E,F,F#,G,G#,A,A#,B,title`
+  - `session` as in Part 1.
   - `song` an integer you increment; `section` free text (`verse`,
     `chorus`, `intro`, `solo`) — **please listen to each song at least
-    twice, at different sections**, so temporal variance is measurable.
+    twice, at different sections**, so temporal variance is measurable —
+    and for ten of the songs, **twice at the SAME section**, so we can
+    measure how repeatable a verdict is when nothing changed but the
+    seconds it happened to hear.
+  - `felt`: YOUR ear's verdict on the landing you kept, one letter, given
+    after playing over it: `r` right, `c` right notes but wrong home
+    (off-centre), `s` sour (a note that clashes), `n` no idea. This is the
+    one column no tool can derive: round one scored "sour" from the true
+    key's pitch set, and a few of those were label disputes.
   - `true_key` as round one (`F major`, `D dorian`, `E mixolydian`); add
     `true_bpm` when you know it (a metronome app is fine), else empty.
   - `note`: free text, no commas. Especially: `power chords`, `no third`,
@@ -135,15 +154,19 @@ sitting at the bottom while lead stays where it was.
   - `tonic`, `mode` (`MAJ`/`DOR`/`MIX`/`MIN`), `modal`, `tiebreak`, `safe`
     from `dsp::landListen` — the primary landing's truth.
   - `land_scale`, `land_root` = the applied landing (`kScales[].shortName`,
-    note name). `g1..g6` the six alternates as `root:short` (`A:mpent`), in
-    the shipped order: primary, twin, runner-up, runner-up, pent, blues.
+    note name). `g1..g8` the eight alternates as `root:short` (`A:mpent`),
+    in the shipped order: primary, twin, runner-up, runner-up, pent, blues,
+    runner-up, runner-up (`listenAlternates` with cap 8).
   - `picked` = the alternate index the player kept (0 = the primary), or
     -1 if the card was dismissed without cycling.
   - `tempo_bpm`, `tempo_conf`, `tempo_applied` (0/1) — the beat detector
     has never had labelled data.
   - the 12 chroma bins = `ctx.guess.chroma` (peak-normalized), `title` last.
 - `keylab2_rounds.csv`, one row per **audible** round, header:
-  `song,section,round,len_samples,wav,C,C#,D,D#,E,F,F#,G,G#,A,A#,B`
+  `song,section,round,len_samples,rms,wav,C,C#,D,D#,E,F,F#,G,G#,A,A#,B`
+  - `rms` = the round's mean absolute sample value (the same number
+    `segmentAudible` gates on), so quiet and loud rounds can be compared
+    and the silence floor can be tuned from evidence.
   - the chroma here is the ROUND's own normalized vote
     (`accumulateChromaNormalized` on that round alone), not the running
     sum — that is what lets the host replay the accumulation order.
@@ -170,13 +193,26 @@ logged round chromas bit-for-bit before any front-end constant is touched.
 ## Part 3 — session context (once per boot, `/glide/lab2/session.csv`)
 
 One line per boot of the lab firmware:
-`boot_time_ms,fw_version,genver,device_seed,free_heap,largest_block,round_len_s,sd_free_mb`
+`boot_time_ms,fw_version,genver,device_seed,volume,free_heap,largest_block,round_len_s,sd_free_mb`
+
+`volume` = the player's volume setting at boot (a quiet unit rates every
+roll quieter; round one could not separate that from the sound).
 
 `fw_version` = `cfg::kVersion` plus your lab tag; `genver` from storage;
 `device_seed` = `store::deviceSeed()` (it only identifies the unit — this is
 a tester's device); heap numbers from `heap_caps_get_free_size` /
 `heap_caps_get_largest_free_block` on the internal heap. This is the row
 that explains a run whose rounds came out short.
+
+## Is this everything?
+
+It is everything the two host pipelines can consume, plus the three things
+no pipeline can derive (`reason`, `felt`, `note`). What it deliberately
+does NOT collect: anything about the tester's playing (no key logs, no loop
+takes), Mutate ratings (a different question — evolve the current sound, not
+roll a new one), and the beat detector's internals beyond its verdict (the
+WAV carries the onsets). If a third round is ever needed it should be
+because a NEW question came up, not because a column was missing here.
 
 ## What NOT to build
 
