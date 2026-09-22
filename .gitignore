@@ -22,3 +22,6 @@ support/guides/.build-*.html
 
 # macOS Finder droppings
 .DS_Store
+
+# Jordan's field data (ratings, chromas, and his launcher config incl. wifi creds) — local only, never push
+Jordan's Testing/
