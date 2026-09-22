@@ -2144,164 +2144,57 @@ int main() {
                   "two quiet honest rounds out-vote one loud wrong chord");
         }
 
-        // Outcome-aware confidence: the relative twin (C maj <-> A min) maps
-        // to the SAME applied root under the player's scale, so its closeness
-        // is harmless and must not deflate the lock confidence. A genuinely
-        // different key (a fifth off) still must.
+        // Song-aware confidence: the relative twin (C maj <-> A min) shares
+        // every note with the winner, and the landing's pentatonic retreat
+        // makes that ambiguity harmless to the ear — so its closeness must
+        // not deflate the lock confidence. A genuinely different key (a
+        // fifth off, or the parallel mode) still must.
         {
             float acc[12] = {0.f};
             renderProg(cap, nCap, aMinor, 4, 3, 1.f, 2200.f);
             accumulateChroma(cap, nCap, sr, acc);
             const KeyGuess plain = classifyChroma(acc);
-            const KeyGuess aware = classifyChromaForScale(acc, SC_MIN_PENT);
-            CHECK(aware.valid && aware.rootPc == plain.rootPc &&
-                      aware.minor == plain.minor,
-                  "scale-aware classify agrees on the key");
-            CHECK(aware.confidence >= plain.confidence,
-                  "excluding same-outcome rivals never lowers confidence");
+            const KeyGuess song = classifyChromaSong(acc);
+            CHECK(song.valid && song.rootPc == plain.rootPc &&
+                      song.minor == plain.minor,
+                  "song-aware classify agrees on the key");
+            CHECK(song.confidence >= plain.confidence,
+                  "excluding the twin never lowers confidence");
             // A hand-built ambiguous chroma is where the twin actually bites
             // (clean renders saturate both margins at the 1.0 clamp): an
             // A-minor-leaning profile whose C-major twin runs a close second.
-            // Plain confidence is deflated by the twin; the scale-aware one is
-            // not — that gap is the whole point of the function.
             float amb[12] = {0.95f, 0.08f, 0.30f, 0.08f, 0.90f, 0.30f,
                              0.08f, 0.45f, 0.08f, 1.00f, 0.08f, 0.20f};
             const KeyGuess p1 = classifyChroma(amb);
-            const KeyGuess a1 = classifyChromaForScale(amb, SC_MIN_PENT);
+            const KeyGuess a1 = classifyChromaSong(amb);
             CHECK(p1.valid && a1.valid, "ambiguous chroma still classifies");
             CHECK((p1.rootPc == 9 && p1.minor) || (p1.rootPc == 0 && !p1.minor),
                   "ambiguous chroma lands on the relative pair");
             CHECK(p1.confidence < 1.f, "twin keeps the plain margin off the clamp");
             CHECK(a1.confidence > p1.confidence,
                   "the lock hardens once the twin stops counting");
+            // A chroma torn between a key and its FIFTH (C vs G: strong G,
+            // B and D against a C root) is real uncertainty: the song-aware
+            // margin stays exactly the plain one, because the rival that
+            // wins second place is not the twin.
+            float fifth[12] = {1.00f, 0.05f, 0.70f, 0.05f, 0.55f, 0.20f,
+                               0.35f, 0.95f, 0.05f, 0.40f, 0.05f, 0.75f};
+            const KeyGuess f1 = classifyChroma(fifth);
+            const KeyGuess f2 = classifyChromaSong(fifth);
+            CHECK(f1.valid && f2.valid && f1.confidence < 1.f,
+                  "a fifth-off rival keeps the plain margin off the clamp");
+            CHECK(fabsf(f2.confidence - f1.confidence) < 1e-6f,
+                  "a fifth-off rival is never excluded from the margin");
             float zero[12] = {0.f};
-            CHECK(!classifyChromaForScale(zero, SC_MIN_PENT).valid,
-                  "scale-aware classify still refuses silence");
+            CHECK(!classifyChromaSong(zero).valid,
+                  "song-aware classify still refuses silence");
         }
 
-        // Relative-key mapping: the player's scale decides the applied root.
-        CHECK(scaleIsMinorish(SC_MIN_PENT), "minor pent is minorish");
-        CHECK(scaleIsMinorish(SC_DORIAN), "dorian's parent has a minor third");
-        CHECK(scaleIsMinorish(SC_BLUES), "blues borrows the minor parent");
-        CHECK(!scaleIsMinorish(SC_MAJ_PENT), "major pent is majorish");
-        CHECK(!scaleIsMinorish(SC_PHR_DOM), "phrygian dominant is majorish");
-        CHECK(!scaleIsMinorish(SC_CHROM), "chromatic borrows the major parent");
-        CHECK(!scaleIsMinorish(SC_WHOLE), "whole tone borrows lydian");
-        CHECK(applyRootForScale(0, false, SC_MIN_PENT) == 9,
-              "C major song + minor pent -> root A (relative minor)");
-        CHECK(applyRootForScale(9, true, SC_MAJ_PENT) == 0,
-              "A minor song + major pent -> root C (relative major)");
-        CHECK(applyRootForScale(0, false, SC_MAJOR) == 0,
-              "C major song + major scale -> root C untouched");
-        CHECK(applyRootForScale(9, true, SC_MIN_PENT) == 9,
-              "A minor song + minor pent -> root A untouched");
-
-        // Auto-scale: the four vanilla scales swap to their opposite-mode
-        // sibling when the detected mode disagrees, so the home key can land
-        // on the song's true tonic. Exotic scales — a deliberate flavor
-        // choice — never move.
-        CHECK(applyScaleForKey(SC_MAJOR, true) == SC_MINOR,
-              "minor song swaps Major -> Natural minor");
-        CHECK(applyScaleForKey(SC_MINOR, false) == SC_MAJOR,
-              "major song swaps Natural minor -> Major");
-        CHECK(applyScaleForKey(SC_MAJ_PENT, true) == SC_MIN_PENT,
-              "minor song swaps Maj pent -> Min pent");
-        CHECK(applyScaleForKey(SC_MIN_PENT, false) == SC_MAJ_PENT,
-              "major song swaps Min pent -> Maj pent");
-        CHECK(applyScaleForKey(SC_MAJOR, false) == SC_MAJOR,
-              "matching mode leaves Major alone");
-        CHECK(applyScaleForKey(SC_MIN_PENT, true) == SC_MIN_PENT,
-              "matching mode leaves Min pent alone");
-        CHECK(applyScaleForKey(SC_BLUES, false) == SC_BLUES &&
-                  applyScaleForKey(SC_BLUES, true) == SC_BLUES,
-              "Blues never moves");
-        CHECK(applyScaleForKey(SC_DORIAN, false) == SC_DORIAN &&
-                  applyScaleForKey(SC_CHROM, true) == SC_CHROM &&
-                  applyScaleForKey(SC_HIRA, false) == SC_HIRA,
-              "exotic scales never move");
-        CHECK(applyScaleForKey(-1, true) == -1 &&
-                  applyScaleForKey(kScaleCount, false) == kScaleCount,
-              "out-of-range scale index passes through");
-        // Composition: for the vanilla scales, applyRootForScale under the
-        // POST-swap scale is the identity — the applied root IS the detected
-        // tonic, both modes, every pitch class.
-        {
-            const int vanilla[4] = {SC_MAJOR, SC_MINOR, SC_MAJ_PENT, SC_MIN_PENT};
-            bool tonicAlways = true;
-            for (int s = 0; s < 4; ++s)
-                for (int m = 0; m < 2; ++m)
-                    for (int pc = 0; pc < 12; ++pc)
-                        if (applyRootForScale(pc, m != 0,
-                                              applyScaleForKey(vanilla[s], m != 0)) != pc)
-                            tonicAlways = false;
-            CHECK(tonicAlways,
-                  "post-swap root is the true tonic for every vanilla scale");
-        }
-
-        // Chroma-refined auto-scale: within the plain seven-note canvases the
-        // distinguishing degree's own energy picks the MODE — the Krumhansl
-        // profiles only ever answer major-or-minor, and a Dorian vamp under
-        // Natural minor plays a sour b6 (the "right key, wrong scale" failure).
-        {
-            // A Dorian: strong natural 6 (F#, pc 6), b6 (F, pc 5) absent.
-            float dor[12] = {0.f};
-            dor[9] = 1.f; dor[0] = .6f; dor[2] = .5f; dor[4] = .7f;
-            dor[6] = .45f; dor[7] = .5f; dor[11] = .3f; dor[5] = .02f;
-            CHECK(applyScaleForKeyChroma(SC_MINOR, true, dor, 9) == SC_DORIAN,
-                  "strong natural 6 moves Natural minor -> Dorian");
-            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, dor, 9) == SC_DORIAN,
-                  "a Dorian player stays in Dorian");
-            // A natural minor: strong b6 (F, pc 5), natural 6 (F#) absent.
-            float nat[12] = {0.f};
-            nat[9] = 1.f; nat[0] = .6f; nat[2] = .5f; nat[4] = .7f;
-            nat[5] = .45f; nat[7] = .5f; nat[11] = .3f; nat[6] = .02f;
-            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, nat, 9) == SC_MINOR,
-                  "strong b6 moves Dorian -> Natural minor");
-            CHECK(applyScaleForKeyChroma(SC_MINOR, true, nat, 9) == SC_MINOR,
-                  "Natural minor stays under a b6 song");
-            // G Mixolydian: strong b7 (F, pc 5), major 7 (F#, pc 6) absent.
-            float mix[12] = {0.f};
-            mix[7] = 1.f; mix[11] = .6f; mix[2] = .7f; mix[0] = .5f;
-            mix[5] = .5f; mix[9] = .4f; mix[4] = .3f; mix[6] = .02f;
-            CHECK(applyScaleForKeyChroma(SC_MAJOR, false, mix, 7) == SC_MIXO,
-                  "strong b7 moves Major -> Mixolydian");
-            CHECK(applyScaleForKeyChroma(SC_MIXO, false, mix, 7) == SC_MIXO,
-                  "a Mixolydian player stays put");
-            // G major: strong major 7, b7 absent — moves a Mixo player home.
-            float gmaj[12] = {0.f};
-            gmaj[7] = 1.f; gmaj[11] = .6f; gmaj[2] = .7f; gmaj[0] = .5f;
-            gmaj[6] = .45f; gmaj[9] = .4f; gmaj[4] = .3f; gmaj[5] = .02f;
-            CHECK(applyScaleForKeyChroma(SC_MIXO, false, gmaj, 7) == SC_MAJOR,
-                  "strong major 7 moves Mixolydian -> Major");
-            // Weak evidence (a pentatonic-ish song voicing neither 6th): no
-            // switch on a coin flip — the player's mode holds if it's on the
-            // detected side, else the side's plain default.
-            float pentish[12] = {0.f};
-            pentish[9] = 1.f; pentish[0] = .6f; pentish[2] = .5f;
-            pentish[4] = .7f; pentish[7] = .5f;
-            CHECK(applyScaleForKeyChroma(SC_DORIAN, true, pentish, 9) == SC_DORIAN,
-                  "no 6th evidence: Dorian holds");
-            CHECK(applyScaleForKeyChroma(SC_MINOR, true, pentish, 9) == SC_MINOR,
-                  "no 6th evidence: Natural minor holds");
-            CHECK(applyScaleForKeyChroma(SC_MIXO, true, pentish, 9) == SC_MINOR,
-                  "crossing sides without evidence lands on the plain default");
-            // Pentatonics and deliberate flavors: exactly the frozen behavior.
-            CHECK(applyScaleForKeyChroma(SC_MIN_PENT, false, dor, 9) == SC_MAJ_PENT,
-                  "pent swap is untouched by the refinement");
-            CHECK(applyScaleForKeyChroma(SC_BLUES, true, dor, 9) == SC_BLUES &&
-                      applyScaleForKeyChroma(SC_HIRA, false, dor, 9) == SC_HIRA,
-                  "deliberate flavors still never move");
-            // The tonic invariant extends to the refined modes: Dorian is
-            // minorish and Mixolydian majorish, so applyRootForScale under
-            // the refined scale still returns the song's true tonic.
-            CHECK(applyRootForScale(9, true, SC_DORIAN) == 9 &&
-                      applyRootForScale(7, false, SC_MIXO) == 7,
-                  "refined modes keep the true tonic");
-        }
-
-        // The full listen verdict (applyListen): mode + tonic tiebreak +
-        // family mapping. This is the "shuffle a playlist, hit fn+k, land
-        // right in YOUR scale" contract.
+        // The LISTEN landing (landListen): the song is the czar. Whatever
+        // scale the player was in, the verdict lands the song's own mode at
+        // its own tonic. The old family mapping — Blues stays Blues, exotics
+        // take the relative root, pentatonics swap — is gone: what the
+        // instrument was in before the hold is not evidence about the song.
         {
             auto makeGuess = [](int rootPc, bool minor, const float ch[12]) {
                 KeyGuess g = KeyGuess::make();
@@ -2311,152 +2204,126 @@ int main() {
                 for (int i = 0; i < 12; ++i) g.chroma[i] = ch[i];
                 return g;
             };
+            auto tonicHome = [](const ListenApply& a) { return a.rootPc == a.tonicPc; };
 
-            // A Dorian evidence at a detected A minor: every family lands
-            // tonic-home on A; the plain canvas plays Dorian itself.
+            // Degree evidence picks the mode within the detected side.
+            // A Dorian: strong natural 6 (F#, pc 6), b6 (F, pc 5) absent.
             float dor[12] = {0.f};
             dor[9] = 1.f; dor[0] = .6f; dor[2] = .5f; dor[4] = .7f;
             dor[6] = .45f; dor[7] = .5f; dor[11] = .3f; dor[5] = .02f;
             const KeyGuess gAm = makeGuess(9, true, dor);
-            ListenApply ap = applyListen(SC_MINOR, gAm);
-            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9 && ap.modal,
-                  "canvas player: Dorian song lands in Dorian at the tonic");
-            ap = applyListen(SC_BLUES, gAm);
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
-                  "Blues stays Blues and re-centres on the Dorian tonic");
-            ap = applyListen(SC_MIN_PENT, gAm);
-            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9,
-                  "min pent rides the Dorian tonic");
-            ap = applyListen(SC_HIRA, gAm);
-            CHECK(ap.scaleIdx == SC_HIRA && ap.rootPc == 9,
-                  "exotic flavors keep the frozen relative behavior");
-
-            // The tonic tiebreak: the SAME A Dorian world heard as "D major"
-            // (the Am7-D9 vamp's other honest reading). Strong C natural
-            // marks it mixo-flavoured; the Dorian twin at A runs close, so
-            // the tonic re-seats — and Blues lands on A, not B.
-            float oye[12] = {0.f};
-            oye[9] = 1.f;  oye[2] = .85f; oye[4] = .75f; oye[0] = .55f;
-            oye[7] = .6f;  oye[6] = .4f;  oye[11] = .25f;
-            const KeyGuess gDmaj = makeGuess(2, false, oye);
-            ap = applyListen(SC_BLUES, gDmaj);
-            CHECK(ap.tiebreak && ap.mode == LM_DOR && ap.tonicPc == 9,
-                  "mixo-flavoured D major re-seats as the A Dorian vamp");
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
-                  "Blues over Oye Como Va lands home on A");
-            ap = applyListen(SC_MINOR, gDmaj);
-            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9,
-                  "canvas player gets Dorian at A from the D-major reading");
-            // End-to-end: whatever twin the profiles pick from this chroma,
-            // the applied root must be A.
-            const KeyGuess gAuto = classifyChroma(oye);
-            CHECK(gAuto.valid, "the vamp chroma classifies");
-            ap = applyListen(SC_BLUES, gAuto);
-            CHECK(ap.rootPc == 9,
-                  "whichever twin wins the profiles, Blues lands on A");
-
-            // A genuinely tonic-clear Mixolydian song (a G7 vamp): the twin
-            // is far, so NO tiebreak — canvas gets Mixo at G, Blues gets the
-            // dominant-blues tonic, maj pent rides tonic-home in-set.
+            ListenApply ap = landListen(gAm);
+            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9 && ap.tonicPc == 9 &&
+                      ap.mode == LM_DOR && ap.modal,
+                  "strong natural 6: a minor verdict lands Dorian at the tonic");
+            // A natural minor: strong b6 (F), natural 6 (F#) absent.
+            float nat[12] = {0.f};
+            nat[9] = 1.f; nat[0] = .6f; nat[2] = .5f; nat[4] = .7f;
+            nat[5] = .45f; nat[7] = .5f; nat[11] = .3f; nat[6] = .02f;
+            ap = landListen(makeGuess(9, true, nat));
+            CHECK(ap.scaleIdx == SC_MINOR && ap.rootPc == 9 && ap.mode == LM_AEO &&
+                      !ap.modal,
+                  "strong b6: a minor verdict lands Natural minor at the tonic");
+            // G Mixolydian: strong b7 (F), major 7 (F#) absent, tonic clear.
             float gmix[12] = {0.f};
             gmix[7] = 1.f; gmix[11] = .55f; gmix[2] = .6f; gmix[5] = .45f;
             gmix[0] = .35f; gmix[4] = .3f; gmix[9] = .25f; gmix[6] = .02f;
             const KeyGuess gG = makeGuess(7, false, gmix);
-            ap = applyListen(SC_MAJOR, gG);
-            CHECK(ap.scaleIdx == SC_MIXO && ap.rootPc == 7 && !ap.tiebreak,
-                  "tonic-clear mixo: canvas plays Mixolydian at the tonic");
-            ap = applyListen(SC_BLUES, gG);
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 7,
-                  "dominant blues: Blues sits on the mixo tonic");
-            ap = applyListen(SC_MAJ_PENT, gG);
-            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 7,
-                  "maj pent rides the mixo tonic, fully in-set");
-
-            // A plain Ionian song: Blues keeps the boxes trick (relative
-            // minor root), pents sit tonic-home — the frozen promises.
+            ap = landListen(gG);
+            CHECK(ap.scaleIdx == SC_MIXO && ap.rootPc == 7 && ap.mode == LM_MIXO &&
+                      ap.modal && !ap.tiebreak,
+                  "tonic-clear mixo: lands Mixolydian at the tonic, no re-seat");
+            // G major: strong major 7, b7 absent.
+            float gmaj[12] = {0.f};
+            gmaj[7] = 1.f; gmaj[11] = .6f; gmaj[2] = .7f; gmaj[0] = .5f;
+            gmaj[6] = .45f; gmaj[9] = .4f; gmaj[4] = .3f; gmaj[5] = .02f;
+            ap = landListen(makeGuess(7, false, gmaj));
+            CHECK(ap.scaleIdx == SC_MAJOR && ap.rootPc == 7 && ap.mode == LM_ION,
+                  "strong major 7: lands Major at the tonic");
+            // Plain Ionian C.
             float ion[12] = {0.f};
             ion[0] = 1.f; ion[4] = .7f; ion[7] = .65f; ion[11] = .45f;
             ion[2] = .4f; ion[5] = .35f; ion[9] = .3f; ion[10] = .02f;
             const KeyGuess gC = makeGuess(0, false, ion);
-            ap = applyListen(SC_BLUES, gC);
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9,
-                  "Ionian song: Blues keeps the relative-minor boxes trick");
-            ap = applyListen(SC_MIN_PENT, gC);
-            CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 0,
-                  "Ionian song: pent swaps and sits tonic-home");
-
-            // No readable evidence: EVERY family collapses to the frozen
-            // behavior exactly.
+            ap = landListen(gC);
+            CHECK(ap.scaleIdx == SC_MAJOR && ap.rootPc == 0 && ap.tonicPc == 0 &&
+                      !ap.modal && !ap.safe,
+                  "Ionian song lands Major at C — whatever you were in");
+            // No readable evidence (a pentatonic-ish song voicing neither
+            // 6th): the plain side at the tonic, and nothing sour to guard.
             float pentish[12] = {0.f};
             pentish[9] = 1.f; pentish[0] = .6f; pentish[2] = .5f;
             pentish[4] = .7f; pentish[7] = .5f;
             const KeyGuess gPent = makeGuess(9, true, pentish);
-            const int frozenScales[5] = {SC_MINOR, SC_BLUES, SC_MIN_PENT,
-                                         SC_MAJ_PENT, SC_HIRA};
-            bool frozenOk = true;
-            for (int i = 0; i < 5; ++i) {
-                const ListenApply a2 = applyListen(frozenScales[i], gPent);
-                const int fs = applyScaleForKey(frozenScales[i], true);
-                const int fr = applyRootForScale(9, true, fs);
-                if (a2.scaleIdx != fs || a2.rootPc != fr) frozenOk = false;
-            }
-            CHECK(frozenOk, "no evidence: applyListen == the frozen behavior");
+            ap = landListen(gPent);
+            CHECK(ap.scaleIdx == SC_MINOR && ap.rootPc == 9 && !ap.modal && !ap.safe,
+                  "no 6th evidence: Natural minor at the tonic");
+
+            // The tonic tiebreak: the SAME A Dorian world heard as "D major"
+            // (the Am7-D9 vamp's other honest reading). Strong C natural
+            // marks it mixo-flavoured; the Dorian twin at A runs close, so
+            // the tonic re-seats and the landing is A Dorian, not D anything.
+            float oye[12] = {0.f};
+            oye[9] = 1.f;  oye[2] = .85f; oye[4] = .75f; oye[0] = .55f;
+            oye[7] = .6f;  oye[6] = .4f;  oye[11] = .25f;
+            const KeyGuess gDmaj = makeGuess(2, false, oye);
+            ap = landListen(gDmaj);
+            CHECK(ap.tiebreak && ap.mode == LM_DOR && ap.tonicPc == 9,
+                  "mixo-flavoured D major re-seats as the A Dorian vamp");
+            CHECK(ap.scaleIdx == SC_DORIAN && ap.rootPc == 9,
+                  "the vamp lands A Dorian");
+            // End-to-end: whatever twin the profiles pick from this chroma,
+            // the applied root must be A.
+            const KeyGuess gAuto = classifyChromaSong(oye);
+            CHECK(gAuto.valid, "the vamp chroma classifies");
+            ap = landListen(gAuto);
+            CHECK(ap.rootPc == 9 && ap.tonicPc == 9,
+                  "whichever twin the profiles pick, the vamp lands home on A");
 
             // The Ionian-parent re-seat: a G-major song heard D-first (the
             // Wish You Were Here capture). The C natural is REAL (the verse
             // chords), so the D reading is honestly mixo-flavoured — but the
             // set's Ionian parent G runs close while the Dorian twin is far,
-            // so the tonic re-seats HOME and every family lands where the
-            // record's own solos do.
+            // so the tonic re-seats HOME.
             float wy[12] = {0.f};
             wy[2] = 1.f; wy[9] = .7f; wy[6] = .55f; wy[7] = .68f;
             wy[0] = .5f; wy[4] = .45f; wy[11] = .35f; wy[5] = .03f; wy[1] = .03f;
             const KeyGuess gWy = makeGuess(2, false, wy);
-            ap = applyListen(SC_MAJOR, gWy);
+            ap = landListen(gWy);
             CHECK(ap.tiebreak && ap.mode == LM_ION && ap.tonicPc == 7,
                   "D-heard G-major song re-seats to the Ionian parent");
-            CHECK(ap.scaleIdx == SC_MAJOR && ap.rootPc == 7,
-                  "canvas lands plain Major at G");
-            ap = applyListen(SC_BLUES, gWy);
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 4,
-                  "Blues lands on E, where the record's own solos live");
+            CHECK(ap.scaleIdx == SC_MAJOR && ap.rootPc == 7 && !ap.modal,
+                  "and lands plain Major at G");
 
-            // Clean verdicts never trip the safety layers.
-            CHECK(!applyListen(SC_MINOR, gAm).safe &&
-                      !applyListen(SC_MAJOR, gG).safe &&
-                      !applyListen(SC_MAJOR, gWy).safe,
-                  "clean landings are never flagged safe");
+            // Clean verdicts never trip the safety layers, and every primary
+            // landing is tonic-home.
+            CHECK(!landListen(gAm).safe && !landListen(gG).safe && !landListen(gWy).safe,
+                  "clean verdicts land the canvas, no retreat");
+            CHECK(tonicHome(landListen(gAm)) && tonicHome(landListen(gG)) &&
+                      tonicHome(landListen(gC)) && tonicHome(landListen(gDmaj)) &&
+                      tonicHome(landListen(gWy)) && tonicHome(landListen(gPent)),
+                  "the primary landing's root IS the song's tonic");
 
             // CONFLICTED DEGREE: a song that audibly plays BOTH 6ths
             // (borrowed chords, melodic-minor lines) makes any seven-note
-            // landing a coin flip — canvas players retreat to the side's
-            // pentatonic at the tonic, which omits the clash degree.
+            // landing a coin flip — retreat to the side's pentatonic at the
+            // tonic, which omits the clash degree.
             float con6[12] = {0.f};
             con6[9] = 1.f; con6[0] = .6f; con6[2] = .5f; con6[4] = .7f;
             con6[7] = .5f; con6[6] = .5f; con6[5] = .45f; con6[11] = .3f;
             const KeyGuess gCon6 = makeGuess(9, true, con6);
-            ap = applyListen(SC_MINOR, gCon6);
+            ap = landListen(gCon6);
             CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9 && ap.safe,
-                  "both 6ths audible: Natural minor retreats to min pent");
-            ap = applyListen(SC_DORIAN, gCon6);
-            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9 && ap.safe,
-                  "both 6ths audible: Dorian retreats to min pent");
-            ap = applyListen(SC_BLUES, gCon6);
-            CHECK(ap.scaleIdx == SC_BLUES && ap.rootPc == 9 && !ap.safe,
-                  "flavor scales are never demoted by a conflict");
-            ap = applyListen(SC_MIN_PENT, gCon6);
-            CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9,
-                  "pent players are already on the safe landing");
-
+                  "both 6ths audible: retreats to min pent at the tonic");
             // Both 7ths audible on the major side: same retreat. The b7 arm
             // of the conflict answers to the phantom-aware 0.30 floor.
             float con7[12] = {0.f};
             con7[7] = 1.f; con7[11] = .55f; con7[2] = .6f; con7[0] = .4f;
             con7[4] = .35f; con7[9] = .3f; con7[6] = .45f; con7[5] = .4f;
             const KeyGuess gCon7 = makeGuess(7, false, con7);
-            ap = applyListen(SC_MAJOR, gCon7);
+            ap = landListen(gCon7);
             CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 7 && ap.safe,
-                  "both 7ths audible: Major retreats to maj pent");
+                  "both 7ths audible: retreats to maj pent at the tonic");
 
             // SOURNESS: the clash can live on a degree the 6th/7th evidence
             // never looks at. A Lydian song's #4 indicts the canvas P4 —
@@ -2465,10 +2332,9 @@ int main() {
             lyd[0] = 1.f; lyd[2] = .5f; lyd[4] = .7f; lyd[6] = .5f;
             lyd[7] = .6f; lyd[9] = .35f; lyd[11] = .4f; lyd[5] = .03f;
             const KeyGuess gLyd = makeGuess(0, false, lyd);
-            ap = applyListen(SC_MAJOR, gLyd);
+            ap = landListen(gLyd);
             CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 0 && ap.safe,
                   "Lydian song: Major's sour P4 retreats to maj pent");
-
             // A Phrygian song's b2 indicts the canvas natural 2 — min pent
             // omits the 2, so a Natural-minor landing retreats.
             float phr[12] = {0.f};
@@ -2476,90 +2342,104 @@ int main() {
             phr[11] = .5f; phr[0] = .45f; phr[2] = .4f; phr[6] = .03f;
             phr[1] = .02f;
             const KeyGuess gPhr = makeGuess(4, true, phr);
-            ap = applyListen(SC_MINOR, gPhr);
+            ap = landListen(gPhr);
             CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 4 && ap.safe,
                   "Phrygian song: minor's sour 2 retreats to min pent");
 
-            // ALTERNATES: primary first (== applyListen), then the side's
-            // sibling readings at the tonic and the relative twin — all
-            // distinct (scale, root) pairs. Feeds the card's one-tap nudge.
+            // ALTERNATES — the space walk. Order is the contract: primary,
+            // the relative twin, the two runner-up KEYS, the pentatonic at
+            // the tonic, blues at the minor home. All distinct (scale, root).
+            // The rescuers lead: on 47 field listens the twin and each
+            // runner-up fixed five songs apiece, the flavours one.
+            auto distinct = [](const ListenApply* a, int n) {
+                for (int i = 0; i < n; ++i)
+                    for (int j = i + 1; j < n; ++j)
+                        if (a[i].scaleIdx == a[j].scaleIdx && a[i].rootPc == a[j].rootPc)
+                            return false;
+                return true;
+            };
+            auto plainKey = [](const ListenApply& a) {
+                return a.scaleIdx == SC_MAJOR || a.scaleIdx == SC_MINOR;
+            };
             {
-                ListenApply alts[4];
-                const int na = listenAlternates(SC_MINOR, gAm, alts, 4);
-                const ListenApply prim = applyListen(SC_MINOR, gAm);
-                CHECK(na == 4 && alts[0].scaleIdx == prim.scaleIdx &&
-                          alts[0].rootPc == prim.rootPc,
-                      "alternates lead with the primary verdict");
-                bool distinct = true;
+                ListenApply alts[6];
+                const int na = listenAlternates(gC, alts, 6);
+                CHECK(na == 6, "a clean verdict fills all six slots");
+                CHECK(alts[0].scaleIdx == SC_MAJOR && alts[0].rootPc == 0,
+                      "alternates lead with the primary landing");
+                CHECK(alts[1].scaleIdx == SC_MINOR && alts[1].rootPc == 9,
+                      "slot 1 is the relative twin");
+                CHECK(plainKey(alts[2]) && plainKey(alts[3]) &&
+                          !(alts[2].scaleIdx == SC_MAJOR && alts[2].rootPc == 0) &&
+                          !(alts[3].scaleIdx == SC_MAJOR && alts[3].rootPc == 0) &&
+                          !(alts[2].scaleIdx == SC_MINOR && alts[2].rootPc == 9) &&
+                          !(alts[3].scaleIdx == SC_MINOR && alts[3].rootPc == 9),
+                      "slots 2-3 are runner-up keys, never the primary or the twin");
+                CHECK(alts[4].scaleIdx == SC_MAJ_PENT && alts[4].rootPc == 0,
+                      "slot 4 is the pentatonic at the tonic");
+                CHECK(alts[5].scaleIdx == SC_BLUES && alts[5].rootPc == 9,
+                      "the walk ends on blues at the relative-minor home");
+                CHECK(distinct(alts, na), "alternates never repeat a (scale, root)");
+                bool tonicTruth = true;
                 for (int i = 0; i < na; ++i)
-                    for (int j = i + 1; j < na; ++j)
-                        if (alts[i].scaleIdx == alts[j].scaleIdx &&
-                            alts[i].rootPc == alts[j].rootPc)
-                            distinct = false;
-                CHECK(distinct, "alternates never repeat a (scale, root)");
-                bool hasPent = false, hasTwin = false;
-                for (int i = 0; i < na; ++i) {
-                    if (alts[i].scaleIdx == SC_MIN_PENT && alts[i].rootPc == 9)
-                        hasPent = true;
-                    if (alts[i].scaleIdx == SC_MAJOR && alts[i].rootPc == 0)
-                        hasTwin = true;
-                }
-                CHECK(hasPent && hasTwin,
-                      "alternates offer the safe pent and the relative twin");
-                // Flavor players keep their scale: only the root can move.
-                ListenApply balts[4];
-                const int nb = listenAlternates(SC_BLUES, gC, balts, 4);
-                bool bluesOnly = nb >= 2;
-                for (int i = 0; i < nb; ++i)
-                    if (balts[i].scaleIdx != SC_BLUES) bluesOnly = false;
-                CHECK(bluesOnly && balts[0].rootPc == 9 && balts[1].rootPc == 0,
-                      "Blues alternates move the root, never the scale");
+                    if (alts[i].tonicPc != 0) tonicTruth = false;
+                CHECK(tonicTruth, "every alternate keeps the card's tonic truth");
             }
-
-            // RUNNER-UP KEYS: the sibling alternates all sit at the primary
-            // tonic (or its relative), so a verdict whose TONIC is wrong
-            // leaves space cycling with nothing that can reach the song's
-            // true home. The field shape: an E natural minor song heard as
-            // A minor — A Dorian is E minor's exact pitch set, so nothing
-            // plays sour and no guard fires, yet home is a fourth off. With
-            // room past the siblings (cap 6), the card must offer the
-            // detector's own runner-up keys, and E minor must be among them.
             {
+                // Minor side: the pent is min pent at the tonic, blues sits
+                // ON the tonic, the twin is the relative major.
+                ListenApply alts[6];
+                const int na = listenAlternates(gAm, alts, 6);
+                CHECK(na == 6 && alts[0].scaleIdx == SC_DORIAN && alts[0].rootPc == 9,
+                      "Dorian verdict leads with Dorian at A");
+                CHECK(alts[1].scaleIdx == SC_MAJOR && alts[1].rootPc == 0,
+                      "minor side: slot 1 is the relative major twin");
+                CHECK(alts[4].scaleIdx == SC_MIN_PENT && alts[4].rootPc == 9,
+                      "minor side: slot 4 is min pent at the tonic");
+                CHECK(alts[5].scaleIdx == SC_BLUES && alts[5].rootPc == 9,
+                      "minor side: blues sits on the tonic");
+                CHECK(distinct(alts, na), "minor-side alternates are distinct");
+            }
+            {
+                // A retreated primary: the seven-note canvas takes slot 1, so
+                // a player who wants the full mode anyway is one press away.
+                ListenApply alts[6];
+                const int na = listenAlternates(gCon6, alts, 6);
+                CHECK(na == 6 && alts[0].scaleIdx == SC_MIN_PENT && alts[0].safe,
+                      "retreated primary leads the walk");
+                CHECK(alts[4].scaleIdx == SC_MINOR && alts[4].rootPc == 9 && !alts[4].safe,
+                      "after a retreat, the flavour slot is the full canvas at the tonic");
+                CHECK(distinct(alts, na), "retreat alternates are distinct");
+            }
+            {
+                // RUNNER-UP KEYS rescue a wrong tonic. The field shape: an E
+                // natural minor song heard as A minor — A Dorian is E minor's
+                // exact pitch set, so nothing plays sour and no guard fires,
+                // yet home is a fourth off. E minor must sit in the runner-up
+                // slots (3-4), not at the tail behind the twin.
                 float em[12] = {0.f};
                 em[4] = 1.f; em[7] = .7f; em[11] = .65f; em[9] = .5f;
                 em[2] = .5f; em[0] = .45f; em[6] = .4f;
                 const KeyGuess gEmWrong = makeGuess(9, true, em);
                 ListenApply ralts[6];
-                const int nr = listenAlternates(SC_MINOR, gEmWrong, ralts, 6);
-                CHECK(nr > 4, "runner-up keys extend past the sibling set");
-                bool distinct = true;
+                const int nr = listenAlternates(gEmWrong, ralts, 6);
+                CHECK(nr == 6, "wrong-tonic verdict still fills the walk");
+                int emAt = -1;
                 for (int i = 0; i < nr; ++i)
-                    for (int j = i + 1; j < nr; ++j)
-                        if (ralts[i].scaleIdx == ralts[j].scaleIdx &&
-                            ralts[i].rootPc == ralts[j].rootPc)
-                            distinct = false;
-                CHECK(distinct, "runner-up alternates never repeat a landing");
-                bool hasTrueHome = false;
-                for (int i = 0; i < nr; ++i)
-                    if (ralts[i].scaleIdx == SC_MINOR && ralts[i].rootPc == 4)
-                        hasTrueHome = true;
-                CHECK(hasTrueHome,
-                      "wrong-tonic verdict: space can reach E minor");
-                // The old cap keeps the old contract exactly: siblings fill
-                // it and no runner-up displaces them.
-                ListenApply capped[4];
-                const int ncap = listenAlternates(SC_MINOR, gEmWrong, capped, 4);
-                CHECK(ncap == 4 && capped[3].scaleIdx == SC_MAJOR,
-                      "cap 4 still ends on the relative twin, unchanged");
-                // Flavor players: runner-ups move the root only, the chosen
-                // scale never changes even with room to spare.
-                ListenApply falts[6];
-                const int nf = listenAlternates(SC_BLUES, gC, falts, 6);
-                bool fBluesOnly = nf > 2;
-                for (int i = 0; i < nf; ++i)
-                    if (falts[i].scaleIdx != SC_BLUES) fBluesOnly = false;
-                CHECK(fBluesOnly,
-                      "flavor runner-ups keep the scale, offer new roots");
+                    if (ralts[i].scaleIdx == SC_MINOR && ralts[i].rootPc == 4) emAt = i;
+                CHECK(emAt == 1 || emAt == 2 || emAt == 3,
+                      "wrong-tonic verdict: E minor is a rescuer, at most three presses away");
+                CHECK(distinct(ralts, nr), "runner-up alternates never repeat a landing");
+                // A short cap keeps the order and truncates: primary, twin, runner-up.
+                ListenApply capped[3];
+                const int ncap = listenAlternates(gEmWrong, capped, 3);
+                CHECK(ncap == 3 && capped[0].scaleIdx == ralts[0].scaleIdx &&
+                          capped[0].rootPc == ralts[0].rootPc &&
+                          capped[1].scaleIdx == ralts[1].scaleIdx &&
+                          capped[1].rootPc == ralts[1].rootPc &&
+                          capped[2].scaleIdx == ralts[2].scaleIdx &&
+                          capped[2].rootPc == ralts[2].rootPc,
+                      "cap 3 truncates the walk in order");
             }
         }
 

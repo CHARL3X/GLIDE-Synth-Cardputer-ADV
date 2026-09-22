@@ -202,12 +202,9 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
 
     // The applied landing.
     char sub[30];
-    if (scaleChanged)
+    if (scaleChanged || sel.rootPc != ap.tonicPc)
         snprintf(sub, sizeof sub, "-> root %s (%s)", dsp::kNoteNames[sel.rootPc],
                  dsp::kScales[sel.scaleIdx].shortName);
-    else if (sel.rootPc != ap.tonicPc)
-        snprintf(sub, sizeof sub, "-> root %s (your scale)",
-                 dsp::kNoteNames[sel.rootPc]);
     else
         snprintf(sub, sizeof sub, "root %s (%s)", dsp::kNoteNames[sel.rootPc],
                  dsp::kScales[sel.scaleIdx].shortName);
@@ -322,10 +319,16 @@ struct Ctx {
 // Stop listening early only when the verdict is this sure AND at least this
 // much music has been heard — rounds can be as short as 0.5 s on a tight
 // heap, and one loud chord must not get to confidently name ITS key.
-// Confidence is scale-AWARE (classifyChromaForScale): the relative twin maps
-// to the same applied root, so its closeness no longer blocks the lock.
+// Confidence is song-aware (classifyChromaSong): the relative twin shares
+// every note and the landing's pentatonic retreat makes it harmless, so its
+// closeness no longer blocks the lock; a fifth-off rival still does.
+// The floor was 3 s. Field data (47 logged listens, 2026-09-22) showed the
+// early locks were the GOOD ones — right half the time, against a quarter
+// for listens that ran to the cap — so the floor moves to 5 s, not the 10 s
+// a tester asked for: two more seconds of evidence on easy songs, and no
+// punishment of the locks that were already right.
 constexpr float kEnoughConfidence = 0.5f;
-constexpr int kMinHeardForStop = (int)(listen::kRateHz * 3);
+constexpr int kMinHeardForStop = (int)(listen::kRateHz * 5);
 // EVERY stop requires stability — two consecutive audible rounds agreeing on
 // the applied root. There used to be a near-certain (0.85) single-round
 // bypass; a field capture killed it: LISTEN hit at a vamp's A7 bar, one
@@ -402,16 +405,16 @@ bool onSegment(void* user, const int16_t* mono, int n) {
     ctx.pulseUntil = millis() + 400;  // the live view flashes: round landed
     if (ctx.beat) dsp::accumulateOnsets(*ctx.beat, mono, n, (float)listen::kRateHz);
     dsp::accumulateChromaNormalized(mono, n, (float)listen::kRateHz, ctx.chroma);
-    const int scaleIdx = store::get().layout.scaleIdx;
-    ctx.guess = dsp::classifyChromaForScale(ctx.chroma, scaleIdx);
+    ctx.guess = dsp::classifyChromaSong(ctx.chroma);
     if (!ctx.guess.valid) return true;
 
-    // Stability tracks the FULL verdict — root AND scale, packed — so both a
+    // Stability tracks the FULL landing — root AND scale, packed — so both a
     // tonic re-seat arriving with round two's fresh b7 evidence and a scale
     // verdict still flip-flopping (Aeolian<->Dorian on borderline 6ths)
     // break the stop and earn the song more listening, instead of locking
-    // whichever reading the last round happened to say.
-    const dsp::ListenApply lap = dsp::applyListen(scaleIdx, ctx.guess);
+    // whichever reading the last round happened to say. The landing is the
+    // song's own (landListen): the scale the player was in is not consulted.
+    const dsp::ListenApply lap = dsp::landListen(ctx.guess);
     const int applied = lap.rootPc * 64 + lap.scaleIdx;
     const bool stable = applied == ctx.prevApplied && ctx.audibleRounds >= 2;
     ctx.prevApplied = applied;
@@ -517,15 +520,15 @@ bool runModal(M5Canvas& canvas) {
     const int prevScale = g.layout.scaleIdx;
     // The full listen verdict: refined mode (Dorian/Mixolydian by degree
     // evidence), the tonic tiebreak (a mixo-flavoured "D major" re-seats as
-    // the A Dorian vamp it is), and a landing mapped to the player's scale
-    // FAMILY — plain canvases play the mode, pentatonics swap tonic-home,
-    // Blues stays Blues and re-centres. Weak evidence = frozen behavior.
-    // Room past the sibling readings for the detector's two runner-up KEYS:
-    // when the tonic itself lands wrong, the siblings are all flavors of the
-    // same mistake, and the runner-ups are the only way space can fix it.
+    // the A Dorian vamp it is), and the SONG's own landing — its mode at its
+    // tonic, whatever scale the player was in (the field verdict: the scale
+    // you were in is not evidence about the song). The walk behind space:
+    // the relative twin, the detector's two runner-up KEYS (the rescuers —
+    // the only way a wrong tonic gets fixed), then the pentatonic at the
+    // tonic and blues at the minor home (the flavours).
     dsp::ListenApply alts[6];
-    const int nAlts = dsp::listenAlternates(prevScale, ctx.guess, alts, 6);
-    const dsp::ListenApply ap = alts[0];  // primary == applyListen
+    const int nAlts = dsp::listenAlternates(ctx.guess, alts, 6);
+    const dsp::ListenApply ap = alts[0];  // primary == landListen
     int altIdx = 0;
     dsp::ListenApply sel = ap;
     g.layout.scaleIdx = (uint8_t)sel.scaleIdx;
