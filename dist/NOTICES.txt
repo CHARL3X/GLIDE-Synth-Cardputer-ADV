@@ -21,8 +21,7 @@ GLIDE itself is a separate matter from everything below.
   GLIDE is free to run, study, modify and share for any NONCOMMERCIAL purpose.
   Commercial use — selling devices with it loaded, selling a fork, shipping it
   inside a paid product — is the author's alone and needs a separate commercial
-  licence. Releases v2.5 and earlier were published under the GNU GPL v3 and
-  stay under it; this binary is not one of those.
+  licence.
 
   If you BOUGHT a device with GLIDE already on it from CHARL3X, you are
   licensed for it: play it, modify it, reflash it, resell that unit. What you
@@ -48,7 +47,7 @@ All three are MIT. M5Cardputer ships no root LICENSE file; its licence is
 declared per-file, as `SPDX-License-Identifier: MIT` at the top of every
 source. The MIT text below is M5Unified's and governs all three.
 
-Text below: read at build time from .pio\libdeps\cardputer-adv\M5Unified\LICENSE.
+Text below: read at build time from .pio/libdeps/cardputer-adv/M5Unified/LICENSE.
 
 --------------------------------------------------------------------------------
 MIT License
