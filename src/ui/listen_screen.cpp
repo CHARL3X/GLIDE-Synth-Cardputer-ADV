@@ -234,7 +234,8 @@ void drawResult(M5Canvas& c, const dsp::KeyGuess& g, const dsp::ListenApply& ap,
         snprintf(st, sizeof st, "2nd guess %d/%d: %s", altIdx + 1, altCount, kind);
         stCol = theme::kAmber;
     } else if (sel.safe) {
-        snprintf(st, sizeof st, "clash heard - safe pent");
+        snprintf(st, sizeof st, g.confidence < 0.4f ? "unsure - safe pent"
+                                                    : "clash heard - safe pent");
         stCol = theme::kAmber;
     } else if (g.confidence < 0.3f) {
         snprintf(st, sizeof st, "weak signal");
@@ -536,11 +537,12 @@ bool runModal(M5Canvas& canvas) {
     // the A Dorian vamp it is), and the SONG's own landing — its mode at its
     // tonic, whatever scale the player was in (the field verdict: the scale
     // you were in is not evidence about the song). The walk behind space:
-    // the relative twin, the detector's two runner-up KEYS (the rescuers —
-    // the only way a wrong tonic gets fixed), then the pentatonic at the
-    // tonic and blues at the minor home (the flavours).
-    dsp::ListenApply alts[6];
-    const int nAlts = dsp::listenAlternates(ctx.guess, alts, 6);
+    // the relative twin, the detector's two best runner-up KEYS (the
+    // rescuers — the only way a wrong tonic gets fixed), the pentatonic at
+    // the tonic and blues at the minor home (the flavours), then two more
+    // runner-up keys (the long shots).
+    dsp::ListenApply alts[8];
+    const int nAlts = dsp::listenAlternates(ctx.guess, alts, 8);
     const dsp::ListenApply ap = alts[0];  // primary == landListen
     int altIdx = 0;
     dsp::ListenApply sel = ap;

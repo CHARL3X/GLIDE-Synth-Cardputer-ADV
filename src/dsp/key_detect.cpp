@@ -374,6 +374,10 @@ float scaleSourness(int scaleIdx, int rootPc, const float chroma[12]) {
 // Phrygian song's b2 the canvas 2, and the pentatonic omits both.
 constexpr float kSourFloor = 0.15f;
 constexpr float kSourMargin = 0.10f;
+// Below this song-aware confidence the canvas landing retreats to the
+// pentatonic (see landListen). Sits under the 0.5 stop threshold so it can
+// only ever apply to a listen that ran its full budget still unsure.
+constexpr float kUnsureConfidence = 0.4f;
 
 // Retreat a canvas landing to the side's pentatonic (same root) when it is
 // clearly sourer. Canvas-to-canvas moves stay behind the measured degree
@@ -453,6 +457,17 @@ ListenApply landListen(const KeyGuess& g) {
     out.scaleIdx = canvasForMode(out.mode);
     out.rootPc = out.tonicPc;
     guardCanvasSourness(out, g.chroma);
+
+    // UNSURE: a listen that ran out its budget without ever clearing the
+    // lock confidence (the stop rule needs 0.5, so this never fires on a
+    // verdict that stopped early) lands the pentatonic, not the canvas —
+    // the same "fewer notes beats a wrong one" the clash guard applies.
+    // Measured on 47 field listens: nothing-sour 29 -> 32, home-right
+    // unchanged; the mode and tonic stay the card's truth.
+    if (g.confidence < kUnsureConfidence && isCanvas(out.scaleIdx)) {
+        out.scaleIdx = pentForSide(modeMinorish(out.mode));
+        out.safe = true;
+    }
     return out;
 }
 
@@ -466,7 +481,7 @@ int listenAlternates(const KeyGuess& g, ListenApply* out, int cap) {
 
     // The five candidates behind the primary, computed first so the emit
     // order below is one table and nothing else.
-    enum { C_FLAVOR, C_BLUES, C_RUNNER1, C_RUNNER2, C_TWIN, C_COUNT };
+    enum { C_FLAVOR, C_BLUES, C_RUNNER1, C_RUNNER2, C_RUNNER3, C_RUNNER4, C_TWIN, C_COUNT };
     struct Cand {
         int scale;
         int root;
@@ -485,16 +500,18 @@ int listenAlternates(const KeyGuess& g, ListenApply* out, int cap) {
     // The relative twin's canvas — same notes, the other home.
     c[C_TWIN] = Cand{twinScale, twinRoot,
                      minorSide ? (uint8_t)LM_ION : (uint8_t)LM_AEO, true};
-    // Runner-up KEYS: rescore the 24 profiles and take the two best whose
+    // Runner-up KEYS: rescore the 24 profiles and take the four best whose
     // landing is neither the primary's own reading nor the twin (it has its
-    // own slot) — so both are genuinely different pitch sets. Landings are
+    // own slot) — so each is a genuinely different pitch set. Landings are
     // plain major/minor at the rival root: the mode refinements were judged
-    // at the primary tonic and don't transfer.
+    // at the primary tonic and don't transfer. Four, not two: on 47 field
+    // listens the third and fourth rescued six more songs the first two
+    // could not (reachable 37 -> 44 of 47).
     float peak = 0.f;
     for (int i = 0; i < 12; ++i)
         if (g.chroma[i] > peak) peak = g.chroma[i];
     if (peak > 1e-9f) {
-        for (int k = 0; k < 2; ++k) {
+        for (int k = 0; k < 4; ++k) {
             float bestR = -2.f;
             int bestRoot = -1;
             bool bestMinor = false;
@@ -503,9 +520,12 @@ int listenAlternates(const KeyGuess& g, ListenApply* out, int cap) {
                     const bool minor = m != 0;
                     if (root == tonic && minor == minorSide) continue;
                     if (root == twinRoot && minor != minorSide) continue;
-                    if (k == 1 && c[C_RUNNER1].ok && root == c[C_RUNNER1].root &&
-                        (minor ? SC_MINOR : SC_MAJOR) == c[C_RUNNER1].scale)
-                        continue;
+                    bool taken = false;
+                    for (int j = 0; j < k; ++j)
+                        if (c[C_RUNNER1 + j].ok && root == c[C_RUNNER1 + j].root &&
+                            (minor ? SC_MINOR : SC_MAJOR) == c[C_RUNNER1 + j].scale)
+                            taken = true;
+                    if (taken) continue;
                     const float r =
                         keyScore(g.chroma, minor ? kProfMinor : kProfMajor, root);
                     if (r > bestR) {
@@ -523,12 +543,15 @@ int listenAlternates(const KeyGuess& g, ListenApply* out, int cap) {
     }
 
     // The walk. Measured on 47 field listens (2026-09-22): the twin and
-    // each runner-up key rescued five songs apiece, the flavour slots one —
-    // "right within two presses" is 31/47 with the rescuers first against
-    // 22/47 with the flavours first. So the rescuers ride right behind the
-    // primary, the twin leading because it can never play sour (same notes,
-    // the other home), and the flavours follow.
-    static const int kOrder[C_COUNT] = {C_TWIN, C_RUNNER1, C_RUNNER2, C_FLAVOR, C_BLUES};
+    // each of the first two runner-up keys rescued five songs apiece, the
+    // flavour slots one, the third and fourth runner-ups six between them
+    // — "right within two presses" is 31/47 with the rescuers first against
+    // 22/47 with the flavours first, and 44/47 are reachable over the whole
+    // walk. So the strongest rescuers ride right behind the primary, the
+    // twin leading because it can never play sour (same notes, the other
+    // home), the flavours follow, and the long-shot keys close the walk.
+    static const int kOrder[C_COUNT] = {C_TWIN, C_RUNNER1, C_RUNNER2, C_FLAVOR, C_BLUES,
+                                        C_RUNNER3, C_RUNNER4};
 
     int n = 0;
     out[n++] = primary;

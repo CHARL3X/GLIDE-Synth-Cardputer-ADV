@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
     fclose(f);
     if (skipped) fprintf(stderr, "keylab_eval: skipped %d unparsable rows\n", skipped);
 
-    constexpr int kCap = 6;
+    constexpr int kCap = 8;
     int n = 0, sour = 0, home = 0, both = 0, safe = 0, modal = 0, tie = 0;
     int firstGood[kCap] = {0};
     int firstInSong[kCap] = {0};

@@ -2378,6 +2378,7 @@ int main() {
                 g.valid = true;
                 g.rootPc = rootPc;
                 g.minor = minor;
+                g.confidence = 1.f;  // a sure verdict: the unsure retreat stays out
                 for (int i = 0; i < 12; ++i) g.chroma[i] = ch[i];
                 return g;
             };
@@ -2523,11 +2524,39 @@ int main() {
             CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 4 && ap.safe,
                   "Phrygian song: minor's sour 2 retreats to min pent");
 
+            // UNSURE: a verdict that never cleared 0.4 confidence (only a
+            // listen that ran its whole budget) lands the pentatonic. The
+            // mode and tonic stay the card's truth; a sure verdict is
+            // untouched; a conflicted one was already retreating.
+            {
+                KeyGuess gUnsure = gC;
+                gUnsure.confidence = 0.2f;
+                ap = landListen(gUnsure);
+                CHECK(ap.scaleIdx == SC_MAJ_PENT && ap.rootPc == 0 && ap.safe &&
+                          ap.mode == LM_ION && ap.tonicPc == 0,
+                      "unsure verdict lands the pentatonic at the tonic, safe");
+                gUnsure.confidence = 0.45f;
+                ap = landListen(gUnsure);
+                CHECK(ap.scaleIdx == SC_MAJOR && !ap.safe,
+                      "0.45 confidence is above the unsure line: the canvas stands");
+                KeyGuess gUnsureDor = gAm;
+                gUnsureDor.confidence = 0.1f;
+                ap = landListen(gUnsureDor);
+                CHECK(ap.scaleIdx == SC_MIN_PENT && ap.rootPc == 9 && ap.mode == LM_DOR && ap.modal,
+                      "unsure Dorian verdict: min pent at the tonic, mode kept for the card");
+                gUnsure.confidence = 0.2f;  // back under the line
+                ListenApply ua[8];
+                const int nu = listenAlternates(gUnsure, ua, 8);
+                CHECK(nu == 8 && ua[4].scaleIdx == SC_MAJOR && ua[4].rootPc == 0,
+                      "after an unsure retreat the flavour slot offers the full canvas");
+            }
+
             // ALTERNATES — the space walk. Order is the contract: primary,
-            // the relative twin, the two runner-up KEYS, the pentatonic at
-            // the tonic, blues at the minor home. All distinct (scale, root).
-            // The rescuers lead: on 47 field listens the twin and each
-            // runner-up fixed five songs apiece, the flavours one.
+            // the relative twin, the two best runner-up KEYS, the pentatonic
+            // at the tonic, blues at the minor home, two more runner-up keys.
+            // All distinct (scale, root). The rescuers lead: on 47 field
+            // listens the twin and each of the first two runner-ups fixed
+            // five songs apiece, the flavours one, the last two six.
             auto distinct = [](const ListenApply* a, int n) {
                 for (int i = 0; i < n; ++i)
                     for (int j = i + 1; j < n; ++j)
@@ -2539,9 +2568,9 @@ int main() {
                 return a.scaleIdx == SC_MAJOR || a.scaleIdx == SC_MINOR;
             };
             {
-                ListenApply alts[6];
-                const int na = listenAlternates(gC, alts, 6);
-                CHECK(na == 6, "a clean verdict fills all six slots");
+                ListenApply alts[8];
+                const int na = listenAlternates(gC, alts, 8);
+                CHECK(na == 8, "a clean verdict fills all eight slots");
                 CHECK(alts[0].scaleIdx == SC_MAJOR && alts[0].rootPc == 0,
                       "alternates lead with the primary landing");
                 CHECK(alts[1].scaleIdx == SC_MINOR && alts[1].rootPc == 9,
@@ -2555,7 +2584,9 @@ int main() {
                 CHECK(alts[4].scaleIdx == SC_MAJ_PENT && alts[4].rootPc == 0,
                       "slot 4 is the pentatonic at the tonic");
                 CHECK(alts[5].scaleIdx == SC_BLUES && alts[5].rootPc == 9,
-                      "the walk ends on blues at the relative-minor home");
+                      "slot 5 is blues at the relative-minor home");
+                CHECK(plainKey(alts[6]) && plainKey(alts[7]),
+                      "slots 6-7 are the long-shot runner-up keys");
                 CHECK(distinct(alts, na), "alternates never repeat a (scale, root)");
                 bool tonicTruth = true;
                 for (int i = 0; i < na; ++i)
@@ -2565,9 +2596,9 @@ int main() {
             {
                 // Minor side: the pent is min pent at the tonic, blues sits
                 // ON the tonic, the twin is the relative major.
-                ListenApply alts[6];
-                const int na = listenAlternates(gAm, alts, 6);
-                CHECK(na == 6 && alts[0].scaleIdx == SC_DORIAN && alts[0].rootPc == 9,
+                ListenApply alts[8];
+                const int na = listenAlternates(gAm, alts, 8);
+                CHECK(na == 8 && alts[0].scaleIdx == SC_DORIAN && alts[0].rootPc == 9,
                       "Dorian verdict leads with Dorian at A");
                 CHECK(alts[1].scaleIdx == SC_MAJOR && alts[1].rootPc == 0,
                       "minor side: slot 1 is the relative major twin");
@@ -2580,9 +2611,9 @@ int main() {
             {
                 // A retreated primary: the seven-note canvas takes slot 1, so
                 // a player who wants the full mode anyway is one press away.
-                ListenApply alts[6];
-                const int na = listenAlternates(gCon6, alts, 6);
-                CHECK(na == 6 && alts[0].scaleIdx == SC_MIN_PENT && alts[0].safe,
+                ListenApply alts[8];
+                const int na = listenAlternates(gCon6, alts, 8);
+                CHECK(na == 8 && alts[0].scaleIdx == SC_MIN_PENT && alts[0].safe,
                       "retreated primary leads the walk");
                 CHECK(alts[4].scaleIdx == SC_MINOR && alts[4].rootPc == 9 && !alts[4].safe,
                       "after a retreat, the flavour slot is the full canvas at the tonic");
@@ -2598,9 +2629,9 @@ int main() {
                 em[4] = 1.f; em[7] = .7f; em[11] = .65f; em[9] = .5f;
                 em[2] = .5f; em[0] = .45f; em[6] = .4f;
                 const KeyGuess gEmWrong = makeGuess(9, true, em);
-                ListenApply ralts[6];
-                const int nr = listenAlternates(gEmWrong, ralts, 6);
-                CHECK(nr == 6, "wrong-tonic verdict still fills the walk");
+                ListenApply ralts[8];
+                const int nr = listenAlternates(gEmWrong, ralts, 8);
+                CHECK(nr == 8, "wrong-tonic verdict still fills the walk");
                 int emAt = -1;
                 for (int i = 0; i < nr; ++i)
                     if (ralts[i].scaleIdx == SC_MINOR && ralts[i].rootPc == 4) emAt = i;

@@ -45,7 +45,7 @@ Output:
 
 ```
 songs=47  nothing-sour=29  home-right=27  both=21   (safe=11 modal=1 tiebreak=1)
-first in-song+home landing, cumulative by space position 0..5: 21 26 31 36 37 37
+first in-song+home landing, cumulative by space position 0..7: 21 26 31 36 37 37 40 44
 first merely in-song landing, cumulative:                  29 38 ...
 ```
 

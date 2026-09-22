@@ -455,6 +455,23 @@ leads because it can never play sour. The two flavour slots (pentatonic,
 blues) fix one song between them, at press 4. The 5 s minimum-heard change
 is not in these numbers (it needs live rounds, not stored chromas).
 
+**Same-day additions (owner: "let's try it"):** two more host-proven rules.
+
+| step | nothing sour | home right | both | 1 press | 2 presses | reachable |
+|---|---|---|---|---|---|---|
+| walk of 8 (two more runner-up keys after blues) | 29 / 47 | 27 / 47 | 21 / 47 | 26 | 31 | **44** (was 37) |
+| + unsure retreat: confidence < 0.4 lands the pentatonic | **32 / 47** | 27 / 47 | 21 / 47 | 26 | 31 | 44 |
+
+The unsure retreat can only fire on a listen that ran its whole budget (the
+stop rule needs 0.5), so early locks are untouched; the card says "unsure -
+safe pent". Other things the data was asked and answered: confidence is not
+calibrated (verdicts ≥ 0.9 were right 7/13 — never trust a single sure
+round); speaker-weighted loudness does NOT predict ratings pool-wide (AUC
+0.57) but does inside bass, pluck and brass (0.95 / 0.87 / 1.00), which is
+exactly where V6 put cutoff floors; parallel-mode flips are 6 songs and the
+runner-up slots cover them; profile swaps lose; gate constants are not worth
+grid-searching on 47 songs. Experiment programs: `Jordan's Testing/tools/`.
+
 ## Verification protocol (both parts)
 
 1. Native gate on this Mac: the direct `g++` line from `CLAUDE.md` minus the

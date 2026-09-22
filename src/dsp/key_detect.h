@@ -97,7 +97,11 @@ bool segmentAudible(const int16_t* mono, int n);
 //     than the side's pentatonic it retreats to that pentatonic. This is
 //     what catches the modes the four-mode vocabulary can't name (a Lydian
 //     #4 against the canvas P4, a Phrygian b2 against the canvas 2).
-// chroma is KeyGuess::chroma (peak-normalized; correlation is scale-invariant).
+//   - UNSURE: a verdict whose song-aware confidence never reached 0.4 (only
+//     possible for a listen that ran its whole budget — the stop rule needs
+//     0.5) lands the pentatonic too. Measured: nothing-sour 29 -> 32 of 47.
+// chroma is KeyGuess::chroma (peak-normalized; correlation is scale-invariant);
+// confidence is classifyChromaSong's.
 enum ListenMode : uint8_t { LM_ION = 0, LM_DOR = 1, LM_MIXO = 2, LM_AEO = 3 };
 
 const char* listenModeName(uint8_t mode);  // "MAJ" "DOR" "MIX" "MIN"
@@ -124,12 +128,15 @@ ListenApply landListen(const KeyGuess& g);
 //      retreated to it, the mode's full canvas — the seven notes on offer)
 //   5  Blues at the minor home (the tonic on the minor side, the relative
 //      minor on the major side — the boxes trick)
-// Slots 1-3 are how a wrong verdict gets fixed; 4-5 are flavours of the
-// same key. Measured on 47 field listens: the twin and each runner-up
-// rescued five songs apiece, the flavours one, so "right within two presses"
-// is 31/47 this way round against 22/47 flavours-first. Runner-ups skip the
-// twin (it has its own slot) and the primary's own reading, so both are
-// genuinely different pitch sets. Returns the count (<= cap).
+//   6  the third runner-up key
+//   7  the fourth runner-up key
+// Slots 1-3 are how a wrong verdict usually gets fixed, 4-5 are flavours of
+// the same key, 6-7 are the long shots. Measured on 47 field listens: the
+// twin and each of the first two runner-ups rescued five songs apiece, the
+// flavours one, the last two six between them — "right within two presses"
+// is 31/47 and 44/47 are reachable. Runner-ups skip the twin (it has its own
+// slot) and the primary's own reading, so each is a genuinely different
+// pitch set. Returns the count (<= cap); the card uses cap 8.
 int listenAlternates(const KeyGuess& g, ListenApply* out, int cap);
 
 }  // namespace dsp
