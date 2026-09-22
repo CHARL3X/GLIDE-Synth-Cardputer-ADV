@@ -83,8 +83,7 @@ wrapped and would have inverted a highlight to black. See its README.
   new files included, and `support/gen_logo.py` emits it into the header it
   generates. The one exception is `support/viz_render/shim/glcdfont.h`, which
   keeps its Adafruit BSD notice. GLIDE is dual-licensed (PolyForm NC + a
-  commercial licence; releases ≤ v2.5 shipped GPL-3.0 irrevocably), so
-  contributed code needs the relicensing grant in CONTRIBUTING.md; see
+  commercial licence), so contributed code needs the relicensing grant in CONTRIBUTING.md; see
   LICENSING.md before changing anything about licensing or branding.
 
 ## The generative sound system (the "your instrument is yours" core)

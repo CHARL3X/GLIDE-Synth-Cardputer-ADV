@@ -49,13 +49,6 @@ description, not a substitute for it.
   **not licensed** — that needs Section 2, negotiated with the author.
 - Anyone unsure which side of the line they're on: open an issue and ask.
 
-### Earlier releases
-
-Releases **v2.5 and earlier** were published under the GNU GPL v3, and that
-grant is irrevocable for those versions: what shipped under the GPL stays
-under the GPL. Everything after v2.5 — this repository's current contents and
-every future release — is PolyForm Noncommercial 1.0.0 only.
-
 ---
 
 ## 2. Commercial licence (available on request)
