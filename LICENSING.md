@@ -15,16 +15,14 @@ Required Notice: Copyright (C) 2026 Charles Tobin (CHARL3X)
 
 Everything in this repository, unless a file says otherwise, is released under
 the **PolyForm Noncommercial License 1.0.0** — the full text is in
-[`LICENSE`](LICENSE). The source is public and stays public; what the licence
+[`LICENSE`](LICENSE). The firmware is free to download and use; what the licence
 draws is one line: **commerce with this code is the author's alone.**
 
 Under it you may, at no cost and without asking anyone, for any
 **noncommercial** purpose:
 
 - run GLIDE on as many devices as you like;
-- read, study, and learn from the source;
-- modify it, fork it, port it to other hardware, experiment freely;
-- share your builds and changes with anyone, on the same terms.
+- share the firmware with anyone, on the same terms.
 
 What it does **not** grant, to anyone, is commercial use. Selling devices with
 GLIDE (or a derivative of it) loaded, selling the firmware or a fork of it,
@@ -41,10 +39,8 @@ description, not a substitute for it.
 
 ### What this means in practice
 
-- A hobbyist flashing GLIDE, tweaking it, and sharing their build for free:
+- A player flashing GLIDE and sharing the binary with friends for free:
   fine, always. That is exactly what the licence protects.
-- A tinkerer porting the slide engine to another handheld and publishing the
-  port for other hobbyists: fine.
 - Anyone selling flashed devices, a fork, or a product with this code inside:
   **not licensed** — that needs Section 2, negotiated with the author.
 - Anyone unsure which side of the line they're on: open an issue and ask.
@@ -93,10 +89,6 @@ them unmodified to refer to, review, document, or redistribute unmodified GLIDE
 itself. You may not use them to brand a fork, a modified build, or a product,
 and you may not use them in a way that suggests this project endorses or
 authored something it did not.
-
-Noncommercial forks are welcome — Section 1 permits them. **Give your fork its
-own name.** Rebranding a derivative is a normal, expected step, and it keeps
-players from mistaking someone else's build for this one.
 
 ---
 

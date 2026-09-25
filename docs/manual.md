@@ -1,6 +1,6 @@
 # The GLIDE manual
 
-Everything the instrument does and how to play it. For install and the five-minute intro, see the [README](../README.md); for the design story and internals, see [design.md](design.md).
+Everything the instrument does and how to play it. For install and the five-minute intro, see the [README](../README.md).
 
 ## The keymap
 
@@ -89,8 +89,6 @@ Every action auditions on the spot with a short fixed lick, so you can A/B two r
 - **Unlimited:** **Save to SD** writes the sound to the microSD as a `.gpat` file. It asks what to call it, with the sound's own auto-name (`warm-haze-3f`, `frost-choir-1a`) already in the box, so `enter` keeps the rolled name, or you type over it and the sound is called whatever you want. **Load from SD** browses your whole library back (and renames anything there later). The card holds as many sounds as you'll ever roll, they're named so they read as *yours*, and because every file uses the same tagged format as the slots, the library survives firmware updates and travels card-to-card. (No card? The instrument still plays perfectly. SD only grows the library past ten.)
 
 **Re-roll bank** resets the slots to the curated presets and rolls fresh randoms for `o` and `p` from a new seed. New sounds whenever you want them, presets intact. *Reset all sounds* is the way back without changing the seed.
-
-> The seeded generator lives in `dsp/sound_gen`: pure, deterministic, and host-tested, same as the synth voice. See [random-sound-generation.md](random-sound-generation.md) for the design (and the note on the hardware-unverified SD pins).
 
 Under the hood every sound rides five engine character-makers: a paraphonic **filter envelope** (retriggered by fresh attacks, never by legato hand-offs, so slides stay smooth), a **sub-oscillator**, env-gated **noise**, **drive** into the soft clipper, and built-in **vibrato**. All of it editable live and saved per slot.
 

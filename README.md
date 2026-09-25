@@ -72,12 +72,6 @@ A newer `GLIDE.bin` sitting on the card **does nothing on its own** — the copy
 - **Card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin), put it in `/apps/`, then **delete the installed GLIDE in Launcher first** and install the new one from `SD` → `apps`. Launcher *adds* an app rather than replacing it, so skipping the delete leaves you with two GLIDE tiles and only the splash version number to tell them apart. The illustrated walkthrough is in **[docs/updating.md](docs/updating.md)** ([printable PDF](docs/guides/GLIDE-Updating.pdf); there's a [playing guide](docs/guides/GLIDE-Playing.pdf) too, and a [one-page card](docs/guides/GLIDE-Card.pdf) that fits both on a single sheet).
 - **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list — Launcher fetches and installs it with no computer and no card shuffling.
 
-<details>
-<summary><strong>Alternative: direct USB flash</strong> (overwrites Launcher)</summary>
-
-For developers building from source: see [building in design.md](docs/design.md#building). Entry procedure: power OFF, hold G0, plug USB-C, release G0. To get Launcher back afterwards, re-flash it.
-</details>
-
 ## The first five minutes
 
 There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo. But two pictures carry most of it: where everything sits, and where sounds come from.
@@ -152,19 +146,13 @@ The **[manual](docs/manual.md)** covers all of it:
 - **[The modulation matrix](docs/manual.md#the-modulation-matrix-get-far-from-the-default)**: two LFOs, a second envelope, six routing slots, four filter modes. How two players with the same device end up with sounds that share no DNA.
 - **[Every parameter](docs/manual.md#every-parameter)** and **[persistence & factory reset](docs/manual.md#persistence-and-reset)**.
 
-And **[design.md](docs/design.md)** carries the story: where the instrument came from, [the fretboard translation](docs/design.md#the-translation), and [the philosophy, encoded](docs/design.md#the-philosophy-encoded).
-
-## For developers
-
-The musical core (`src/dsp/`) is pure C++ (no Arduino, no ESP-IDF), so it compiles and tests on a PC and moves unchanged to future hardware. Everything technical lives in **[design.md](docs/design.md)**: [build commands](docs/design.md#building), [architecture](docs/design.md#architecture-why-its-split-this-way), verified audio-path facts, and the [Phase 0 hardware probe](docs/design.md#before-you-trust-it-the-phase-0-probe). The generative engine's design is in [random-sound-generation.md](docs/random-sound-generation.md).
-
-Patches welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the house rules (the host tests, the RAM ceiling, and which code is frozen because players' devices re-derive their sounds through it).
+Bug reports and sounds are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-GLIDE is source-available under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. Play it anywhere, including at paid gigs. Read it, learn from it, fork it, port it, share your builds — freely, for any noncommercial purpose, with the credits intact. The one line it draws: **selling GLIDE, or anything built from it, is the author's alone.**
+GLIDE is free to download and play under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. Play it anywhere, including at paid gigs, and share it freely for any noncommercial purpose, with the credits intact. The one line it draws: **selling GLIDE, or anything built from it, is the author's alone.**
 
-The name, the logo, and the artwork in `assets/` are not part of that grant — give your fork its own name so players can tell the builds apart.
+The name, the logo, and the artwork in `assets/` are not part of that grant.
 
 Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and their licences travel with the firmware in [`dist/NOTICES.txt`](dist/NOTICES.txt) — pass that along with any copy of the binary you share.
 
@@ -176,7 +164,7 @@ Want to ship GLIDE inside a product, or sell devices with it loaded? A separate 
   </a>
 </p>
 
-**If GLIDE earned a spot in your pocket**, or made a weird noise you didn't expect, you can [buy me a coffee](https://buymeacoffee.com/charl3x). It's free and open source, and it stays that way; a coffee just keeps the soldering iron warm and the next build coming.
+**If GLIDE earned a spot in your pocket**, or made a weird noise you didn't expect, you can [buy me a coffee](https://buymeacoffee.com/charl3x). The firmware is free, and it stays that way; a coffee just keeps the soldering iron warm and the next build coming.
 
 ---
 

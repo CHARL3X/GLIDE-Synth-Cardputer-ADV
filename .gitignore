@@ -1,27 +1,3 @@
-.pio/
 .vscode/
 *.pyc
-
-# support/viz_render output + binary
-viz_*.bmp
-viz_*.png
-viz_render.exe
-theme_*.bmp
-theme_*.png
-render_theme
-render_theme.exe
-dist/GLIDE-nvsfill.bin
-dist/GLIDE-probe.bin
-
-# Local commerce working copy — never committed
-commerce/
-
-# owner-guide font cache (fetched by support/guides/build.py, never committed)
-support/guides/.fonts/
-support/guides/.build-*.html
-
-# macOS Finder droppings
 .DS_Store
-
-# Jordan's field data (ratings, chromas, and his launcher config incl. wifi creds) — local only, never push
-Jordan's Testing/
