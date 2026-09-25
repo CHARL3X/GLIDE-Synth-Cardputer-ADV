@@ -46,9 +46,10 @@ or fork one without spending a slot.
 | **Ethereal** | soft triangle pad, long glide, roomy hall — the old `t` | — |
 | **Bass** | fat pulse bass, sub for weight, snappy filter pluck — the old `e` | — |
 | **Solo** | bright always-gliding square lead, 1/8-triplet delay — the old `r` | — |
+| **Slappy Brass** | saw brass: the filter swells into each note, a dotted-eighth slap echo and a room behind it. lean either way for vibrato | — |
 
-The last three were factory presets before the bank was recut; they live here so
-nothing you liked went away with the update.
+Bass, Solo and Ethereal were factory presets before the bank was recut; they live
+here so nothing you liked went away with the update.
 
 ## Licence
 
