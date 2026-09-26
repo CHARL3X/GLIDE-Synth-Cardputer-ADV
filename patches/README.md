@@ -33,7 +33,7 @@ or fork one without spending a slot.
 | **Organ** | drawbar organ, leslie shimmer, near-full sustain. sits *under* a solo | `e` |
 | **Taser** | open saw + sub. key-track darkens it as you play up; leaning swells the echo | `r` |
 | **Crisp Horn** | bright reed horn that sings its own 7-cent vibrato without you leaning | `t` |
-| **Fat Square** | punchy square, bright per-note filter bloom, a noise knock on the attack | `y` |
+| **Slappy Brass** | saw brass: the filter swells into each note, a dotted-eighth slap echo and a room behind it. lean either way for vibrato | `y` |
 | **Hollow** | driven square through a *notch* filter — phasey rather than dark | `u` |
 | **Big** | highpass square ringing at a 261 Hz corner: hollow and enormous at once | `i` |
 | **Backing** | bright buzzy bed, chorus + 1/16 delay + a big hall. tilt is the swell | — |
@@ -46,10 +46,10 @@ or fork one without spending a slot.
 | **Ethereal** | soft triangle pad, long glide, roomy hall — the old `t` | — |
 | **Bass** | fat pulse bass, sub for weight, snappy filter pluck — the old `e` | — |
 | **Solo** | bright always-gliding square lead, 1/8-triplet delay — the old `r` | — |
-| **Slappy Brass** | saw brass: the filter swells into each note, a dotted-eighth slap echo and a room behind it. lean either way for vibrato | — |
+| **Fat Square** | punchy square, bright per-note filter bloom, a noise knock on the attack — the old `y` | — |
 
-Bass, Solo and Ethereal were factory presets before the bank was recut; they live
-here so nothing you liked went away with the update.
+The last four were factory presets before the bank was recut; they live here so
+nothing you liked went away with an update.
 
 ## Licence
 

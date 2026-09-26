@@ -62,7 +62,7 @@ Ten slots live on `fn`+`q`..`p`. Eight are a curated bank, led by **GLIDE** on `
 | e | **Organ** | drawbar organ with a leslie shimmer. holds a chord forever and sits *under* a solo — the bed | filter (roll: vibrato) |
 | r | **Taser** | open saw + sub. gets *darker* as you play up, and leaning swells the echo | vibrato (roll: filter) |
 | t | **Crisp Horn** | bright reed horn that sings its own vibrato without you leaning | filter (roll: vibrato) |
-| y | **Fat Square** | punchy square, bright per-note filter bloom, attack knock | filter |
+| y | **Slappy Brass** | saw brass that swells into each note, a dotted-eighth slap echo and a room behind it | vibrato (roll: vibrato) |
 | u | **Hollow** | driven square through a *notch* filter, phasey and hollow | volume swell (roll: filter) |
 | i | **Big** | highpass square ringing at the corner: hollow and enormous at once, on a 1/4 echo | filter |
 | o | *generative* | rolled unique to your device, yours alone | (rolled) |
@@ -221,6 +221,25 @@ tap G0, and play over your own moving texture. Depth is the whole range between
 "a hint" and "the point", and both sit still at 0%, so an unpressed button
 changes nothing.
 
+### Harmony (`fn`+`h`, or the G0 *harmony* action)
+
+Every note you play brings a second voice a **third above, in the key**. Like the
+trill, the interval is read straight off the grid (two columns along the same
+string), so it is the scale's own third in every scale and never clashes: a
+major third where the key has one, a minor third where it does not. The harmony
+slides with you: a hammer-on, a pull-off and an octave sweep all carry the third
+along, and it plays the live sound with your bend and tilt.
+
+- **`fn`+`h`** toggles it for the session (`HARM` shows on the scope while it is
+  on) and it is off at every boot, like the arpeggiator.
+- As the **G0 action** it is momentary or latched per the trigger mode, so you
+  can bring the harmony in for one phrase and let it go.
+
+It doubles the voices you use, so a big chord may steal from itself under the
+voice cap; the loop pedal records the notes you play, not their thirds, so a
+take stays yours to harmonize live over. Depth has no effect: a third is in or
+out.
+
 **Wah on latch is what the instrument ships as**, because it is the setting that
 makes G0 sound like the instrument is doing something on its own: one tap and it
 sweeps until you tap it off. A latch is session state, never saved — however you
@@ -248,7 +267,7 @@ tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 | jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
-| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate, trill / 0-100% / momentary, latch | wah / 70% / latch | settings (right trigger, G0) |
+| trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate, trill, harmony / 0-100% / momentary, latch | wah / 70% / latch | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |
