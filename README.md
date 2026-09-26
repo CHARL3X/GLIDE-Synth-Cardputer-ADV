@@ -98,6 +98,7 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
  fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone (HOLD: listen & retune)
  fn + a            : arpeggiate the backing chords (fn+z rate, fn+x span)
+ fn + h            : harmony, a third above in key (toggle)
  fn + shift + k/s/a: the same cycles, backwards
 ```
 </details>

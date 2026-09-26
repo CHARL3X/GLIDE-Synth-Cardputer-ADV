@@ -1,5 +1,5 @@
 ================================================================================
-GLIDE v3.4 — third-party notices
+GLIDE v3.5 — third-party notices
 ================================================================================
 
 This file lists the software inside GLIDE.bin that was written by other people,
@@ -15,10 +15,10 @@ GLIDE itself is a separate matter from everything below.
   Required Notice: Copyright (C) 2026 Charles Tobin (CHARL3X)
   (https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV)
 
-  Source: https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
+  Home:   https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
   Terms:  LICENSING.md in that repository, and the LICENSE file beside it.
 
-  GLIDE is free to run, study, modify and share for any NONCOMMERCIAL purpose.
+  GLIDE is free to run and share for any NONCOMMERCIAL purpose.
   Commercial use — selling devices with it loaded, selling a fork, shipping it
   inside a paid product — is the author's alone and needs a separate commercial
   licence.
@@ -729,19 +729,15 @@ The Arduino core for ESP32 is LGPL-2.1-or-later and is statically linked into
 GLIDE.bin. Section 6 of that licence gives you the right to modify the core and
 relink it into a working GLIDE binary. To make that real:
 
-  * GLIDE's own complete source is public, permanently, at
-    https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV
-    Its build is `pio run` against the exact versions pinned in
-    platformio.ini, which is what produced the binary you have.
-
   * The core's own source is at https://github.com/espressif/arduino-esp32
     at the version named above.
 
-  * If you would rather have the linkable object files than rebuild from
-    source, ask and you will get them, for any binary released in the past
-    three years: morphstudioshd@gmail.com, subject "GLIDE LGPL relink".
-    That offer is open to anyone who holds a copy of the binary, at no charge
-    beyond the cost of delivery.
+  * GLIDE's own linkable object files, with the link command and the exact
+    toolchain versions that produced the binary you have, are yours on
+    request for any binary released in the past three years:
+    morphstudioshd@gmail.com, subject "GLIDE LGPL relink". That offer is
+    open to anyone who holds a copy of the binary, at no charge beyond the
+    cost of delivery.
 
   * You may reverse-engineer and debug your own modifications to this
     component. Nothing in GLIDE's licence forbids it, and no term of sale for
