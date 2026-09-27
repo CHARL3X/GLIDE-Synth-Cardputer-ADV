@@ -223,12 +223,13 @@ changes nothing.
 
 ### Harmony (`fn`+`h`, or the G0 *harmony* action)
 
-Every note you play brings a second voice a **third above, in the key**. Like the
-trill, the interval is read straight off the grid (two columns along the same
-string), so it is the scale's own third in every scale and never clashes: a
-major third where the key has one, a minor third where it does not. The harmony
-slides with you: a hammer-on, a pull-off and an octave sweep all carry the third
-along, and it plays the live sound with your bend and tilt.
+Every note you play brings a second voice a **third above, in the key**: a
+major third where the key has one, a minor third where it does not, and on a
+note outside the key (a blue note, a `shift` press) the third that lands back in
+the scale. It is always a third, so the harmony line keeps the shape of the lick
+you play. The harmony slides with you: a hammer-on, a pull-off and an octave
+sweep all carry the third along, and it plays the live sound with your bend and
+tilt.
 
 - **`fn`+`h`** toggles it for the session (`HARM` shows on the scope while it is
   on) and it is off at every boot, like the arpeggiator.
