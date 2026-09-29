@@ -100,8 +100,11 @@ The gyro debate, resolved as agreed, then promoted, because in practice it's fan
   <img src="../assets/glide-tilt.svg" alt="Tilt: lean the device forward and back to morph between the live sound and the last one; left and right adds vibrato; enter toggles; never pitch bend" width="100%">
 </p>
 
-- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) at 90% and **vibrato on left/right** at 60%. The morph axis is deep on purpose: at 60% a lean only half-arrives at the other sound, which reads as a wobble instead of a blend. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Taser into vibrato, per the table above), saved with the slot.
+- **Your rig, or the sound's.** By default the tilt map is *global*: forward/back and left/right each hold a route that follows your hands across every sound instead of resetting per patch. Out of the box that's **Morph on forward/back** (lean into the sound you were just on) at 90% and **vibrato on left/right** at 60%. On the morph route, settings → *Tilt reach* is how far you lean for the other sound to fully arrive: 60 degrees out of the box, where you can still read the screen, anywhere from 20 to 90. A few degrees around flat do nothing, so a steady hand doesn't wobble the timbre. Depth still scales it: above the stock 90% the other sound arrives a little sooner, below it later, and low enough that the lean tops out short of the other sound. Set it once and play. Flip settings → *Tilt map* to **per sound** and each patch carries its own route and depth instead (ACID into a full wah, Taser into vibrato, per the table above), saved with the slot.
 - **Depth** (settings): how hard the motion drives the effect, 0 to 100%.
+- **Tap `enter`** to step tilt through off, forward/back only, and both axes (forward/back plus left/right). The HUD names each step.
+- **Hold `enter`** to freeze tilt where it is (the HUD says *latched*). Lean into a blend or a wah, hold, then set the device down and play with both hands. Hold again and tilt goes live.
+- **Morph time** (settings, off or 50 ms to 2 s, 300 ms out of the box): how long a sound switch takes to glide into the new sound, and how fast a G0 *synth morph* sweeps. *Off* snaps.
 - **Center calibration** (settings → *Tilt center*): "flat" becomes wherever *you* hold the thing, not wherever gravity says. Set it while holding the device in playing position.
 
 ## The layering jam (drones)
@@ -127,7 +130,7 @@ The other half of "one hand backs, the other solos": **alt** (left thumb, since 
 - **fn + alt**: peel the last overdub (undo). Repeat the chord and it walks back up the stack; the gesture bounces at the ends, so it undoes to the base take and redoes to the top. The base loop is protected. You only ever peel the dubs you stacked on it. The annunciator shows the audible layer count (`x3`, or `x2/3` while peeled).
 - **panic** (bksp) silences the loop but keeps the take. Tap alt and it plays again.
 - The hint line goes loop-aware while a take exists (`alt dub  hold clear  fn+alt undo`), so the gestures are always on screen.
-- Because the loop is events, it costs kilobytes. The good part: it **plays through whatever sound is selected**. Record an Organ line, switch to Taser, solo over it. Swap sounds mid-jam and the whole arrangement re-voices itself. Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
+- Because the loop is events, it costs kilobytes. The good part: it **keeps the sound you recorded it on**. Record an Organ line, switch to Taser, and solo over it: the loop holds the Organ while Taser becomes your solo voice (the same split as the chords, see *Soloing over the jam* below). Recorded slides, hammer-ons, and octave sweeps replay as slides, hammer-ons, and sweeps.
 - Loop playback is a protected backing layer like the drones. Its voices ride outside the voice cap, can't be robbed by chord-slide stealing, ignore live bends and tilt vibrato, never hijack the note readout, and survive sound switches and settings trips. Internally it plays on its own string lanes (4 to 7) with its own key ids, so it can never collide with your hands.
 - Timing belongs to the audio thread. Playback events are *scheduled* (block-accurate, ~4 ms), not fired from the ~33 ms UI frame, so the loop doesn't swing with the frame rate.
 - **The loop locks to the jam clock.** The tap that closes a take snaps its length to the nearest **bar** of the *Jam tempo* (minimum one bar; a tap 40% into bar one was meant as a 1-bar loop), so the loop and the auto-progression share one clock instead of drifting apart a little more every cycle. Notes played just past the bar line wrap to the downbeat; a note still held at the close rings to the loop end. Settings → *Loop snap* picks `bar` (default), `beat`, or `off` for the old free-time behaviour.
@@ -142,10 +145,11 @@ The loop pedal records a *performance*, which means your timing has to be right,
 - **Tap the chords in order on the jam row. That's it.** Each tap appends a step (repeats allowed: I-IV-V-IV is four taps). No pocket to hit — and if you want a click to build against, the metronome (`fn`+`\`) locks to the same clock. The HUD confirms each one (`PROG  3: E`).
 - **The sounding chord names its harmony.** The PROG readout boxes the current step and adds its Roman numeral (`F# vi`): uppercase major, lowercase minor, `°` diminished — the progression teaches itself as it plays, in the same system every theory book uses.
 - The beat clock walks the steps **one chord per bar**, looping, at the *Jam tempo*. *Chord length* sets the beats per chord. The backing glides from chord to chord (of course it does) and re-blooms each bar, so on a pad or strings patch it's a soft wash you solo straight over.
-- Each step is a **diatonic triad** built from the current scale: real major/minor/dim color, and always in key. The same "you can't hit a wrong note" guarantee the melody gets, now for the backing too. (Hold `shift` while tapping a step for a chromatic power-chord voicing instead.)
+- Each step is a **diatonic triad** built from the current scale: real major/minor/dim color, and always in key. The same "you can't hit a wrong note" guarantee the melody gets, now for the backing too. (Hold `shift` while tapping a step for a chromatic power-chord voicing instead. In the *Chromatic* scale every step is voiced that way, on the exact note you tap, since a chromatic scale has no key to build triads from.)
 - It's a protected backing layer like the drones and the loop: cap-exempt, steal-proof, ignores your bends and tilt vibrato, and **re-voices through whatever sound you switch to** mid-jam. Lay down Organ, solo on Taser.
 - The progression is on screen: a `PROG  A  D  E  ▸` strip across the top of the scope with the current chord boxed, and its root outlined on the grid-map so you can watch the changes walk.
 - **bksp (panic)** clears the progression to start over, the same gesture that clears the drones. Like them, it's performance state and never hits flash.
+- **`shift`+`bksp`** takes back just the last step you tapped, for the chord you hit by mistake. The chord playing now finishes its bar, then the loop carries on without that step.
 
 Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and you've got a song to solo on in about ten seconds.
 
@@ -154,9 +158,10 @@ Pick Organ, Hollow, or Big for the bed, set a slow tempo, tap four chords, and y
 The progression is the chord half of an arpeggiator already: a tap on the jam row builds a real in-key triad and walks it per bar. `fn`+`a` is the other half. It does not change what the jam row *means*, only how the backing *sounds*: while it is on, whatever chord the row holds is broken into notes instead of sustained.
 
 - **`fn`+`a`** cycles `up` → `down` → `up/down` → off (the `fn`+`k` / `fn`+`s` habit). Nothing sounds until there is a chord. This ring runs **forwards only**, unlike key and scale: on the Cardputer's scan matrix `fn` shares a column with `A` and `shift` with `S`, so holding `fn`+`shift`+`A` closes a circuit that makes the keyboard report `S` as well — the two chords are identical by the time the firmware sees them. The scale keeps `shift`, having thirteen entries to walk; the arp's ring is four, so the long way round is three taps. `fn`+`shift`+`A` is therefore read as `fn`+`shift`+`S` and steps the scale back.
-- **Tap one bottom-row key** and that chord goes root-3rd-5th-octave (1-3-5-8, always in key), hands-free, looping every bar. Solo on the three rows above. The first chord takes a one-beat count-in rather than starting under your finger, so the walk begins on the grid and a quick run of taps lands in time.
+- **Tap one bottom-row key** and that chord goes root-3rd-5th-octave (1-3-5-8, always in key), hands-free, looping every bar. Solo on the three rows above. The first chord takes a one-beat count-in rather than starting under your finger, so the walk begins on the grid and a quick run of taps lands in time. With the metronome on, the count-in lands on the click's next beat, so bar one starts with the click instead of fighting it.
 - **Tap three more** and you have four chords; each bar the arp moves to the next one. The strip over the scope reads `ARP^` (`ARPv`, `ARP^v`) instead of `PROG` and boxes the sounding chord with its Roman numeral, exactly as before.
 - **`fn`+`z`** steps the note rate (`1/8` → `1/8T` → `1/16` → `1/4`) and **`fn`+`x`** flips the span (one octave, or two: 1-3-5-8-10-12-15). Both work with the arp off too, so it arrives already tuned. Speed itself is the *Jam tempo*: tap it in on `\` and the arp follows.
+- **Swing** (settings → JAM → *Arp swing*): the walk's notes pair up long-short, the bounce of a shuffle or a swung drum machine. The steps are the classic drum-machine values, 50 to 75%, so you can match a machine's number: 50% *straight* (out of the box), 58% *light*, 66% *shuffle*, 75% *heavy*, and 54, 62 and 71 between. Only the second note of each pair moves, so the beat, the click and the chord changes stay exactly where they were. It swings the `1/8` and `1/16` rates; `1/8T` is already a shuffle and `1/4` stays on the click, so both play straight. While the arp swings, the strip's tag gets a `~` (`ARP^~`) and `fn`+`z` names the feel (`1/8 shuffle`). The setting is kept, like the tempo; the arp itself still starts off at every boot.
 - Cycling back to **off** returns the pads; the progression survives. `bksp` clears the chords and leaves the arp armed, like the metronome.
 - **It never survives a restart.** The arp is session state, the same as the metronome: a mode you fell into by accident and can't find your way out of is exactly what the old latching chromatic toggle got wrong, so every boot starts with it off, and while it is on the strip says so.
 
@@ -177,7 +182,7 @@ No new gesture to learn. Start the jam, then change your sound. The split appear
 
 One tempo (the *Jam tempo*) drives both the progression and the echo. Two things make a solo over that backing sound produced:
 
-- **Tap tempo**, on `\`, right on the keyboard, so you can match a song's groove without leaving the instrument. Tap it in time and the BPM follows your hand; the HUD reads back the tempo on every tap. A single tap after a pause only *reports* the tempo, so a stray press can't move anything; it takes two taps to make a beat. (Also in settings → *Tap tempo*, tapped with `,` or `/`; it's the same series either way, so you can start in one place and finish in the other.)
+- **Tap tempo**, on `\`, right on the keyboard, so you can match a song's groove without leaving the instrument. Tap it in time and the BPM follows your hand; the HUD reads back the tempo on every tap. A single tap after a pause only *reports* the tempo, so a stray press can't move anything; it takes two taps to make a beat. Tapping over a running progression or arp re-phases it to your hand: each tap lands on the nearest beat of the chord at the new tempo, so the chords, the arp and the click all follow the tap together, which is how you lock onto a drum machine. (Also in settings → *Tap tempo*, tapped with `,` or `/`; it's the same series either way, so you can start in one place and finish in the other.)
 - **The metronome lives on the same key: `fn`+`\` clicks it on and off.** A soft wood-block pulse, timed on the audio engine itself (not the screen), with a brighter tick on beat 1 of the bar. It locks onto your tap-tempo taps as you make them and onto the progression's chord changes, so click and backing land together. `fn`+`ctrl`/`opt` sets its volume (the same thumb keys that do master volume, one layer up); settings → *Metronome vol* holds the level between sessions. The click never records into the looper and always starts quiet on boot.
 - **Or let LISTEN set it by ear.** Hold `fn`+`k` at a song and the detected key arrives with its tempo: when the beat is confident the jam clock takes the BPM, and everything synced to it follows. A weak or absent beat moves nothing.
 - **Tempo-synced delay** (settings → *Delay sync*): lock the echo to a musical division (`1/4`, `1/8.` the dotted eighth and the Edge/Gilmour trick, `1/8`, `1/8T`, or `1/16`) and every repeat lands on the beat. Taser and Big ship with it on; switch to Taser over a progression and the repeats cascade right in the pocket. (Set it to `free` for a plain ms delay.) If a division is too long for the delay line at a slow tempo, it folds down an octave so it stays on the grid instead of clipping.
@@ -223,13 +228,22 @@ changes nothing.
 
 ### Harmony (`fn`+`h`, or the G0 *harmony* action)
 
-Every note you play brings a second voice a **third above, in the key**: a
-major third where the key has one, a minor third where it does not, and on a
-note outside the key (a blue note, a `shift` press) the third that lands back in
-the scale. It is always a third, so the harmony line keeps the shape of the lick
-you play. The harmony slides with you: a hammer-on, a pull-off and an octave
-sweep all carry the third along, and it plays the live sound with your bend and
-tilt.
+Every note you play brings a second voice up **in the key**: a major third
+where the key has one, a minor third where it does not, and on a blue note or a
+`shift` press the third that lands back in the scale. The interval never opens
+past a fourth, so the harmony line keeps the shape of the lick you play. The
+harmony slides with you: a hammer-on, a pull-off and an octave sweep all carry
+it along, and it plays the live sound with your bend and tilt. It sits a little
+under the melody on purpose, so you can still hear which line is the tune.
+
+In the **pentatonic and blues** scales two notes have no third in the scale at
+all — the 4th and the b7 — because those are exactly the notes a pentatonic
+leaves out. There the partner takes the **fourth** instead of borrowing a note
+from outside: in A minor pentatonic the D is harmonized with G and the G with C,
+never with F or B. It is the way a guitarist harmonizes a pentatonic lick, and
+it is why the harmony stays in the scale you are actually playing. In every
+seven-note scale (major, minor, the modes) every note has a third, so those are
+thirds throughout, exactly as before.
 
 - **`fn`+`h`** toggles it for the session (`HARM` shows on the scope while it is
   on) and it is off at every boot, like the arpeggiator.
@@ -238,8 +252,8 @@ tilt.
 
 It doubles the voices you use, so a big chord may steal from itself under the
 voice cap; the loop pedal records the notes you play, not their thirds, so a
-take stays yours to harmonize live over. Depth has no effect: a third is in or
-out.
+take stays yours to harmonize live over. Depth has no effect: the harmony is in
+or out.
 
 **Wah on latch is what the instrument ships as**, because it is the setting that
 makes G0 sound like the instrument is doing something on its own: one tap and it
@@ -265,7 +279,8 @@ tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 | allocation | strings (mono rows) / free poly | strings | settings |
 | jam rows (drones) | off / bottom / bottom 2 | bottom | settings |
 | jam motion | sustained / pulse / arp (1 drone/beat) / progression | progression | settings |
-| jam tempo / chord length | 40-240 bpm / 1-8 beats | 100 / 4 | settings |
+| jam tempo / chord length | 40-240 bpm (a tap moves 1, holding moves 4 at a time) / 1-8 beats | 100 / 4 | settings |
+| arp swing | 50-75% (straight, light, shuffle, heavy) | 50% | settings (JAM) |
 | loop snap | off / beat / bar | bar | settings |
 | octave keys | sweep (glide) / re-strike | sweep | settings |
 | trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate, trill, harmony / 0-100% / momentary, latch | wah / 70% / latch | settings (right trigger, G0) |
@@ -276,12 +291,17 @@ tempo (`\\`) or the BPM setting moves the sweep and the chop with it.
 | sub / noise / drive / auto-vib | 0-1 / 0-1 / 1-8 / cents | per sound | saved in sound |
 | chorus / delay / reverb send | 0-100% each | per sound | settings (live) |
 | delay time / sync / feedback | 10-600ms / free+5 divisions / 0-90% | per sound | settings (live) |
+| reverb size | 0-100% (tail length) | per sound | settings, saved in sound |
+| fat detune | 0-50 cents (the spread of the *fat* wave's three saws) | 12 | settings, saved in sound |
+| mod envelope (atk / dec) | 1 ms-2 s / 10 ms-4 s | 10 ms / 300 ms | settings, saved in sound (a mod-matrix source) |
 | tap tempo | 40-240 bpm, tapped | live | `\` key, settings |
 | metronome | on/off + 0-100% volume | off / 60% | fn+`\`, fn+ctrl/opt, settings |
 | tilt map | global (follows your hands) / per sound | global | settings |
-| tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings, enter toggles |
+| tilt routing (f/b + l/r) | off / cutoff / vibrato / volume / morph | Morph f/b + vibrato l/r | settings; enter cycles off / f/b / both, hold enter latches |
 | tilt depth | 0-100% | 90% morph f/b, 60% vibrato l/r | settings |
+| tilt reach (morph) | 20-90 degrees of lean for a full blend | 60 | settings |
 | tilt center | calibrated "flat" | 0 | settings (hold + set) |
+| morph time | off / 50-2000 ms | 300 ms | settings |
 | display | waveform scope / pitch trail | pitch trail | settings |
 | theme | 10 palettes + **custom** | cassette | settings |
 | custom: hue / accent / vividness / ground / contrast | full circle / angle from hue / 0-100% / black..bright / 0-100% | fitted to the palette you left | settings (only while theme = custom) |
@@ -333,6 +353,8 @@ Real players kept missing the gestures above — `fn`+`k`, `fn`+`s`, the LISTEN 
 **Your saved sounds live on the microSD card.** Saving over a slot (`fn`+`shift`+letter) writes a file in `/glide/slots/` on the card — the same `.gpat` format as the library, so a slot, a library patch, and a Discord attachment are all the same thing. No card in? The instrument plays exactly the same (the ten slots fall back to their factory and generative sounds, and everything about *making* sound is card-free); only saving asks for a card, and it says so in plain words: **no SD card — insert a card to save sounds.** Pop the card back in and your slots return, mid-session, no reboot.
 
 Settings and the live working sound persist on the device itself, so they survive reboots, firmware updates, and card swaps. That sliver of flash is shared with the Launcher and every other app — and since v2.8 it **manages itself**: GLIDE keeps its footprint tiny, quietly mirrors your settings and live sound to the card, and if another app ever fills the shared space, the next boot cleans it out and restores everything automatically. You'd see a green **STORAGE FIXED — nothing to do, play on** note for two seconds, and that's the whole event. (Settings → SYSTEM → *Storage* just reads `OK`.)
+
+Settings → SYSTEM → **Demo mode** makes the instrument play itself: it spells a chord progression, improvises over it with slides, and wanders through the sounds. Press any key on the grid and the melody stops while the backing keeps looping, so you are simply playing over it. Handy for a table at a show, or for hearing what the instrument can do before you know how.
 
 Settings → SYSTEM also keeps the **odometer**: a quiet lifetime count of the notes you have struck and your hands-on hours. No goals, no streaks; just the instrument's life with you. It is a record, not a setting: it survives every reset below, the factory one included. Three ways back:
 
