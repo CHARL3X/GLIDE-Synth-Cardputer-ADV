@@ -49,7 +49,7 @@ Two more headline features:
 
   <img src="assets/glide-tilt.svg" alt="Tilt: lean the device forward and back to morph between the live sound and the last one; left and right adds vibrato; enter toggles; never pitch bend" width="100%">
 
-- **It finds a song's key by ear.** Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key — root, mode, even the tempo — and retunes the instrument so you can solo over anything. ADV only, since it needs the mic.
+- **It finds a song's key by ear.** Hold `fn`+`k` and the mic listens to whatever's playing in the room, works out the key (root, mode, even the tempo) and retunes the instrument so you can solo over anything. ADV only, since it needs the mic.
 
   <img src="assets/glide-listen.svg" alt="LISTEN: a song plays in the room, hold fn+k, the mic works out the key, mode, and tempo, and the instrument retunes itself" width="100%">
 
@@ -63,18 +63,18 @@ GLIDE is installed onto the Cardputer's own flash through **[bmorcelli's Launche
 
 No WiFi, no accounts, no setup. Power on, splash (the boot chime is a single note gliding up an octave, played through the synth itself), play.
 
-> **It only charges switched ON.** Plug in a Cardputer with the side switch off and the battery stays exactly as empty as it started — no light, no charge. Switch it on first, then plug in. Charging with GLIDE running is fine; for a dim screen instead, restart into Launcher → **CFG** → **charge mode**. And of the two triggers on the top edge, the left one (`BTN RST`) restarts the device — that's the way back to Launcher, not `` ` ``.
+> **It only charges switched ON.** Plug in a Cardputer with the side switch off and the battery stays exactly as empty as it started: no light, no charge. Switch it on first, then plug in. Charging with GLIDE running is fine; for a dim screen instead, restart into Launcher → **CFG** → **charge mode**. And of the two triggers on the top edge, the left one (`BTN RST`) restarts the device. That's the way back to Launcher, not `` ` ``.
 
 ### Updating
 
-A newer `GLIDE.bin` sitting on the card **does nothing on its own** — the copy that runs lives in the device's flash, so updating means replacing that copy. Saved sounds, tweaks and settings survive either way; they live outside the app.
+A newer `GLIDE.bin` sitting on the card **does nothing on its own**: the copy that runs lives in the device's flash, so updating means replacing that copy. Saved sounds, tweaks and settings survive either way; they live outside the app.
 
 - **Card.** [Download the latest `GLIDE.bin`](https://github.com/CHARL3X/GLIDE-Synth-Cardputer-ADV/releases/latest/download/GLIDE.bin), put it in `/apps/`, then **delete the installed GLIDE in Launcher first** and install the new one from `SD` → `apps`. Launcher *adds* an app rather than replacing it, so skipping the delete leaves you with two GLIDE tiles and only the splash version number to tell them apart. The illustrated walkthrough is in **[docs/updating.md](docs/updating.md)** ([printable PDF](docs/guides/GLIDE-Updating.pdf); there's a [playing guide](docs/guides/GLIDE-Playing.pdf) too, and a [one-page card](docs/guides/GLIDE-Card.pdf) that fits both on a single sheet).
-- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list — Launcher fetches and installs it with no computer and no card shuffling.
+- **OTA through Launcher.** Press `esc` (or any key) on Launcher's start screen, open **OTA**, connect to your WiFi, and find **GLIDE** in the list. Launcher fetches and installs it with no computer and no card shuffling.
 
 ## The first five minutes
 
-There's a full HOW TO PLAY screen on the device itself (settings → help), and the complete **[manual](docs/manual.md)** in this repo. But two pictures carry most of it: where everything sits, and where sounds come from.
+There's a full HOW TO PLAY screen on the device itself (settings → *How to play*), and the complete **[manual](docs/manual.md)** in this repo. But two pictures carry most of it: where everything sits, and where sounds come from.
 
 <p align="center">
   <img src="assets/glide-keymap.svg" alt="GLIDE keymap: four note rows played as strings, control keys labeled around them, fn chords listed beneath" width="100%">
@@ -95,11 +95,16 @@ There's a full HOW TO PLAY screen on the device itself (settings → help), and 
 
  fn + q..p         : switch between the ten sounds, live
  fn + shift + q..p : save your current tweaks over that slot
- fn + 1..0         : pick a parameter, [ ] to adjust
  fn + k            : cycle the key (root) up a semitone (HOLD: listen & retune)
- fn + a            : arpeggiate the backing chords (fn+z rate, fn+x span)
+ fn + s            : cycle the scale
+ fn + shift + k/s  : the same cycles, backwards
+ fn + a            : arpeggiate the backing chords (forwards only)
+
+ ADVANCED MODE ADDS
+ fn + 1..0         : pick a parameter, [ ] to adjust
+ fn + z / fn + x   : arp rate / arp span
  fn + h            : harmony, a second voice above in key (toggle)
- fn + shift + k/s  : the same cycles, backwards (the arp ring is forwards only)
+ fn + c            : chord mode, every key plays its whole chord (toggle)
 ```
 </details>
 
@@ -116,17 +121,22 @@ From there, the first five minutes go like this:
 - **Slide a chord.** The same move, with more fingers: hold a shape across rows, then re-finger it a few columns over while the old notes still ring. Every voice glides to its new target. This is the thing.
 - **Hold `shift`** to break out of the scale into pure chromatic semitones, only while held. That's the skill gate.
 - **Tap the bottom row** to latch drones and chord progressions under your solo (that's the amber row in the picture); **alt** is a one-button loop pedal. A backing band in your left thumb.
-- **Roll your own sounds.** `tab` opens settings on two big **Randomize** and **Mutate** buttons — the one-tap roll pictured up top. Every roll auditions instantly, undo/redo means you never lose a keeper, and `fn`+`shift`+letter saves it to a slot, or save it to SD with a name.
-- **Tilt the device.** `enter` toggles the gyro: lean forward and back and the sound morphs into the one you were just on; left and right adds vibrato. Rewire either axis in settings.
+- **Roll your own sounds.** `tab` opens settings on two big **Randomize** and **Mutate** buttons: the one-tap roll pictured up top. Every roll auditions instantly, undo/redo means you never lose a keeper, and `fn`+`shift`+letter saves it to a slot, or save it to SD with a name.
+- **Two depths.** A new unit starts in **Basic**: the essentials, with every key doing one job. **Advanced** (the first row of settings) adds chord mode, harmony, live sound knobs, effects and modulation. Switching loses nothing.
+- **Tilt the device.** `enter` toggles the gyro: lean forward and back and the sound morphs into the one you were just on; left and right adds vibrato. Pick a different *Tilt feel* in settings; Advanced rewires each axis on its own.
 - **Match whatever's playing.** Hold `fn`+`k` and the mic retunes the instrument to the song's key (ADV): your shapes stay where they are, the notes underneath them move. A single tap of `fn`+`k` changes the key by hand.
 
-  <img src="assets/glide-autokey.svg" alt="Autokey: the mic's chromagram finds the song's tonic, and the key rows retune under your unmoved fingers — same keys, now in the song's key" width="100%">
-- Lost? **bksp** is panic (silence everything); hold **`` ` ``** to save and restart. (That reboots straight back into GLIDE — for Launcher, press **BTN RST** on the top edge and tap a key as it comes up.)
+  <img src="assets/glide-autokey.svg" alt="Autokey: the mic's chromagram finds the song's tonic, and the key rows retune under your unmoved fingers: same keys, now in the song's key" width="100%">
+- Lost? **bksp** is panic (silence everything); hold **`` ` ``** to save and restart. (That reboots straight back into GLIDE; for Launcher, press **BTN RST** on the top edge and tap a key as it comes up.)
 
 Everything past that (the looper's overdub stack, the auto-progression, the mod matrix, the full tilt routing) is in the **[manual](docs/manual.md)**.
 
 ### Recently
 
+- **Two modes, Basic and Advanced.** A new GLIDE starts in **Basic**: the essentials, every key doing one job, everything you can do named on the screen. **Advanced** is Basic plus chord mode, harmony, the live sound knobs, effects and modulation. Switch any time on the first row of settings; switching never loses a sound or a setting. An updated unit asks which you want the first time it starts.
+- **Chord mode.** `fn`+`c` (Advanced) makes every key play its whole chord, always in key. On the chromatic scale the bottom row picks the chord by hand: major, minor, sevenths, diminished, augmented.
+- **A loop pedal that keeps time.** Tap `alt` and the metronome counts you in; the loop closes on the bar line, and the click and the loop share one clock, so a take never drifts. In chord mode it records whole chords.
+- **A calmer play screen.** What is switched on shows as a badge in the top bar, and a small strip under the scope carries the chords, the loop and a tilt slider that shows where your lean is taking the sound.
 - **Auto key now hears the mode, the home note, and the groove.** Hold `fn`+`k` and LISTEN does more than name a key: it tells Dorian from minor and Mixolydian from major by listening for the notes that separate them, re-seats the tonic when a two-chord vamp fools the textbook reading, and re-centres whatever scale you play (Blues included) on the song's true home. The same capture reads the tempo and locks the jam clock and synced delay to it; a beatless room leaves the tempo alone. The result card names what the song *is*, with the BPM beside it. Shuffle a playlist, hold two keys, solo.
 - **The odometer.** Settings keeps a quiet lifetime count of the notes you have struck and your hands-on hours. No goals, no streaks; just the instrument's life with you.
 - **The second wave: five new sound characters.** Randomize's archetype pool grows from nine to fourteen: a breathy **slide whistle** that always glides (the instrument's original soul), a **drawbar organ** spinning under a rotary, a **tine piano** for comping, a **wobble bass** whose filter pumps in time with the jam clock, and a **bowed string section** drenched in chorus. Rolls you couldn't get before, guarded by the same never-dead, never-shrill rules. The sound card now names the character each roll commits to, and the two seeded slots on devices you already own keep their exact sounds; the new pool arrives with a fresh seed or your own *Re-roll bank*, never as a side effect of updating.
@@ -144,7 +154,7 @@ The **[manual](docs/manual.md)** covers all of it:
 - **[Tilt](docs/manual.md#tilt)**: morph between two sounds by leaning the device, or route the gyro to vibrato, wah, or swell. Never pitch bend.
 - **[The jam](docs/manual.md#the-layering-jam-drones)**: latch drones on the bottom row, [tap in a chord progression](docs/manual.md#the-chord-progression-the-easy-way-to-back-yourself) with no timing required, or [loop a performance](docs/manual.md#the-loop-pedal) with the alt key, then [solo over it in a different octave and sound](docs/manual.md#soloing-over-the-jam-a-separate-register-and-sound) while the backing holds its ground.
 - **[Tempo & FX](docs/manual.md#tempo-the-synced-delay-and-the-live-fx-rack)**: tap tempo on `\`, a delay that locks to the beat, and the whole chorus/delay/reverb rack live on-device.
-- **[The modulation matrix](docs/manual.md#the-modulation-matrix-get-far-from-the-default)**: two LFOs, a second envelope, six routing slots, four filter modes. How two players with the same device end up with sounds that share no DNA.
+- **[The modulation matrix](docs/manual.md#the-modulation-matrix-advanced)**: two LFOs, a second envelope, six routing slots, four filter modes. How two players with the same device end up with sounds that share no DNA.
 - **[Every parameter](docs/manual.md#every-parameter)** and **[persistence & factory reset](docs/manual.md#persistence-and-reset)**.
 
 Bug reports and sounds are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -155,7 +165,7 @@ GLIDE is free to download and play under the **[PolyForm Noncommercial License 1
 
 The name, the logo, and the artwork in `assets/` are not part of that grant.
 
-Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and their licences travel with the firmware in [`dist/NOTICES.txt`](dist/NOTICES.txt) — pass that along with any copy of the binary you share.
+Want to ship GLIDE inside a product, or sell devices with it loaded? A separate commercial licence is available: **[LICENSING.md](LICENSING.md)** has the details and how to ask. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and their licences travel with the firmware in [`dist/NOTICES.txt`](dist/NOTICES.txt). Pass that along with any copy of the binary you share.
 
 ---
 
