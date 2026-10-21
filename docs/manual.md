@@ -105,7 +105,8 @@ The bank is just the floor. The point is **rolling your own**:
   <img src="../assets/glide-roll.svg" alt="Rolling a sound: one tap of Randomize commits to a character, paints every parameter inside that character's bounds, and lands a named, playable sound" width="100%">
 </p>
 
-- **Randomize.** A whole new patch in one tap, and a whole new *kind* of patch. Every roll first commits to a character (a pluck that stops, a bell that rings, a pad that swells, a sub-heavy bass, an acid squelch, a singing lead, a brass swell, a chip trill, a breathy slide whistle, a rotary organ, a tine piano, a tempo-locked wobble bass, a bowed string section, a held-forever drone, a tempo-chopped gate, or pure chaos), then paints everything inside that character's musical bounds, and inside one of that family's *styles* (so two plucks can be a kalimba and a muted funk stab rather than two shades of one preset), with guardrails so a roll is always playable: never dead, blown out, or warbling off-key. Two presses never repeat a family back to back. Roll till you love one.
+- **Randomize.** A whole new patch in one tap, and a whole new *kind* of patch. Every roll first commits to a character (a pluck that stops, a bell that rings, a pad that swells, a sub-heavy bass, an acid squelch, a singing lead, a brass swell, a chip trill, a breathy slide whistle, a rotary organ, a tine piano, a tempo-locked wobble bass, a bowed string section, a held-forever drone, a tempo-chopped gate, a struck mallet, an electric piano, ringing glass, a reed, a breathy flute, a buzzing sitar, a slow swell, warbling tape keys, a phasey sweep, a hard-sync lead, or pure chaos), then paints everything inside that character's musical bounds, and inside one of that family's *styles* (so two plucks can be a kalimba and a muted funk stab rather than two shades of one preset), with guardrails so a roll is always playable: never dead, blown out, or warbling off-key. Two presses never repeat a family back to back. Many rolls also come with an *oscillator color* (below) that suits the family. Roll till you love one.
+- **Roll family.** The row right above Randomize picks the family it rolls in: *any* (all of them), or one, so every roll is a new e-piano, a new bass, a new bell. It lasts until you power off.
 - **Mutate** (with **Mutate amt**, Advanced). Don't start over, evolve what you have. A gentle mutate is a neighbour, same character nudged. A wild one rewrites it. Sculpting toward a vibe instead of pulling a slot machine.
 - **Undo / Redo.** Every roll, mutate, and init checkpoints first, so you can always step back to the sound you just had. Experiment without ever trashing a keeper.
 - **Init sound** (Advanced). A blank, neutral sound to build up by hand.
@@ -232,6 +233,8 @@ Tilt was the first assignable modulator. Now there's a whole rack of them, which
 
 **Filter modes** (settings → TONE → *Filter mode*): the filter does **lowpass** (the original voice), **highpass** (thin/airy), **bandpass** (vocal/telephone), and **notch** (hollow/phasey), free, because the filter already computes them all.
 
+**Oscillator color** (Advanced, settings → TONE → *Osc color* and *Color amt*): one extra stage that reshapes the raw wave before the filter. **FM** and **FM 2x** add the bright, glassy overtones of the classic FM keyboards, **FM bell** the clangy inharmonic ones, **phase** is Casio CZ phase distortion, **fold** is a wavefolder, **sync** a hard-sync rip, **ring** ring modulation. Its depth follows each note's envelope, so a struck FM note is brightest at the strike and mellows as it rings. It is saved in the sound, the sound card shows its badge, Mutate nudges *Color amt* when a color is on, and the tilt morph hands one color over to another smoothly. *Off* sounds exactly as before.
+
 **Drift** (settings → TONE → *Drift*): every voice wanders in pitch on its own slow random walk, a few cents either side. It is the imperfection that separates a warm analog synth from a sterile digital one. Real oscillators never sat still, and a chord whose notes are *mathematically* identical is a chord your ear reads as fake. It ships on, subtly, because a feature nobody finds is a feature nobody has; turn it to **off** for dead-still digital, or up to 12 cents for something that has not seen a service in years. It is per-voice, so a held chord shimmers against itself rather than sliding as a block. The note readout deliberately does not wander with it.
 
 Every one of these saves with the slot (`fn`+`shift`+letter) and survives a reboot. And because patches use a **tagged format**, adding the next knob, or the one after that, will never wipe the sounds you've already saved. Expansion is the point. The further you get from the default, the more the instrument is *yours*.
@@ -344,10 +347,10 @@ yours to harmonize afresh.)
 
 ## Every parameter
 
-In Basic, settings shows these rows: *Mode*, *How to play*, *Randomize*,
+In Basic, settings shows these rows: *Mode*, *How to play*, *Roll family*, *Randomize*,
 *Mutate*, *Undo*, *Redo*, *Save to SD*, *Load from SD*, *Sound reset*, *Root
 key*, *Scale*, *Backing row*, *Tempo*, *Loop snap*, *Tilt feel*, *Tilt center*,
-*Trigger action*, *Demo mode*, *Display*, *Theme* (with *Roll look* while it
+*Trigger action*, *Even volume*, *Demo mode*, *Display*, *Theme* (with *Roll look* while it
 reads *custom*), *Screen idle*, *Tutorial*, *Odometer* and *Reset defaults*.
 Every other row below, and everything on `fn`+`1`..`0`, is Advanced.
 
@@ -373,6 +376,7 @@ Every other row below, and everything on `fn`+`1`..`0`, is Advanced.
 | trigger action / depth / mode | muffle, brighten, pitch dive, drive grit, synth morph, wah, gate, trill, harmony / 0-100% / momentary, latch | wah / 70% / latch | settings (right trigger, G0) |
 | sound slots | 10 (q=GLIDE, w=ACID, e..i curated, o/p generative per device) | curated + 2 rolled | fn+q..p, fn+shift+q..p |
 | generate | randomize / mutate (+amount) / undo-redo / init / re-roll bank | live | settings (CREATE) |
+| roll family | any / one of the 26 families | any (resets at power-off) | settings (CREATE) |
 | SD library | save / load / delete named .gpat patches (unlimited) | live | settings (LIBRARY), browser |
 | filter env (atk/dec/depth) | 1ms-2s / 10ms-2s / 0-3+ oct | per sound | settings, saved in sound |
 | sub / noise / drive / auto-vib | 0-1 / 0-1 / 1-8 / cents | per sound | saved in sound |
@@ -380,6 +384,8 @@ Every other row below, and everything on `fn`+`1`..`0`, is Advanced.
 | delay time / sync / feedback | 10-600ms / free+5 divisions / 0-90% | per sound | settings (live) |
 | reverb size | 0-100% (tail length) | per sound | settings, saved in sound |
 | fat detune | 0-50 cents (the spread of the *fat* wave's three saws) | 12 | settings, saved in sound |
+| osc color / color amt | off, fm, fm 2x, fm bell, phase, fold, sync, ring / 0-100% | off | settings (TONE), saved in sound |
+| even volume | speaker / phones / off | speaker | settings (SYSTEM) |
 | mod envelope (atk / dec) | 1 ms-2 s / 10 ms-4 s | 10 ms / 300 ms | settings, saved in sound (a mod-matrix source) |
 | tap tempo | 40-240 bpm, tapped | live | `\` key, settings |
 | metronome | on/off + 0-100% volume | off / 60% | fn+`\`, fn+ctrl/opt, settings |
@@ -450,6 +456,8 @@ Real players kept missing the gestures above (`fn`+`k`, `fn`+`s`, the LISTEN hol
 **Your saved sounds live on the microSD card.** Saving over a slot (`fn`+`shift`+letter) writes a file in `/glide/slots/` on the card, in the same `.gpat` format as the library, so a slot, a library patch, and a Discord attachment are all the same thing. No card in? The instrument plays exactly the same (the ten slots fall back to their factory and generative sounds, and everything about *making* sound is card-free); only saving asks for a card, and it says so in plain words: **no SD card: insert a card to save sounds.** Pop the card back in and your slots return, mid-session, no reboot.
 
 Settings and the live working sound persist on the device itself, so they survive reboots, firmware updates, and card swaps. That sliver of flash is shared with the Launcher and every other app, and since v2.8 it **manages itself**: GLIDE keeps its footprint tiny, quietly mirrors your settings and live sound to the card, and if another app ever fills the shared space, the next boot cleans it out and restores everything automatically. You'd see a green **STORAGE FIXED** screen (*Nothing to do - play on.*) for two seconds, and that's the whole event. (Settings → SYSTEM → *Storage*, an Advanced row, just reads `OK`.)
+
+Settings → SYSTEM → **Even volume** keeps every sound at one loudness. Each sound is measured at a low, middle and high note and trimmed to match, so plucks, bells and the low end of pure waves no longer sink under big saws and brass, and low sines and triangles get a few upper harmonics so the little speaker can carry them. The instrument as a whole is no louder. *Speaker* (the default) tunes it for the built-in speaker, *phones* for headphones or an amp, and *off* plays every sound at its raw level.
 
 Settings → SYSTEM → **Demo mode** makes the instrument play itself: it spells a chord progression, improvises over it with slides, and wanders through the sounds. Press any key on the grid and the melody stops while the backing keeps looping, so you are simply playing over it. Handy for a table at a show, or for hearing what the instrument can do before you know how.
 

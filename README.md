@@ -133,6 +133,9 @@ Everything past that (the looper's overdub stack, the auto-progression, the mod 
 
 ### Recently
 
+- **Ten new kinds of sound.** Randomize can now roll mallets, electric piano, glass, reed, flute, sitar, swells, tape, phase sweeps and hard-sync leads. *Roll family*, right above Randomize, keeps it in the family you pick.
+- **Oscillator color.** FM, FM bell, Casio CZ style phase distortion, a wavefolder, hard sync and ring mod, with depth that follows each note's envelope (Advanced, settings → TONE).
+- **Even volume.** Every sound sits at the same loudness on the speaker, so quiet plucks, bells and low notes come through (settings → SYSTEM).
 - **Two modes, Basic and Advanced.** A new GLIDE starts in **Basic**: the essentials, every key doing one job, everything you can do named on the screen. **Advanced** is Basic plus chord mode, harmony, the live sound knobs, effects and modulation. Switch any time on the first row of settings; switching never loses a sound or a setting. An updated unit asks which you want the first time it starts.
 - **Chord mode.** `fn`+`c` (Advanced) makes every key play its whole chord, always in key. On the chromatic scale the bottom row picks the chord by hand: major, minor, sevenths, diminished, augmented.
 - **A loop pedal that keeps time.** Tap `alt` and the metronome counts you in; the loop closes on the bar line, and the click and the loop share one clock, so a take never drifts. In chord mode it records whole chords.
