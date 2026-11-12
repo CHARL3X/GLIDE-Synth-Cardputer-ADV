@@ -25,6 +25,7 @@ their terms apply to that binary as well as GLIDE's own.
 | M5GFX | 0.2.24 | MIT, with LovyanGFX-derived portions under FreeBSD (BSD 2-Clause) | `LICENSE` + `license.txt` (LovyanGFX, TFT_eSPI, Adafruit) |
 | Arduino core for ESP32 (`espressif32@6.12.0`) | 6.12.0 | LGPL-2.1-or-later | `LICENSE.md` in `framework-arduinoespressif32` |
 | ESP-IDF components beneath that core | as shipped with the platform | Apache-2.0, plus some third-party components under their own terms | Per-component notices under `tools/sdk/` |
+| TinyUSB (in `GLIDE-MIDI.bin` only) | as shipped with that core | MIT (© 2019 Ha Thach, tinyusb.org) | License header in `tusb.h`; reproduced in `dist/NOTICES.txt` |
 
 Each library's authoritative licence text is the one its authors publish; that
 text governs, not this table. If you redistribute the compiled binary, ship

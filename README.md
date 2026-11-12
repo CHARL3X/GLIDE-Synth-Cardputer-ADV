@@ -133,6 +133,8 @@ Everything past that (the looper's overdub stack, the auto-progression, the mod 
 
 ### Recently
 
+- **USB MIDI, as a beta.** A second download on the release page, `GLIDE-MIDI.bin`, makes GLIDE a USB MIDI device: clock in and out, notes in from a keyboard or DAW (snapped into GLIDE's key), notes out to other synths and VSTs, tilt as the mod wheel. The normal `GLIDE.bin` and Launcher OTA are unchanged. Details in the [manual](docs/manual.md).
+- **Auto key lands somewhere safe.** LISTEN still names the key and mode it hears, and now drops you on that key's pentatonic, so the first thing you play over the song lands clean. `space` on the card walks the fixes, major/minor flip first.
 - **Ten new kinds of sound.** Randomize can now roll mallets, electric piano, glass, reed, flute, sitar, swells, tape, phase sweeps and hard-sync leads. *Roll family*, right above Randomize, keeps it in the family you pick.
 - **Oscillator color.** FM, FM bell, Casio CZ style phase distortion, a wavefolder, hard sync and ring mod, with depth that follows each note's envelope (Advanced, settings → TONE).
 - **Even volume.** Every sound sits at the same loudness on the speaker, so quiet plucks, bells and low notes come through (settings → SYSTEM).

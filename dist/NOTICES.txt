@@ -1,11 +1,11 @@
 ================================================================================
-GLIDE v3.8 — third-party notices
+GLIDE v3.9 — third-party notices
 ================================================================================
 
-This file lists the software inside GLIDE.bin that was written by other people,
-and reproduces the licences that require it. Keep it with the firmware: if you
-pass the binary on — a download, a copy on an SD card, or a device with GLIDE
-flashed on it — this file goes with it.
+This file lists the software inside GLIDE.bin (and GLIDE-MIDI.bin) that was
+written by other people, and reproduces the licences that require it. Keep it
+with the firmware: if you pass the binary on — a download, a copy on an SD
+card, or a device with GLIDE flashed on it — this file goes with it.
 
 GLIDE itself is a separate matter from everything below.
 
@@ -965,6 +965,42 @@ Text below: the copy vendored at support/licenses/Apache-2.0.txt
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+--------------------------------------------------------------------------------
+
+================================================================================
+TinyUSB (GLIDE-MIDI.bin only) — MIT
+================================================================================
+
+The USB device stack that lets the GLIDE-MIDI.bin build show up as a USB MIDI
+port. It ships inside the Arduino core's SDK and is linked only into the MIDI
+build; GLIDE.bin does not contain it.
+
+  TinyUSB     Copyright (c) 2019 Ha Thach (tinyusb.org)
+
+Text below: the copy at support/licenses/MIT-TinyUSB.txt, from the stack's own headers.
+
+--------------------------------------------------------------------------------
+The MIT License (MIT)
+
+Copyright (c) 2019 Ha Thach (tinyusb.org)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 --------------------------------------------------------------------------------
 
 ================================================================================
